@@ -11,7 +11,8 @@ import {
   Globe,
   Search,
   MoreHorizontal,
-  Crown
+  Crown,
+  Settings
 } from 'lucide-react'
 import { User as UserType, ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole } from '@/types'
 
@@ -48,6 +49,7 @@ export default function Members() {
   const getRoleIcon = (rol: UserRole) => {
     switch (rol) {
       case 'maestro': return Crown
+      case 'admin': return Settings
       case 'manager': return Users
       case 'tecnico': return Cpu
       case 'relaciones_publicas': return Globe
@@ -55,9 +57,10 @@ export default function Members() {
     }
   }
 
-  const getRoleVariant = (rol: UserRole): 'orange' | 'cyan' | 'purple' | 'green' => {
+  const getRoleVariant = (rol: UserRole): 'orange' | 'red' | 'cyan' | 'purple' | 'green' => {
     switch (rol) {
       case 'maestro': return 'orange'
+      case 'admin': return 'red'
       case 'manager': return 'cyan'
       case 'tecnico': return 'purple'
       case 'relaciones_publicas': return 'green'
@@ -155,19 +158,21 @@ export default function Members() {
                   </div>
                 </div>
 
-                {/* Role Change (only for master) */}
-                {isMaster && !isCurrentUser && (
+                {/* Role Change (Maestro can assign Admin, Admins can assign other roles) */}
+                {((isMaster) || (user?.rol === 'admin' && member.rol !== 'maestro')) && !isCurrentUser && (
                   <div className="pt-3 border-t border-space-600">
                     <label className="text-xs text-muted-foreground mb-2 block">Cambiar rol:</label>
                     <select
                       value={member.rol}
                       onChange={(e) => handleRoleChange(member.id, e.target.value as UserRole)}
+                      title="Cambiar rol del miembro"
                       className="w-full px-3 py-2 rounded-lg bg-space-600 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
                     >
                       <option value="tecnico">Equipo Técnico</option>
                       <option value="manager">Manager</option>
                       <option value="relaciones_publicas">Relaciones Públicas</option>
-                      <option value="maestro">Usuario Maestro</option>
+                      {isMaster && <option value="admin">Administrador</option>}
+                      {isMaster && <option value="maestro">Usuario Maestro</option>}
                     </select>
                   </div>
                 )}

@@ -1,7 +1,10 @@
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { 
   User, 
   Mail, 
@@ -11,18 +14,74 @@ import {
   Users, 
   Globe,
   Crown,
-  Edit
+  Edit,
+  GraduationCap,
+  BookOpen,
+  Heart,
+  Clock,
+  Briefcase,
+  Save,
+  Settings
 } from 'lucide-react'
-import { ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/types'
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire } from '@/types'
 
 export default function Profile() {
-  const { user } = useAuth()
+  const { user, updateUserProfile } = useAuth()
+  const [isEditing, setIsEditing] = useState(false)
+  const [loading, setLoading] = useState(false)
+  
+  // Profile fields
+  const [career, setCareer] = useState(user?.career || '')
+  const [year, setYear] = useState(user?.year || '')
+  
+  // Questionnaire fields
+  const [intereses, setIntereses] = useState(user?.questionnaire?.intereses || '')
+  const [habilidades, setHabilidades] = useState(user?.questionnaire?.habilidades || '')
+  const [motivacion, setMotivacion] = useState(user?.questionnaire?.motivacion || '')
+  const [disponibilidad, setDisponibilidad] = useState(user?.questionnaire?.disponibilidad || '')
+  const [proyectosPrevios, setProyectosPrevios] = useState(user?.questionnaire?.proyectosPrevios || '')
+
+  useEffect(() => {
+    if (user) {
+      setCareer(user.career || '')
+      setYear(user.year || '')
+      setIntereses(user.questionnaire?.intereses || '')
+      setHabilidades(user.questionnaire?.habilidades || '')
+      setMotivacion(user.questionnaire?.motivacion || '')
+      setDisponibilidad(user.questionnaire?.disponibilidad || '')
+      setProyectosPrevios(user.questionnaire?.proyectosPrevios || '')
+    }
+  }, [user])
 
   if (!user) return null
 
-  const getRoleIcon = () => {
-    switch (user.rol) {
+  const handleSave = async () => {
+    setLoading(true)
+    try {
+      const questionnaire: Questionnaire = {
+        intereses,
+        habilidades,
+        motivacion,
+        disponibilidad,
+        proyectosPrevios
+      }
+      await updateUserProfile({
+        career,
+        year,
+        questionnaire
+      })
+      setIsEditing(false)
+    } catch (error) {
+      console.error('Error updating profile:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getRoleIcon = (rol: UserRole) => {
+    switch (rol) {
       case 'maestro': return Crown
+      case 'admin': return Settings
       case 'manager': return Users
       case 'tecnico': return Cpu
       case 'relaciones_publicas': return Globe
@@ -30,16 +89,17 @@ export default function Profile() {
     }
   }
 
-  const getRoleVariant = (): 'orange' | 'cyan' | 'purple' | 'green' => {
-    switch (user.rol) {
+  const getRoleVariant = (rol: UserRole): 'orange' | 'red' | 'cyan' | 'purple' | 'green' => {
+    switch (rol) {
       case 'maestro': return 'orange'
+      case 'admin': return 'red'
       case 'manager': return 'cyan'
       case 'tecnico': return 'purple'
       case 'relaciones_publicas': return 'green'
     }
   }
 
-  const RoleIcon = getRoleIcon()
+  const RoleIcon = getRoleIcon(user.rol)
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -72,10 +132,25 @@ export default function Profile() {
             
             {/* Edit Button */}
             <div className="md:ml-auto">
-              <Button variant="outline" className="border-space-600 text-white hover:bg-space-600">
-                <Edit className="w-4 h-4 mr-2" />
-                Editar Perfil
-              </Button>
+              {!isEditing ? (
+                <Button 
+                  onClick={() => setIsEditing(true)}
+                  variant="outline" 
+                  className="border-space-600 text-white hover:bg-space-600"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Completar Cuestionario
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleSave}
+                  disabled={loading}
+                  className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {loading ? 'Guardando...' : 'Guardar Cambios'}
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -106,14 +181,46 @@ export default function Profile() {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="flex items-center gap-3 p-4 rounded-lg bg-space-600/50">
               <Mail className="w-5 h-5 text-cyan-400" />
-              <div>
+              <div className="flex-1">
                 <p className="text-sm text-muted-foreground">Correo electrónico</p>
                 <p className="text-white">{user.email}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-4 rounded-lg bg-space-600/50">
-              <Calendar className="w-5 h-5 text-purple-400" />
-              <div>
+              <GraduationCap className="w-5 h-5 text-purple-400" />
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground">Carrera</p>
+                {isEditing ? (
+                  <Input 
+                    value={career}
+                    onChange={(e) => setCareer(e.target.value)}
+                    placeholder="Ej: Ingeniería Civil Informática"
+                    className="bg-space-700 border-space-500 text-white text-sm h-8 mt-1"
+                  />
+                ) : (
+                  <p className="text-white">{user.career || 'No especificada'}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-space-600/50">
+              <BookOpen className="w-5 h-5 text-green-400" />
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground">Año de Carrera</p>
+                {isEditing ? (
+                  <Input 
+                    value={year}
+                    onChange={(e) => setYear(e.target.value)}
+                    placeholder="Ej: 3er año"
+                    className="bg-space-700 border-space-500 text-white text-sm h-8 mt-1"
+                  />
+                ) : (
+                  <p className="text-white">{user.year || 'No especificado'}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-space-600/50">
+              <Calendar className="w-5 h-5 text-orange-400" />
+              <div className="flex-1">
                 <p className="text-sm text-muted-foreground">Miembro desde</p>
                 <p className="text-white">
                   {user.createdAt instanceof Date 
@@ -125,6 +232,114 @@ export default function Profile() {
                     : 'Fecha no disponible'
                   }
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Questionnaire Section */}
+          <div className="space-y-4 pt-4 border-t border-space-600">
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <Shield className="w-5 h-5 text-cyan-400" />
+              Cuestionario de Cualidades e Intereses
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Ayúdanos a conocerte mejor para asignar los roles y proyectos que mejor se adapten a ti.
+            </p>
+
+            <div className="space-y-6 mt-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-red-400" />
+                  ¿Cuáles son tus principales áreas de interés en el equipo?
+                </label>
+                {isEditing ? (
+                  <Textarea 
+                    value={intereses}
+                    onChange={(e) => setIntereses(e.target.value)}
+                    placeholder="Ej: Telecomunicaciones, propulsión, diseño 3D, etc."
+                    className="bg-space-700 border-space-500 text-white min-h-[80px]"
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground bg-space-800/50 p-3 rounded-lg border border-space-600">
+                    {user.questionnaire?.intereses || 'Aún no respondido.'}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white flex items-center gap-2">
+                  <Cpu className="w-4 h-4 text-purple-400" />
+                  ¿Qué habilidades técnicas o blandas posees?
+                </label>
+                {isEditing ? (
+                  <Textarea 
+                    value={habilidades}
+                    onChange={(e) => setHabilidades(e.target.value)}
+                    placeholder="Ej: Programación C++, Python, manejo de herramientas de taller, liderazgo, etc."
+                    className="bg-space-700 border-space-500 text-white min-h-[80px]"
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground bg-space-800/50 p-3 rounded-lg border border-space-600">
+                    {user.questionnaire?.habilidades || 'Aún no respondido.'}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white flex items-center gap-2">
+                  <Rocket className="w-4 h-4 text-orange-400" />
+                  ¿Qué te motiva a formar parte del USM Cubesat Team?
+                </label>
+                {isEditing ? (
+                  <Textarea 
+                    value={motivacion}
+                    onChange={(e) => setMotivacion(e.target.value)}
+                    placeholder="Cuéntanos por qué quieres participar..."
+                    className="bg-space-700 border-space-500 text-white min-h-[80px]"
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground bg-space-800/50 p-3 rounded-lg border border-space-600">
+                    {user.questionnaire?.motivacion || 'Aún no respondido.'}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-cyan-400" />
+                  ¿Cuál es tu disponibilidad horaria aproximada?
+                </label>
+                {isEditing ? (
+                  <Input 
+                    value={disponibilidad}
+                    onChange={(e) => setDisponibilidad(e.target.value)}
+                    placeholder="Ej: 5-10 horas semanales, principalmente tardes."
+                    className="bg-space-700 border-space-500 text-white"
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground bg-space-800/50 p-3 rounded-lg border border-space-600">
+                    {user.questionnaire?.disponibilidad || 'Aún no respondido.'}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-green-400" />
+                  ¿Has participado en proyectos previos (universitarios o personales)?
+                </label>
+                {isEditing ? (
+                  <Textarea 
+                    value={proyectosPrevios}
+                    onChange={(e) => setProyectosPrevios(e.target.value)}
+                    placeholder="Describe brevemente tus experiencias..."
+                    className="bg-space-700 border-space-500 text-white min-h-[80px]"
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground bg-space-800/50 p-3 rounded-lg border border-space-600">
+                    {user.questionnaire?.proyectosPrevios || 'Aún no respondido.'}
+                  </p>
+                )}
               </div>
             </div>
           </div>

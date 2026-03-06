@@ -1,4 +1,12 @@
-export type UserRole = 'maestro' | 'manager' | 'tecnico' | 'relaciones_publicas'
+export type UserRole = 'maestro' | 'admin' | 'manager' | 'tecnico' | 'relaciones_publicas'
+
+export interface Questionnaire {
+  intereses: string
+  habilidades: string
+  motivacion: string
+  disponibilidad: string
+  proyectosPrevios: string
+}
 
 export interface User {
   id: string
@@ -8,6 +16,9 @@ export interface User {
   rol: UserRole
   createdAt: Date
   isActive: boolean
+  career?: string
+  year?: string
+  questionnaire?: Questionnaire
 }
 
 export interface Project {
@@ -34,6 +45,7 @@ export interface Task {
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   maestro: 'Usuario Maestro',
+  admin: 'Administrador',
   manager: 'Manager',
   tecnico: 'Equipo Técnico',
   relaciones_publicas: 'Relaciones Públicas',
@@ -41,13 +53,15 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 
 export const ROLE_COLORS: Record<UserRole, string> = {
   maestro: 'bg-orange-500',
+  admin: 'bg-red-500',
   manager: 'bg-cyan-500',
   tecnico: 'bg-purple-500',
   relaciones_publicas: 'bg-green-500',
 }
 
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
-  maestro: 'Administrador total del sistema. Asigna y cambia roles de miembros.',
+  maestro: 'Dueño del sistema. Puede asignar administradores y cualquier otro rol.',
+  admin: 'Gestiona contenido, proyectos y asigna roles al equipo.',
   manager: 'Crea proyectos, controla el equipo y guía el desarrollo.',
   tecnico: 'Desarrollo de software, hardware, estructura, simulación y cálculos.',
   relaciones_publicas: 'Redes sociales, FabLab, contactos universitarios y trámites.',

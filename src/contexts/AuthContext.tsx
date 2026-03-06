@@ -19,6 +19,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, nombre: string, apellido: string) => Promise<void>
   signOut: () => Promise<void>
   updateUserRole: (userId: string, newRole: UserRole) => Promise<void>
+  updateUserProfile: (data: Partial<User>) => Promise<void>
   resetPassword: (email: string) => Promise<void>
   getAllUsers: () => Promise<User[]>
 }
@@ -79,6 +80,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser({ ...userData, id: newUser.uid })
   }
 
+  const updateUserProfile = async (data: Partial<User>) => {
+    if (!firebaseUser) return
+    await setDoc(doc(db, 'users', firebaseUser.uid), data, { merge: true })
+    if (user) {
+      setUser({ ...user, ...data })
+    }
+  }
+
   const resetPassword = async (email: string) => {
     await sendPasswordResetEmail(auth, email)
   }
@@ -110,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp, 
       signOut,
       updateUserRole,
+      updateUserProfile,
       resetPassword,
       getAllUsers
     }}>
