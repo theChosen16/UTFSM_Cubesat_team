@@ -52,10 +52,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, nombre: string, apellido: string) => {
     const { user: newUser } = await createUserWithEmailAndPassword(auth, email, password)
     
-    // Check if this is the first user
-    const usersQuery = query(collection(db, 'users'), orderBy('createdAt', 'asc'), limit(1))
-    const usersSnapshot = await getDocs(usersQuery)
-    const isFirstUser = usersSnapshot.empty
+    // Check if this is the first user by looking for any user document
+    // If the collection is empty, the first user is 'maestro'
+    let isFirstUser = false
+    try {
+      const usersSnapshot = await getDocs(query(collection(db, 'users'), limit(1)))
+      isFirstUser = usersSnapshot.empty
+    } catch (error) {
+      // If we can't read (due to rules), assume it's not the first or handle accordingly
+      console.error("Error checking first user:", error)
+      isFirstUser = false 
+    }
     
     const userData: Omit<User, 'id'> = {
       email,
