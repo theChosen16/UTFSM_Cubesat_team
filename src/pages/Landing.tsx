@@ -129,7 +129,7 @@ export default function Landing() {
               <a href="#" className="text-muted-foreground hover:text-cyan-400 transition-colors">
                 GitHub
               </a>
-              <a href="#" className="text-muted-foreground hover:text-cyan-400 transition-colors">
+              <a href="https://www.instagram.com/usm.cubesat.team/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-cyan-400 transition-colors">
                 Instagram
               </a>
               <a href="#" className="text-muted-foreground hover:text-cyan-400 transition-colors">
