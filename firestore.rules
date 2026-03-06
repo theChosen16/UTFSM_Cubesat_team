@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      // Allow creation if the user is authenticated and the ID matches
+      // This allows the first user (and others) to create their profile
+      allow create: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow read/update if the user is authenticated
+      // More restrictive rules can be added later (e.g., only self or maestro)
+      allow read, update: if request.auth != null && 
+        (request.auth.uid == userId || 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'maestro');
+      
+      // Only maestro can delete
+      allow delete: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'maestro';
+    }
+    
+    // Default rules for other collections
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
