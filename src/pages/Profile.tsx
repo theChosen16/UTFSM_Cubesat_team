@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { ChangeEvent, useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -21,9 +21,38 @@ import {
   Clock,
   Briefcase,
   Save,
-  Settings
+  Settings,
+  Rocket
 } from 'lucide-react'
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire } from '@/types'
+
+const ROLE_STYLES: Record<UserRole, { badge: 'orange' | 'red' | 'cyan' | 'purple' | 'green'; icon: string; background: string }> = {
+  maestro: {
+    badge: 'orange',
+    icon: 'text-orange-400',
+    background: 'bg-orange-500/20'
+  },
+  admin: {
+    badge: 'red',
+    icon: 'text-red-400',
+    background: 'bg-red-500/20'
+  },
+  manager: {
+    badge: 'cyan',
+    icon: 'text-cyan-400',
+    background: 'bg-cyan-500/20'
+  },
+  tecnico: {
+    badge: 'purple',
+    icon: 'text-purple-400',
+    background: 'bg-purple-500/20'
+  },
+  relaciones_publicas: {
+    badge: 'green',
+    icon: 'text-green-400',
+    background: 'bg-green-500/20'
+  }
+}
 
 export default function Profile() {
   const { user, updateUserProfile } = useAuth()
@@ -89,17 +118,11 @@ export default function Profile() {
     }
   }
 
-  const getRoleVariant = (rol: UserRole): 'orange' | 'red' | 'cyan' | 'purple' | 'green' => {
-    switch (rol) {
-      case 'maestro': return 'orange'
-      case 'admin': return 'red'
-      case 'manager': return 'cyan'
-      case 'tecnico': return 'purple'
-      case 'relaciones_publicas': return 'green'
-    }
-  }
-
   const RoleIcon = getRoleIcon(user.rol)
+  const roleStyles = ROLE_STYLES[user.rol]
+  const handleInputChange = (setter: (value: string) => void) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setter(event.target.value)
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -158,12 +181,12 @@ export default function Profile() {
           {/* Role Section */}
           <div className="p-4 rounded-lg bg-space-600/50">
             <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-xl bg-${getRoleVariant()}-500/20`}>
-                <RoleIcon className={`w-6 h-6 text-${getRoleVariant()}-400`} />
-              </div>
+                <div className={`p-3 rounded-xl ${roleStyles.background}`}>
+                  <RoleIcon className={`w-6 h-6 ${roleStyles.icon}`} />
+                </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <Badge variant={getRoleVariant()}>
+                  <Badge variant={roleStyles.badge}>
                     {ROLE_LABELS[user.rol]}
                   </Badge>
                   {user.rol === 'maestro' && (
@@ -193,7 +216,7 @@ export default function Profile() {
                 {isEditing ? (
                   <Input 
                     value={career}
-                    onChange={(e) => setCareer(e.target.value)}
+                    onChange={handleInputChange(setCareer)}
                     placeholder="Ej: Ingeniería Civil Informática"
                     className="bg-space-700 border-space-500 text-white text-sm h-8 mt-1"
                   />
@@ -209,7 +232,7 @@ export default function Profile() {
                 {isEditing ? (
                   <Input 
                     value={year}
-                    onChange={(e) => setYear(e.target.value)}
+                    onChange={handleInputChange(setYear)}
                     placeholder="Ej: 3er año"
                     className="bg-space-700 border-space-500 text-white text-sm h-8 mt-1"
                   />
@@ -255,7 +278,7 @@ export default function Profile() {
                 {isEditing ? (
                   <Textarea 
                     value={intereses}
-                    onChange={(e) => setIntereses(e.target.value)}
+                    onChange={handleInputChange(setIntereses)}
                     placeholder="Ej: Telecomunicaciones, propulsión, diseño 3D, etc."
                     className="bg-space-700 border-space-500 text-white min-h-[80px]"
                   />
@@ -274,7 +297,7 @@ export default function Profile() {
                 {isEditing ? (
                   <Textarea 
                     value={habilidades}
-                    onChange={(e) => setHabilidades(e.target.value)}
+                    onChange={handleInputChange(setHabilidades)}
                     placeholder="Ej: Programación C++, Python, manejo de herramientas de taller, liderazgo, etc."
                     className="bg-space-700 border-space-500 text-white min-h-[80px]"
                   />
@@ -293,7 +316,7 @@ export default function Profile() {
                 {isEditing ? (
                   <Textarea 
                     value={motivacion}
-                    onChange={(e) => setMotivacion(e.target.value)}
+                    onChange={handleInputChange(setMotivacion)}
                     placeholder="Cuéntanos por qué quieres participar..."
                     className="bg-space-700 border-space-500 text-white min-h-[80px]"
                   />
@@ -312,7 +335,7 @@ export default function Profile() {
                 {isEditing ? (
                   <Input 
                     value={disponibilidad}
-                    onChange={(e) => setDisponibilidad(e.target.value)}
+                    onChange={handleInputChange(setDisponibilidad)}
                     placeholder="Ej: 5-10 horas semanales, principalmente tardes."
                     className="bg-space-700 border-space-500 text-white"
                   />
@@ -331,7 +354,7 @@ export default function Profile() {
                 {isEditing ? (
                   <Textarea 
                     value={proyectosPrevios}
-                    onChange={(e) => setProyectosPrevios(e.target.value)}
+                    onChange={handleInputChange(setProyectosPrevios)}
                     placeholder="Describe brevemente tus experiencias..."
                     className="bg-space-700 border-space-500 text-white min-h-[80px]"
                   />
