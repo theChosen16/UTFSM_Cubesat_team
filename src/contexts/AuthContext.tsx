@@ -4,6 +4,7 @@ import {
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut as firebaseSignOut
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, collection, getDocs, query, limit } from 'firebase/firestore'
@@ -18,6 +19,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, nombre: string, apellido: string) => Promise<void>
   signOut: () => Promise<void>
   updateUserRole: (userId: string, newRole: UserRole) => Promise<void>
+  resetPassword: (email: string) => Promise<void>
   getAllUsers: () => Promise<User[]>
 }
 
@@ -77,6 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser({ ...userData, id: newUser.uid })
   }
 
+  const resetPassword = async (email: string) => {
+    await sendPasswordResetEmail(auth, email)
+  }
+
   const signOut = async () => {
     await firebaseSignOut(auth)
     setUser(null)
@@ -104,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp, 
       signOut,
       updateUserRole,
+      resetPassword,
       getAllUsers
     }}>
       {children}
