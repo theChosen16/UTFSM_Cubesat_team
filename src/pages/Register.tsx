@@ -44,10 +44,21 @@ export default function Register() {
     setLoading(true)
 
     try {
+      console.log('Intentando registro con:', email)
       await signUp(email, password, nombre, apellido)
+      console.log('Registro exitoso')
       navigate('/dashboard')
-    } catch (err) {
-      setError('Error al crear la cuenta. Intenta con otro correo.')
+    } catch (err: any) {
+      console.error('Error detallado de Firebase:', err)
+      if (err.code === 'auth/invalid-email') {
+        setError('El correo electrónico no es válido.')
+      } else if (err.code === 'auth/email-already-in-use') {
+        setError('Este correo ya está registrado.')
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setError('El registro con correo y contraseña no está habilitado en Firebase.')
+      } else {
+        setError(`Error: ${err.message || 'No se pudo crear la cuenta'}`)
+      }
     } finally {
       setLoading(false)
     }
