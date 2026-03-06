@@ -22,8 +22,34 @@ export default function Login() {
     try {
       await signIn(email, password)
       navigate('/dashboard')
-    } catch (err) {
-      setError('Credenciales inválidas. Verifica tu email y contraseña.')
+    } catch (err: unknown) {
+      const firebaseError = err as { code?: string }
+      switch (firebaseError.code) {
+        case 'auth/user-not-found':
+          setError('No existe una cuenta con este correo electrónico.')
+          break
+        case 'auth/wrong-password':
+          setError('La contraseña es incorrecta.')
+          break
+        case 'auth/invalid-credential':
+          setError('Credenciales inválidas. Verifica tu email y contraseña.')
+          break
+        case 'auth/too-many-requests':
+          setError('Demasiados intentos fallidos. Intenta de nuevo más tarde.')
+          break
+        case 'auth/network-request-failed':
+          setError('Error de conexión. Verifica tu conexión a internet.')
+          break
+        case 'auth/invalid-email':
+          setError('El correo electrónico no es válido.')
+          break
+        case 'auth/user-disabled':
+          setError('Esta cuenta ha sido deshabilitada.')
+          break
+        default:
+          setError('Credenciales inválidas. Verifica tu email y contraseña.')
+          break
+      }
     } finally {
       setLoading(false)
     }
