@@ -14,7 +14,7 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { signUp, signIn } = useAuth()
+  const { signUp } = useAuth()
   const navigate = useNavigate()
 
   const validateEmail = (email: string) => {
@@ -53,15 +53,11 @@ export default function Register() {
       if (err.code === 'auth/invalid-email') {
         setError('El correo electrónico no es válido.')
       } else if (err.code === 'auth/email-already-in-use') {
-        setError('Este correo ya está registrado. Intentando iniciar sesión...')
-        try {
-          await signIn(email, password)
-          navigate('/dashboard')
-        } catch (loginErr) {
-          setError('Este correo ya está registrado. Si es tu cuenta, intenta iniciar sesión.')
-        }
+        setError('Este correo ya está registrado. Inicia sesión desde la página de login.')
       } else if (err.code === 'auth/operation-not-allowed') {
         setError('El registro con correo y contraseña no está habilitado en Firebase.')
+      } else if (err.code === 'auth/weak-password') {
+        setError('La contraseña es demasiado débil. Usa al menos 6 caracteres.')
       } else {
         setError(`Error: ${err.message || 'No se pudo crear la cuenta'}`)
       }
