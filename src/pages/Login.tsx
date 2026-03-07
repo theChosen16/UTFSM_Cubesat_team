@@ -1,15 +1,26 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Satellite, Mail, Lock, AlertCircle } from 'lucide-react'
+import { Satellite, Mail, Lock, AlertCircle, ShieldAlert } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
+function isBlockedByClient(err: unknown): boolean {
+  const message = String((err as Error)?.message || '')
+  return (
+    message.includes('ERR_BLOCKED_BY_CLIENT') ||
+    message.includes('Failed to fetch') ||
+    message.includes('NetworkError') ||
+    message.includes('Load failed')
+  )
+}
+
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [blockerWarning, setBlockerWarning] = useState(false)
   const [loading, setLoading] = useState(false)
   const { signIn } = useAuth()
   const navigate = useNavigate()
@@ -17,6 +28,7 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setBlockerWarning(false)
     setLoading(true)
 
     try {
@@ -24,31 +36,38 @@ export default function Login() {
       navigate('/dashboard')
     } catch (err: unknown) {
       const firebaseError = err as { code?: string }
-      switch (firebaseError.code) {
-        case 'auth/user-not-found':
-          setError('No existe una cuenta con este correo electrónico.')
-          break
-        case 'auth/wrong-password':
-          setError('La contraseña es incorrecta.')
-          break
-        case 'auth/invalid-credential':
-          setError('Credenciales inválidas. Verifica tu email y contraseña.')
-          break
-        case 'auth/too-many-requests':
-          setError('Demasiados intentos fallidos. Intenta de nuevo más tarde.')
-          break
-        case 'auth/network-request-failed':
-          setError('Error de conexión. Verifica tu conexión a internet.')
-          break
-        case 'auth/invalid-email':
-          setError('El correo electrónico no es válido.')
-          break
-        case 'auth/user-disabled':
-          setError('Esta cuenta ha sido deshabilitada.')
-          break
-        default:
-          setError('Credenciales inválidas. Verifica tu email y contraseña.')
-          break
+
+      if (isBlockedByClient(err)) {
+        setBlockerWarning(true)
+        setError('La conexión a Firebase fue bloqueada. Desactiva tu bloqueador de anuncios o extensiones del navegador y recarga la página.')
+      } else {
+        switch (firebaseError.code) {
+          case 'auth/user-not-found':
+            setError('No existe una cuenta con este correo electrónico.')
+            break
+          case 'auth/wrong-password':
+            setError('La contraseña es incorrecta.')
+            break
+          case 'auth/invalid-credential':
+            setError('Credenciales inválidas. Verifica tu email y contraseña.')
+            break
+          case 'auth/too-many-requests':
+            setError('Demasiados intentos fallidos. Intenta de nuevo más tarde.')
+            break
+          case 'auth/network-request-failed':
+            setBlockerWarning(true)
+            setError('Error de conexión. Verifica tu conexión a internet o desactiva tu bloqueador de anuncios.')
+            break
+          case 'auth/invalid-email':
+            setError('El correo electrónico no es válido.')
+            break
+          case 'auth/user-disabled':
+            setError('Esta cuenta ha sido deshabilitada.')
+            break
+          default:
+            setError('Credenciales inválidas. Verifica tu email y contraseña.')
+            break
+        }
       }
     } finally {
       setLoading(false)
@@ -75,8 +94,16 @@ export default function Login() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <div className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
+                blockerWarning
+                  ? 'bg-yellow-500/20 text-yellow-300'
+                  : 'bg-red-500/20 text-red-400'
+              }`}>
+                {blockerWarning ? (
+                  <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                )}
                 <span>{error}</span>
               </div>
             )}

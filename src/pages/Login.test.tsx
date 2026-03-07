@@ -25,7 +25,7 @@ vi.mock('react-router-dom', async () => {
 vi.mock('@/lib/firebase', () => ({
   auth: {},
   db: {},
-  analytics: {},
+  analytics: null,
 }))
 
 function renderLogin() {
@@ -147,7 +147,23 @@ describe('Login', () => {
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
     await waitFor(() => {
-      expect(screen.getByText('Error de conexión. Verifica tu conexión a internet.')).toBeInTheDocument()
+      expect(screen.getByText('Error de conexión. Verifica tu conexión a internet o desactiva tu bloqueador de anuncios.')).toBeInTheDocument()
+    })
+  })
+
+  it('shows ad-blocker warning for blocked requests', async () => {
+    const blockedError = new Error('Failed to fetch')
+    mockSignIn.mockRejectedValueOnce(blockedError)
+    const user = userEvent.setup()
+
+    renderLogin()
+
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
+    await user.type(screen.getByPlaceholderText('••••••••'), 'somepassword')
+    await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/bloqueador de anuncios/)).toBeInTheDocument()
     })
   })
 
