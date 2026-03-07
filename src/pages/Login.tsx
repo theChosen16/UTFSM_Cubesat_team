@@ -94,11 +94,14 @@ export default function Login() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
-                blockerWarning
-                  ? 'bg-yellow-500/20 text-yellow-300'
-                  : 'bg-red-500/20 text-red-400'
-              }`}>
+              <div
+                role="alert"
+                className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
+                  blockerWarning
+                    ? 'bg-yellow-500/20 text-yellow-300'
+                    : 'bg-red-500/20 text-red-400'
+                }`}
+              >
                 {blockerWarning ? (
                   <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
                 ) : (
