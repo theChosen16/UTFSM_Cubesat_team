@@ -35,10 +35,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser)
       if (fbUser) {
-        const userDoc = await getDoc(doc(db, 'users', fbUser.uid))
-        if (userDoc.exists()) {
-          const userData = userDoc.data() as User
-          setUser({ ...userData, id: fbUser.uid })
+        const fallbackUser: User = {
+          id: fbUser.uid,
+          email: fbUser.email || '',
+          nombre: fbUser.displayName?.split(' ')[0] || '',
+          apellido: fbUser.displayName?.split(' ').slice(1).join(' ') || '',
+          rol: 'tecnico',
+          createdAt: new Date(),
+          isActive: true,
+        }
+
+        try {
+          const userDoc = await getDoc(doc(db, 'users', fbUser.uid))
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as User
+            setUser({ ...userData, id: fbUser.uid })
+          } else {
+            setUser(fallbackUser)
+          }
+        } catch (error) {
+          console.warn('No se pudo obtener datos de Firestore. Puede estar bloqueado por un bloqueador de anuncios.', error)
+          setUser(fallbackUser)
         }
       } else {
         setUser(null)

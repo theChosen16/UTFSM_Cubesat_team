@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
-import { getAnalytics } from 'firebase/analytics'
+import { getAnalytics, Analytics } from 'firebase/analytics'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,4 +16,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const db = getFirestore(app)
-export const analytics = getAnalytics(app)
+
+let analyticsInstance: Analytics | null = null
+try {
+  analyticsInstance = getAnalytics(app)
+} catch {
+  console.warn('Firebase Analytics no pudo inicializarse. Puede estar bloqueado por un bloqueador de anuncios.')
+}
+export const analytics = analyticsInstance
