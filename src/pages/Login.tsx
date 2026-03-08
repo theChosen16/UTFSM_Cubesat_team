@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { Satellite, Mail, Lock, AlertCircle, ShieldAlert } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { logger } from '@/lib/logger'
 
 function isBlockedByClient(err: unknown): boolean {
   const message = String((err as Error)?.message || '')
@@ -22,8 +23,13 @@ export default function Login() {
   const [error, setError] = useState('')
   const [blockerWarning, setBlockerWarning] = useState(false)
   const [loading, setLoading] = useState(false)
-  const { signIn } = useAuth()
+  const { signIn, user } = useAuth()
   const navigate = useNavigate()
+
+  // Redirect if already authenticated
+  if (user) {
+    return <Navigate to="/dashboard" replace />
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,6 +42,8 @@ export default function Login() {
       navigate('/dashboard')
     } catch (err: unknown) {
       const firebaseError = err as { code?: string }
+
+      logger.warn('Login failed', { code: firebaseError.code, email })
 
       if (isBlockedByClient(err)) {
         setBlockerWarning(true)

@@ -33,7 +33,7 @@ export default function Layout({ children }: LayoutProps) {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/projects', label: 'Proyectos', icon: FolderKanban },
-    ...(user?.rol === 'maestro' ? [{ path: '/members', label: 'Miembros', icon: Users }] : []),
+    ...(user?.rol === 'maestro' || user?.rol === 'admin' ? [{ path: '/members', label: 'Miembros', icon: Users }] : []),
     { path: '/profile', label: 'Mi Perfil', icon: User },
   ]
 

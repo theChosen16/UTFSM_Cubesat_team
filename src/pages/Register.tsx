@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { Satellite, Mail, Lock, User, AlertCircle, CheckCircle } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { logger } from '@/lib/logger'
 
 export default function Register() {
   const [nombre, setNombre] = useState('')
@@ -14,11 +15,16 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { signUp } = useAuth()
+  const { signUp, user } = useAuth()
   const navigate = useNavigate()
 
+  // Redirect if already authenticated
+  if (user) {
+    return <Navigate to="/dashboard" replace />
+  }
+
   const validateEmail = (email: string) => {
-    const validDomains = ['@usm.cl', '@sansano.usm.cl', '@usm.cl']
+    const validDomains = ['@usm.cl', '@sansano.usm.cl']
     return validDomains.some(domain => email.toLowerCase().endsWith(domain))
   }
 
@@ -44,22 +50,21 @@ export default function Register() {
     setLoading(true)
 
     try {
-      console.log('Intentando registro con:', email)
       await signUp(email, password, nombre, apellido)
-      console.log('Registro exitoso')
       navigate('/dashboard')
-    } catch (err: any) {
-      console.error('Error detallado de Firebase:', err)
-      if (err.code === 'auth/invalid-email') {
+    } catch (err: unknown) {
+      const firebaseError = err as { code?: string; message?: string }
+      logger.error('Registration failed', { code: firebaseError.code, email })
+      if (firebaseError.code === 'auth/invalid-email') {
         setError('El correo electrónico no es válido.')
-      } else if (err.code === 'auth/email-already-in-use') {
+      } else if (firebaseError.code === 'auth/email-already-in-use') {
         setError('Este correo ya está registrado. Inicia sesión desde la página de login.')
-      } else if (err.code === 'auth/operation-not-allowed') {
+      } else if (firebaseError.code === 'auth/operation-not-allowed') {
         setError('El registro con correo y contraseña no está habilitado en Firebase.')
-      } else if (err.code === 'auth/weak-password') {
+      } else if (firebaseError.code === 'auth/weak-password') {
         setError('La contraseña es demasiado débil. Usa al menos 6 caracteres.')
       } else {
-        setError(`Error: ${err.message || 'No se pudo crear la cuenta'}`)
+        setError(`Error: ${firebaseError.message || 'No se pudo crear la cuenta'}`)
       }
     } finally {
       setLoading(false)

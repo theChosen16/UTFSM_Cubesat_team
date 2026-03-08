@@ -10,6 +10,7 @@ import {
 import { doc, getDoc, setDoc, collection, getDocs, query, limit } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
 import { User, UserRole } from '@/types'
+import { logger } from '@/lib/logger'
 
 interface AuthContextType {
   user: User | null
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(fallbackUser)
           }
         } catch (error) {
-          console.warn('No se pudo obtener datos de Firestore. Puede estar bloqueado por un bloqueador de anuncios.', error)
+          logger.warn('Could not fetch Firestore user data – may be blocked by ad-blocker', { error: error instanceof Error ? error : undefined })
           setUser(fallbackUser)
         }
       } else {
@@ -79,8 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const usersSnapshot = await getDocs(query(collection(db, 'users'), limit(1)))
       isFirstUser = usersSnapshot.empty
     } catch (error) {
-      // If we can't read (due to rules), assume it's not the first or handle accordingly
-      console.error("Error checking first user:", error)
+      logger.error('Error checking first user', { error: error instanceof Error ? error : undefined })
       isFirstUser = false 
     }
     

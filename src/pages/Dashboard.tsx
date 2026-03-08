@@ -1,74 +1,85 @@
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { 
   Rocket, 
   FolderKanban, 
   Users, 
   Cpu, 
   Globe, 
-  TrendingUp,
   Clock,
   CheckCircle2
 } from 'lucide-react'
-import { ROLE_LABELS } from '@/types'
+import { ROLE_LABELS, UserRole } from '@/types'
+import { collection, getDocs } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { logger } from '@/lib/logger'
+
+interface MemberCount {
+  total: number
+  byRole: Record<string, number>
+}
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const [memberCount, setMemberCount] = useState<MemberCount>({ total: 0, byRole: {} })
+  const [loadingStats, setLoadingStats] = useState(true)
+
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const usersSnapshot = await getDocs(collection(db, 'users'))
+        const byRole: Record<string, number> = {}
+        usersSnapshot.docs.forEach(doc => {
+          const data = doc.data()
+          const role = data.rol || 'tecnico'
+          byRole[role] = (byRole[role] || 0) + 1
+        })
+        setMemberCount({ total: usersSnapshot.size, byRole })
+      } catch (error) {
+        logger.error('Error loading dashboard stats', { error })
+      } finally {
+        setLoadingStats(false)
+      }
+    }
+    loadStats()
+  }, [])
 
   const stats = [
     {
       title: 'Proyectos Activos',
-      value: '3',
+      value: '—',
       icon: FolderKanban,
       color: 'text-cyan-400',
       bg: 'bg-cyan-500/20'
     },
     {
       title: 'Tareas Pendientes',
-      value: '12',
+      value: '—',
       icon: Clock,
       color: 'text-orange-400',
       bg: 'bg-orange-500/20'
     },
     {
       title: 'Completadas',
-      value: '28',
+      value: '—',
       icon: CheckCircle2,
       color: 'text-green-400',
       bg: 'bg-green-500/20'
     },
     {
       title: 'Miembros',
-      value: '8',
+      value: loadingStats ? '…' : String(memberCount.total),
       icon: Users,
       color: 'text-purple-400',
       bg: 'bg-purple-500/20'
     },
   ]
 
-  const recentProjects = [
-    { name: 'Sistema de Comunicación', status: 'en_progreso', team: 'tecnico' },
-    { name: 'Diseño de Estructura', status: 'en_progreso', team: 'tecnico' },
-    { name: 'Campaña Redes Sociales', status: 'planificacion', team: 'relaciones_publicas' },
-  ]
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'en_progreso': return 'cyan'
-      case 'planificacion': return 'orange'
-      case 'completado': return 'green'
-      default: return 'secondary'
-    }
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'en_progreso': return 'En Progreso'
-      case 'planificacion': return 'Planificación'
-      case 'completado': return 'Completado'
-      default: return status
-    }
+  const ROLE_TEAM_MAP: Record<string, { label: string; icon: typeof Cpu; colorClass: string; bgClass: string }> = {
+    tecnico: { label: 'Equipo Técnico', icon: Cpu, colorClass: 'text-purple-400', bgClass: 'bg-purple-500/20' },
+    manager: { label: 'Manager', icon: Users, colorClass: 'text-cyan-400', bgClass: 'bg-cyan-500/20' },
+    relaciones_publicas: { label: 'Relaciones Públicas', icon: Globe, colorClass: 'text-green-400', bgClass: 'bg-green-500/20' },
   }
 
   return (
@@ -80,7 +91,7 @@ export default function Dashboard() {
             ¡Bienvenido, {user?.nombre}!
           </h1>
           <p className="text-muted-foreground mt-1">
-            Tu rol: <span className="text-cyan-400">{user ? ROLE_LABELS[user.rol] : ''}</span>
+            Tu rol: <span className="text-cyan-400">{user ? ROLE_LABELS[user.rol as UserRole] : ''}</span>
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -124,28 +135,10 @@ export default function Dashboard() {
             <CardDescription>Estado actual de los proyectos del equipo</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {recentProjects.map((project) => (
-                <div
-                  key={project.name}
-                  className="flex items-center justify-between p-4 rounded-lg bg-space-600/50 hover:bg-space-600 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-                      <Rocket className="w-5 h-5 text-cyan-400" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-white">{project.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Equipo: {project.team === 'tecnico' ? 'Técnico' : 'Relaciones Públicas'}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant={getStatusColor(project.status) as 'cyan' | 'orange' | 'green'}>
-                    {getStatusLabel(project.status)}
-                  </Badge>
-                </div>
-              ))}
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <Rocket className="w-12 h-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">No hay proyectos registrados aún.</p>
+              <p className="text-sm text-muted-foreground mt-1">Los proyectos aparecerán aquí cuando se creen.</p>
             </div>
           </CardContent>
         </Card>
@@ -161,34 +154,23 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-space-600/50">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                  <Cpu className="w-4 h-4 text-purple-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-white">Equipo Técnico</p>
-                  <p className="text-xs text-muted-foreground">4 miembros</p>
-                </div>
-                <TrendingUp className="w-4 h-4 text-green-400" />
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-space-600/50">
-                <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-                  <Users className="w-4 h-4 text-cyan-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-white">Manager</p>
-                  <p className="text-xs text-muted-foreground">2 miembros</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-space-600/50">
-                <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
-                  <Globe className="w-4 h-4 text-green-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-white">Relaciones Públicas</p>
-                  <p className="text-xs text-muted-foreground">2 miembros</p>
-                </div>
-              </div>
+              {Object.entries(ROLE_TEAM_MAP).map(([role, config]) => {
+                const RoleIcon = config.icon
+                const count = memberCount.byRole[role] || 0
+                return (
+                  <div key={role} className="flex items-center gap-3 p-3 rounded-lg bg-space-600/50">
+                    <div className={`w-8 h-8 rounded-lg ${config.bgClass} flex items-center justify-center`}>
+                      <RoleIcon className={`w-4 h-4 ${config.colorClass}`} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-white">{config.label}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {loadingStats ? '…' : `${count} miembro${count !== 1 ? 's' : ''}`}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </CardContent>
         </Card>

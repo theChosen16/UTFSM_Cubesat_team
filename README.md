@@ -6,11 +6,14 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 
 - [Tecnologías](#tecnologías)
 - [Funcionalidades](#funcionalidades)
+- [Roles y permisos](#roles-y-permisos)
 - [Requisitos previos](#requisitos-previos)
 - [Instalación](#instalación)
 - [Variables de entorno](#variables-de-entorno)
 - [Scripts disponibles](#scripts-disponibles)
 - [Despliegue](#despliegue)
+- [CI/CD](#cicd)
+- [Logging y diagnóstico](#logging-y-diagnóstico)
 - [Contribuir](#contribuir)
 - [Seguridad](#seguridad)
 
@@ -31,11 +34,32 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 
 - **Landing page** pública con información del equipo
 - **Autenticación**: registro, inicio de sesión y recuperación de contraseña vía Firebase Auth
-- **Dashboard** privado con resumen de actividad
-- **Proyectos**: listado y gestión de proyectos del equipo
-- **Miembros**: directorio de integrantes
-- **Perfil**: vista y edición de datos personales
-- Rutas protegidas que redirigen a login cuando el usuario no está autenticado
+- **Dashboard** privado con estadísticas en tiempo real desde Firestore
+- **Proyectos**: listado y gestión de proyectos del equipo (datos desde Firestore)
+- **Miembros**: directorio de integrantes con gestión de roles (accesible para maestro y admin)
+- **Perfil**: vista y edición de datos personales + cuestionario de cualidades
+- **Rutas protegidas** que redirigen a login cuando el usuario no está autenticado
+- **Redirección automática**: usuarios autenticados son redirigidos al dashboard si visitan login/registro
+- **Error Boundary** global que captura errores de React y muestra una pantalla de recuperación
+- **Logger de producción** para captura de errores y diagnóstico
+
+## Roles y permisos
+
+El sistema soporta 5 roles jerárquicos:
+
+| Rol | Descripción | Permisos clave |
+|-----|-------------|----------------|
+| **Maestro** | Dueño del sistema | Administración total, asignar cualquier rol, eliminar miembros |
+| **Admin** | Administrador | Gestionar contenido, proyectos y asignar roles (excepto maestro) |
+| **Manager** | Líder de proyecto | Crear proyectos, controlar el equipo, guiar desarrollo |
+| **Técnico** | Equipo técnico | Ver proyectos asignados, actualizar estado de tareas |
+| **Relaciones Públicas** | Comunicación | Gestionar redes sociales, coordinar recursos universitarios |
+
+### Administrador del sistema
+
+El usuario **maestro** actual es el primer usuario registrado en la plataforma. Los usuarios **admin** pueden gestionar miembros y roles desde la sección "Miembros" del menú lateral.
+
+> **Nota:** Solo correos institucionales de la USM (`@usm.cl` o `@sansano.usm.cl`) son aceptados para registro.
 
 ## Requisitos previos
 
@@ -92,10 +116,46 @@ VITE_FIREBASE_APP_ID=your-app-id
 
 El proyecto se despliega automáticamente en **GitHub Pages** mediante GitHub Actions:
 
-1. Cada push o pull request a `main` ejecuta el pipeline de CI (lint + build).
+1. Cada push o pull request a `main` ejecuta el pipeline de CI (lint + tests + build).
 2. Si el CI pasa, el workflow de despliegue publica la aplicación en GitHub Pages.
+3. Tras el despliegue, un smoke test verifica que la página es accesible (HTTP 200).
 
 La URL pública es: `https://thechosen16.github.io/UTFSM_Cubesat_team/`
+
+## CI/CD
+
+El pipeline de CI/CD incluye:
+
+- **CI** (`.github/workflows/ci.yml`): Lint → Tests → Build en cada PR y push a main
+- **Deploy** (`.github/workflows/deploy.yml`): Build + Deploy a GitHub Pages + smoke test post-despliegue
+
+### Flujo de trabajo
+
+```
+PR / Push a main  →  CI (lint + test + build)  →  Deploy a GitHub Pages  →  Smoke Test
+```
+
+## Logging y diagnóstico
+
+La plataforma incluye un sistema de logging estructurado (`src/lib/logger.ts`) que:
+
+- Captura errores de aplicación con contexto (timestamp, nivel, mensaje, metadata)
+- Intercepta errores globales (`window.onerror`) y promesas rechazadas (`unhandledrejection`)
+- Incluye un Error Boundary de React que captura y registra errores de componentes
+- Mantiene un buffer en memoria de hasta 200 entradas para diagnóstico
+
+Para acceder a los logs en la consola del navegador:
+
+```js
+// Ver todos los logs
+window.__cubesat_logger.getEntries()
+
+// Ver solo errores
+window.__cubesat_logger.getErrors()
+
+// Exportar logs como JSON
+window.__cubesat_logger.exportJSON()
+```
 
 ## Contribuir
 

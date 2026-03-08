@@ -64,3 +64,20 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  smoke-test:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Wait for deployment to propagate
+        run: sleep 30
+
+      - name: Verify deployment is accessible
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://thechosen16.github.io/UTFSM_Cubesat_team/")
+          echo "HTTP status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "::error::Deployment health check failed with status $HTTP_STATUS"
+            exit 1
+          fi
+          echo "✅ Deployment health check passed"
