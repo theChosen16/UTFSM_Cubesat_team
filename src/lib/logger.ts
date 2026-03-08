@@ -51,7 +51,7 @@ class Logger {
     }
   }
 
-  /** Serialise errors and strip circular references. */
+  /** Serialize errors and strip circular references. */
   private sanitizeContext(ctx: Record<string, unknown>): Record<string, unknown> {
     const sanitized: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(ctx)) {
