@@ -22,10 +22,13 @@ import {
   Briefcase,
   Save,
   Settings,
-  Rocket
+  Rocket,
+  Send
 } from 'lucide-react'
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS } from '@/types'
 import { logger } from '@/lib/logger'
+import { collection, addDoc, getDocs, query, where, Timestamp } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 const ROLE_STYLES: Record<UserRole, { badge: 'orange' | 'red' | 'cyan' | 'purple' | 'green'; icon: string; background: string }> = {
   maestro: {
@@ -72,6 +75,14 @@ export default function Profile() {
   const [disponibilidad, setDisponibilidad] = useState(user?.questionnaire?.disponibilidad || '')
   const [proyectosPrevios, setProyectosPrevios] = useState(user?.questionnaire?.proyectosPrevios || '')
 
+  // Role request state
+  const [showRoleRequest, setShowRoleRequest] = useState(false)
+  const [requestedRole, setRequestedRole] = useState<UserRole>('manager')
+  const [roleRequestMessage, setRoleRequestMessage] = useState('')
+  const [requestSending, setRequestSending] = useState(false)
+  const [requestSent, setRequestSent] = useState(false)
+  const [hasPendingRequest, setHasPendingRequest] = useState(false)
+
   useEffect(() => {
     if (user) {
       setCareer(user.career || '')
@@ -85,7 +96,52 @@ export default function Profile() {
     }
   }, [user])
 
+  useEffect(() => {
+    const checkPendingRequest = async () => {
+      if (!user) return
+      try {
+        const snapshot = await getDocs(
+          query(
+            collection(db, 'role_requests'),
+            where('userId', '==', user.id),
+            where('estado', '==', 'pendiente')
+          )
+        )
+        setHasPendingRequest(!snapshot.empty)
+      } catch (error) {
+        logger.error('Error checking pending role request', { error: error instanceof Error ? error : undefined })
+      }
+    }
+    checkPendingRequest()
+  }, [user])
+
   if (!user) return null
+
+  const canRequestRole = user.rol !== 'maestro' && user.rol !== 'admin'
+
+  const handleRoleRequest = async () => {
+    if (!user) return
+    setRequestSending(true)
+    try {
+      await addDoc(collection(db, 'role_requests'), {
+        userId: user.id,
+        userEmail: user.email,
+        userName: `${user.nombre} ${user.apellido}`,
+        rolSolicitado: requestedRole,
+        mensaje: roleRequestMessage.trim(),
+        estado: 'pendiente',
+        createdAt: Timestamp.now(),
+      })
+      setRequestSent(true)
+      setHasPendingRequest(true)
+      setShowRoleRequest(false)
+      setRoleRequestMessage('')
+    } catch (error) {
+      logger.error('Error sending role request', { error: error instanceof Error ? error : undefined })
+    } finally {
+      setRequestSending(false)
+    }
+  }
 
   const handleSave = async () => {
     setLoading(true)
@@ -261,12 +317,12 @@ export default function Profile() {
             <div className="flex items-center gap-3 p-4 rounded-lg bg-space-600/50">
               <BookOpen className="w-5 h-5 text-green-400" />
               <div className="flex-1">
-                <p className="text-sm text-muted-foreground">Año de Carrera</p>
+                <p className="text-sm text-muted-foreground">Año Ingreso Carrera</p>
                 {isEditing ? (
                   <Input 
                     value={year}
                     onChange={handleInputChange(setYear)}
-                    placeholder="Ej: 3er año"
+                    placeholder="Ej: 2024"
                     className="bg-space-700 border-space-500 text-white text-sm h-8 mt-1"
                   />
                 ) : (
@@ -472,6 +528,78 @@ export default function Profile() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Role Request Section */}
+      {canRequestRole && (
+        <Card className="bg-space-700/50 border-space-600">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Send className="w-5 h-5 text-cyan-400" />
+              Solicitar Cambio de Rol
+            </CardTitle>
+            <CardDescription>
+              Envía una solicitud al Usuario Maestro para cambiar tu rol en la plataforma
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {requestSent || hasPendingRequest ? (
+              <div className="p-4 rounded-lg bg-orange-500/20 text-orange-300 text-sm">
+                Ya tienes una solicitud de rol pendiente. El Usuario Maestro la revisará pronto.
+              </div>
+            ) : showRoleRequest ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-white">Rol solicitado</label>
+                  <select
+                    value={requestedRole}
+                    onChange={(e) => setRequestedRole(e.target.value as UserRole)}
+                    title="Seleccionar rol"
+                    className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                  >
+                    <option value="manager">Manager</option>
+                    <option value="admin">Administrador</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-white">Mensaje (opcional)</label>
+                  <Textarea
+                    value={roleRequestMessage}
+                    onChange={(e) => setRoleRequestMessage(e.target.value)}
+                    placeholder="Explica por qué deseas este rol..."
+                    className="bg-space-700 border-space-500 text-white min-h-[80px]"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleRoleRequest}
+                    disabled={requestSending}
+                    className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    {requestSending ? 'Enviando...' : 'Enviar Solicitud'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowRoleRequest(false)}
+                    className="border-space-600 text-white hover:bg-space-600"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                onClick={() => setShowRoleRequest(true)}
+                variant="outline"
+                className="border-space-600 text-white hover:bg-space-600"
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Solicitar Cambio de Rol
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

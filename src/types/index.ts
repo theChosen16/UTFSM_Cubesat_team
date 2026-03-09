@@ -1,6 +1,6 @@
 export type UserRole = 'maestro' | 'admin' | 'manager' | 'tecnico' | 'relaciones_publicas'
 
-export type TeamType = 'estructura' | 'software' | 'comunicaciones' | 'propulsion' | 'gestion' | 'relaciones_publicas'
+export type TeamType = 'tecnico' | 'manager' | 'relaciones_publicas'
 
 export interface Questionnaire {
   intereses: string
@@ -73,19 +73,26 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
 }
 
 export const TEAM_LABELS: Record<TeamType, string> = {
-  estructura: 'Estructura',
-  software: 'Software',
-  comunicaciones: 'Comunicaciones',
-  propulsion: 'Propulsión',
-  gestion: 'Gestión',
+  tecnico: 'Equipo Técnico',
+  manager: 'Manager',
   relaciones_publicas: 'Relaciones Públicas',
 }
 
 export const TEAM_COLORS: Record<TeamType, string> = {
-  estructura: 'bg-amber-500',
-  software: 'bg-blue-500',
-  comunicaciones: 'bg-indigo-500',
-  propulsion: 'bg-red-500',
-  gestion: 'bg-cyan-500',
+  tecnico: 'bg-purple-500',
+  manager: 'bg-cyan-500',
   relaciones_publicas: 'bg-green-500',
+}
+
+export interface RoleRequest {
+  id: string
+  userId: string
+  userEmail: string
+  userName: string
+  rolSolicitado: UserRole
+  mensaje: string
+  estado: 'pendiente' | 'aprobado' | 'rechazado'
+  createdAt: Date
+  resolvedAt?: Date
+  resolvedBy?: string
 }

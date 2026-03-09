@@ -10,11 +10,15 @@ import {
   Menu, 
   X,
   Rocket,
-  ListTodo
+  ListTodo,
+  Crown,
+  Shield,
+  Bell
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
 import { ROLE_LABELS } from '@/types'
+import { Badge } from '@/components/ui/badge'
 
 interface LayoutProps {
   children: ReactNode
@@ -34,9 +38,12 @@ export default function Layout({ children }: LayoutProps) {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/projects', label: 'Proyectos', icon: FolderKanban },
-    ...(user?.rol === 'maestro' || user?.rol === 'admin' ? [
+    ...(user?.rol === 'maestro' || user?.rol === 'admin' || user?.rol === 'manager' ? [
       { path: '/tasks', label: 'Gestión de Tareas', icon: ListTodo },
-      { path: '/members', label: 'Miembros', icon: Users },
+    ] : []),
+    { path: '/members', label: 'Miembros', icon: Users },
+    ...(user?.rol === 'maestro' ? [
+      { path: '/notifications', label: 'Solicitudes', icon: Bell },
     ] : []),
     { path: '/profile', label: 'Mi Perfil', icon: User },
   ]
@@ -76,13 +83,31 @@ export default function Layout({ children }: LayoutProps) {
           <div className="p-4 border-b border-space-600">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
-                <Rocket className="w-5 h-5 text-white" />
+                {user?.rol === 'maestro' ? (
+                  <Crown className="w-5 h-5 text-white" />
+                ) : user?.rol === 'admin' ? (
+                  <Shield className="w-5 h-5 text-white" />
+                ) : (
+                  <Rocket className="w-5 h-5 text-white" />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">
                   {user?.nombre} {user?.apellido}
                 </p>
-                <p className="text-xs text-cyan-400">{user ? ROLE_LABELS[user.rol] : ''}</p>
+                {user && (
+                  <Badge 
+                    variant={
+                      user.rol === 'maestro' ? 'orange' :
+                      user.rol === 'admin' ? 'red' :
+                      user.rol === 'manager' ? 'cyan' :
+                      user.rol === 'tecnico' ? 'purple' : 'green'
+                    }
+                    className="mt-1 text-xs"
+                  >
+                    {ROLE_LABELS[user.rol]}
+                  </Badge>
+                )}
               </div>
             </div>
           </div>

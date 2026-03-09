@@ -84,7 +84,7 @@ export default function Projects() {
     }
   }
 
-  const canCreateProject = user?.rol === 'maestro' || user?.rol === 'manager'
+  const canCreateProject = user?.rol === 'maestro' || user?.rol === 'admin' || user?.rol === 'manager'
 
   const filteredProjects = projects.filter(project =>
     project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

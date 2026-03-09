@@ -40,7 +40,7 @@ export default function TaskManagement() {
   const [asignadoA, setAsignadoA] = useState<string[]>([])
   const [prioridad, setPrioridad] = useState<'alta' | 'media' | 'baja'>('media')
 
-  const canManageTasks = user?.rol === 'maestro' || user?.rol === 'admin'
+  const canManageTasks = user?.rol === 'maestro' || user?.rol === 'admin' || user?.rol === 'manager'
 
   useEffect(() => {
     loadData()

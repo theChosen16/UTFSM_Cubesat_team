@@ -5,7 +5,7 @@ import type { TeamType, UserRole } from '@/types'
 describe('Types', () => {
   describe('Team constants', () => {
     it('defines all team labels', () => {
-      const teams: TeamType[] = ['estructura', 'software', 'comunicaciones', 'propulsion', 'gestion', 'relaciones_publicas']
+      const teams: TeamType[] = ['tecnico', 'manager', 'relaciones_publicas']
       teams.forEach(team => {
         expect(TEAM_LABELS[team]).toBeDefined()
         expect(typeof TEAM_LABELS[team]).toBe('string')
@@ -14,7 +14,7 @@ describe('Types', () => {
     })
 
     it('defines all team colors', () => {
-      const teams: TeamType[] = ['estructura', 'software', 'comunicaciones', 'propulsion', 'gestion', 'relaciones_publicas']
+      const teams: TeamType[] = ['tecnico', 'manager', 'relaciones_publicas']
       teams.forEach(team => {
         expect(TEAM_COLORS[team]).toBeDefined()
         expect(TEAM_COLORS[team]).toMatch(/^bg-/)
