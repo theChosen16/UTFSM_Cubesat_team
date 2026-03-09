@@ -39,6 +39,11 @@ export default function Members() {
   }
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
+    // Only maestro can assign admin or maestro roles
+    if ((newRole === 'admin' || newRole === 'maestro') && user?.rol !== 'maestro') {
+      logger.warn('Non-maestro user attempted to assign admin/maestro role', { userId, newRole })
+      return
+    }
     try {
       await updateUserRole(userId, newRole)
       await loadMembers()

@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard'
 import Projects from './pages/Projects'
 import Members from './pages/Members'
 import Profile from './pages/Profile'
+import TaskManagement from './pages/TaskManagement'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -36,6 +37,7 @@ function App() {
               <Routes>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/projects" element={<Projects />} />
+                <Route path="/tasks" element={<TaskManagement />} />
                 <Route path="/members" element={<Members />} />
                 <Route path="/profile" element={<Profile />} />
               </Routes>
