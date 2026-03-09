@@ -7,6 +7,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 - [Tecnologías](#tecnologías)
 - [Funcionalidades](#funcionalidades)
 - [Roles y permisos](#roles-y-permisos)
+- [Equipos](#equipos)
 - [Requisitos previos](#requisitos-previos)
 - [Instalación](#instalación)
 - [Variables de entorno](#variables-de-entorno)
@@ -34,10 +35,12 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 
 - **Landing page** pública con información del equipo
 - **Autenticación**: registro, inicio de sesión y recuperación de contraseña vía Firebase Auth
-- **Dashboard** privado con estadísticas en tiempo real desde Firestore
+- **Dashboard** privado con estadísticas en tiempo real desde Firestore (proyectos activos, tareas pendientes, completadas y miembros)
 - **Proyectos**: listado y gestión de proyectos del equipo (datos desde Firestore)
-- **Miembros**: directorio de integrantes con gestión de roles (accesible para maestro y admin)
-- **Perfil**: vista y edición de datos personales + cuestionario de cualidades
+- **Gestión de Tareas**: dashboard para maestro y admin que permite crear tareas asignando proyecto, equipo encargado, prioridad y responsable(s)
+- **Selección de equipo**: cada usuario puede elegir a qué equipo pertenecer desde su perfil, sin asignación automática
+- **Miembros**: directorio de integrantes con gestión de roles (accesible para maestro y admin). Solo el maestro puede asignar el rol de administrador
+- **Perfil**: vista y edición de datos personales, selección de equipo y cuestionario de cualidades
 - **Rutas protegidas** que redirigen a login cuando el usuario no está autenticado
 - **Redirección automática**: usuarios autenticados son redirigidos al dashboard si visitan login/registro
 - **Error Boundary** global que captura errores de React y muestra una pantalla de recuperación
@@ -49,17 +52,30 @@ El sistema soporta 5 roles jerárquicos:
 
 | Rol | Descripción | Permisos clave |
 |-----|-------------|----------------|
-| **Maestro** | Dueño del sistema | Administración total, asignar cualquier rol, eliminar miembros |
-| **Admin** | Administrador | Gestionar contenido, proyectos y asignar roles (excepto maestro) |
+| **Maestro** | Dueño del sistema | Administración total, asignar cualquier rol (incluido admin), eliminar miembros, gestionar tareas |
+| **Admin** | Administrador | Gestionar contenido, proyectos, tareas y asignar roles (excepto admin y maestro) |
 | **Manager** | Líder de proyecto | Crear proyectos, controlar el equipo, guiar desarrollo |
 | **Técnico** | Equipo técnico | Ver proyectos asignados, actualizar estado de tareas |
 | **Relaciones Públicas** | Comunicación | Gestionar redes sociales, coordinar recursos universitarios |
 
 ### Administrador del sistema
 
-El usuario **maestro** actual es el primer usuario registrado en la plataforma. Los usuarios **admin** pueden gestionar miembros y roles desde la sección "Miembros" del menú lateral.
+El usuario **maestro** actual es el primer usuario registrado en la plataforma. **Solo el maestro** puede asignar el rol de administrador a otros usuarios. Los usuarios **admin** pueden gestionar miembros y roles (excepto admin y maestro) desde la sección "Miembros" del menú lateral.
 
 > **Nota:** Solo correos institucionales de la USM (`@usm.cl` o `@sansano.usm.cl`) son aceptados para registro.
+
+## Equipos
+
+Los usuarios pueden seleccionar el equipo al que desean pertenecer desde su perfil. La asignación de equipo es independiente del rol y no se realiza de forma automática al registrarse. Los equipos disponibles son:
+
+| Equipo | Descripción |
+|--------|-------------|
+| **Estructura** | Diseño estructural y mecánico del satélite |
+| **Software** | Desarrollo de software embebido y de misión |
+| **Comunicaciones** | Sistemas de telecomunicaciones y enlace |
+| **Propulsión** | Sistemas de propulsión y control de actitud |
+| **Gestión** | Coordinación de proyectos y equipos |
+| **Relaciones Públicas** | Redes sociales, difusión y contactos |
 
 ## Requisitos previos
 
