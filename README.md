@@ -37,7 +37,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 - **Autenticación**: registro, inicio de sesión y recuperación de contraseña vía Firebase Auth
 - **Dashboard** privado con estadísticas en tiempo real desde Firestore (proyectos activos, tareas pendientes, completadas y miembros)
 - **Proyectos**: listado y gestión de proyectos del equipo (datos desde Firestore)
-- **Gestión de Tareas**: dashboard para maestro y admin que permite crear tareas asignando proyecto, equipo encargado, prioridad y responsable(s)
+- **Gestión de Tareas**: dashboard para maestro, admin y manager que permite crear tareas asignando proyecto, equipo encargado, prioridad y responsable(s)
 - **Selección de equipo**: cada usuario puede elegir a qué equipo pertenecer desde su perfil, sin asignación automática
 - **Miembros**: directorio de integrantes con gestión de roles (accesible para maestro y admin). Solo el maestro puede asignar el rol de administrador
 - **Perfil**: vista y edición de datos personales, selección de equipo y cuestionario de cualidades
@@ -70,12 +70,9 @@ Los usuarios pueden seleccionar el equipo al que desean pertenecer desde su perf
 
 | Equipo | Descripción |
 |--------|-------------|
-| **Estructura** | Diseño estructural y mecánico del satélite |
-| **Software** | Desarrollo de software embebido y de misión |
-| **Comunicaciones** | Sistemas de telecomunicaciones y enlace |
-| **Propulsión** | Sistemas de propulsión y control de actitud |
-| **Gestión** | Coordinación de proyectos y equipos |
-| **Relaciones Públicas** | Redes sociales, difusión y contactos |
+| **Equipo Técnico** | Desarrollo de software, hardware, estructura, simulación y cálculos |
+| **Manager** | Coordinación de proyectos y equipos |
+| **Relaciones Públicas** | Redes sociales, difusión y contactos universitarios |
 
 ## Requisitos previos
 

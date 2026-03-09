@@ -124,7 +124,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const getAllUsers = async (): Promise<User[]> => {
     const usersSnapshot = await getDocs(collection(db, 'users'))
-    return usersSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as User))
+    return usersSnapshot.docs.map(doc => {
+      const data = doc.data()
+      return {
+        id: doc.id,
+        email: data.email || '',
+        nombre: data.nombre || '',
+        apellido: data.apellido || '',
+        rol: data.rol || 'tecnico',
+        equipo: data.equipo || undefined,
+        createdAt: data.createdAt?.toDate?.() || new Date(),
+        isActive: data.isActive ?? true,
+        career: data.career || undefined,
+        year: data.year || undefined,
+        questionnaire: data.questionnaire || undefined,
+      } as User
+    })
   }
 
   return (

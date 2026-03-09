@@ -200,6 +200,40 @@ describe('Projects', () => {
     })
   })
 
+  it('filters projects with missing name/description without crashing', async () => {
+    const projectsSnapshot = {
+      docs: [
+        {
+          id: 'p1',
+          data: () => ({
+            estado: 'en_progreso',
+          }),
+        },
+        {
+          id: 'p2',
+          data: () => ({
+            nombre: 'CubeSat Alpha',
+            descripcion: 'First satellite',
+            estado: 'planificacion',
+          }),
+        },
+      ],
+    }
+    mockGetDocs.mockResolvedValue(projectsSnapshot)
+    const user = userEvent.setup()
+
+    renderProjects()
+
+    await waitFor(() => {
+      expect(screen.getByText('CubeSat Alpha')).toBeInTheDocument()
+    })
+
+    // Should not crash when filtering with a project that has missing fields
+    await user.type(screen.getByPlaceholderText('Buscar proyectos...'), 'Alpha')
+
+    expect(screen.getByText('CubeSat Alpha')).toBeInTheDocument()
+  })
+
   it('shows filters button', async () => {
     renderProjects()
 
