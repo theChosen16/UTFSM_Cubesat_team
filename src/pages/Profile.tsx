@@ -25,6 +25,7 @@ import {
   Rocket
 } from 'lucide-react'
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire } from '@/types'
+import { logger } from '@/lib/logger'
 
 const ROLE_STYLES: Record<UserRole, { badge: 'orange' | 'red' | 'cyan' | 'purple' | 'green'; icon: string; background: string }> = {
   maestro: {
@@ -101,7 +102,7 @@ export default function Profile() {
       })
       setIsEditing(false)
     } catch (error) {
-      console.error('Error updating profile:', error)
+      logger.error('Error updating profile', { error: error instanceof Error ? error : undefined })
     } finally {
       setLoading(false)
     }
@@ -387,7 +388,19 @@ export default function Profile() {
                   </div>
                 </>
               )}
-              {(user.rol === 'maestro' || user.rol === 'manager') && (
+              {user.rol === 'admin' && (
+                <>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Shield className="w-4 h-4 text-red-400" />
+                    <span>Gestión de contenido y proyectos</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Users className="w-4 h-4 text-red-400" />
+                    <span>Gestionar miembros y asignar roles (excepto maestro)</span>
+                  </div>
+                </>
+              )}
+              {(user.rol === 'maestro' || user.rol === 'admin' || user.rol === 'manager') && (
                 <>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Cpu className="w-4 h-4 text-cyan-400" />

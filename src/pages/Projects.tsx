@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,53 +12,50 @@ import {
   MoreHorizontal,
   Filter
 } from 'lucide-react'
+import { collection, getDocs } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { logger } from '@/lib/logger'
+
+interface ProjectData {
+  id: string
+  name: string
+  description: string
+  status: string
+  priority: string
+  team: string
+  deadline: string
+  progress: number
+}
 
 export default function Projects() {
   const { user } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
+  const [projects, setProjects] = useState<ProjectData[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const projects = [
-    {
-      id: '1',
-      name: 'Sistema de Comunicación',
-      description: 'Desarrollo del sistema de comunicación por radiofrecuencia para el CubeSat.',
-      status: 'en_progreso',
-      priority: 'alta',
-      team: 'tecnico',
-      deadline: '2024-06-15',
-      progress: 65
-    },
-    {
-      id: '2',
-      name: 'Diseño de Estructura',
-      description: 'Diseño y análisis estructural del chasis del satélite.',
-      status: 'en_progreso',
-      priority: 'alta',
-      team: 'tecnico',
-      deadline: '2024-05-30',
-      progress: 40
-    },
-    {
-      id: '3',
-      name: 'Campaña Redes Sociales',
-      description: 'Planificación de contenido para redes sociales del equipo.',
-      status: 'planificacion',
-      priority: 'media',
-      team: 'relaciones_publicas',
-      deadline: '2024-04-01',
-      progress: 20
-    },
-    {
-      id: '4',
-      name: 'Sistema de Energía',
-      description: 'Diseño del sistema de paneles solares y baterías.',
-      status: 'planificacion',
-      priority: 'alta',
-      team: 'tecnico',
-      deadline: '2024-07-20',
-      progress: 10
-    },
-  ]
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const projectsSnapshot = await getDocs(collection(db, 'projects'))
+        const loadedProjects = projectsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          name: doc.data().nombre || doc.data().name || '',
+          description: doc.data().descripcion || doc.data().description || '',
+          status: doc.data().estado || doc.data().status || 'planificacion',
+          priority: doc.data().prioridad || doc.data().priority || 'media',
+          team: doc.data().team || 'tecnico',
+          deadline: doc.data().fechaLimite || doc.data().deadline || '',
+          progress: doc.data().progress || 0,
+        }))
+        setProjects(loadedProjects)
+      } catch (error) {
+        logger.error('Error loading projects', { error })
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadProjects()
+  }, [])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -129,8 +126,15 @@ export default function Projects() {
         </Button>
       </div>
 
+      {loading && (
+        <div className="flex items-center justify-center min-h-[200px]">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-500"></div>
+        </div>
+      )}
+
       {/* Projects Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {!loading && (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredProjects.map((project) => (
           <Card key={project.id} className="bg-space-700/50 border-space-600 hover:border-cyan-500/50 transition-colors">
             <CardHeader className="pb-3">
@@ -178,12 +182,18 @@ export default function Projects() {
             </CardContent>
           </Card>
         ))}
-      </div>
+        </div>
+      )}
 
-      {filteredProjects.length === 0 && (
+      {!loading && filteredProjects.length === 0 && (
         <div className="text-center py-12">
           <Rocket className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">No se encontraron proyectos</p>
+          <p className="text-muted-foreground">
+            {projects.length === 0 ? 'No hay proyectos registrados aún.' : 'No se encontraron proyectos'}
+          </p>
+          {projects.length === 0 && (
+            <p className="text-sm text-muted-foreground mt-1">Los proyectos aparecerán aquí cuando se creen.</p>
+          )}
         </div>
       )}
     </div>

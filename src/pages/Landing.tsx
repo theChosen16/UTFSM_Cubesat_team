@@ -123,10 +123,10 @@ export default function Landing() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <Satellite className="w-5 h-5 text-cyan-400" />
-              <span className="text-muted-foreground">USM Cubesat Team © 2024</span>
+              <span className="text-muted-foreground">USM Cubesat Team © {new Date().getFullYear()}</span>
             </div>
             <div className="flex items-center gap-6">
-              <a href="#" className="text-muted-foreground hover:text-cyan-400 transition-colors">
+              <a href="https://github.com/theChosen16/UTFSM_Cubesat_team" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-cyan-400 transition-colors">
                 GitHub
               </a>
               <a href="https://www.instagram.com/usm.cubesat.team/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-cyan-400 transition-colors">

@@ -10,6 +10,7 @@ const mockNavigate = vi.fn()
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
     signIn: mockSignIn,
+    user: null,
   }),
 }))
 
@@ -26,6 +27,10 @@ vi.mock('@/lib/firebase', () => ({
   auth: {},
   db: {},
   analytics: null,
+}))
+
+vi.mock('@/lib/logger', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
 function renderLogin() {

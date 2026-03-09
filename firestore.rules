@@ -6,11 +6,14 @@ service cloud.firestore {
       // This allows the first user (and others) to create their profile
       allow create: if request.auth != null && request.auth.uid == userId;
       
-      // Allow read/update if the user is authenticated
-      // More restrictive rules can be added later (e.g., only self or maestro)
+      // Allow read/update if the user is authenticated and:
+      // - Is the owner of the document, OR
+      // - Has 'maestro' role, OR
+      // - Has 'admin' role
       allow read, update: if request.auth != null && 
         (request.auth.uid == userId || 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'maestro');
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'maestro' ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'admin');
       
       // Only maestro can delete
       allow delete: if request.auth != null && 

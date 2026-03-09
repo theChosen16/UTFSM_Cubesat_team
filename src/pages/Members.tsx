@@ -15,6 +15,7 @@ import {
   Settings
 } from 'lucide-react'
 import { User as UserType, ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole } from '@/types'
+import { logger } from '@/lib/logger'
 
 export default function Members() {
   const { user, getAllUsers, updateUserRole } = useAuth()
@@ -31,7 +32,7 @@ export default function Members() {
       const users = await getAllUsers()
       setMembers(users)
     } catch (error) {
-      console.error('Error loading members:', error)
+      logger.error('Error loading members', { error: error instanceof Error ? error : undefined })
     } finally {
       setLoading(false)
     }
@@ -42,7 +43,7 @@ export default function Members() {
       await updateUserRole(userId, newRole)
       await loadMembers()
     } catch (error) {
-      console.error('Error updating role:', error)
+      logger.error('Error updating role', { error: error instanceof Error ? error : undefined, userId, newRole })
     }
   }
 
