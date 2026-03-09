@@ -55,6 +55,10 @@ describe('Types', () => {
       expect(sanitizeUserRole('maestro')).toBe('maestro')
       expect(sanitizeUserRole('invalid-role')).toBe('tecnico')
       expect(sanitizeUserRole(undefined, 'manager')).toBe('manager')
+      expect(sanitizeUserRole(null)).toBe('tecnico')
+      expect(sanitizeUserRole(123)).toBe('tecnico')
+      expect(sanitizeUserRole({ rol: 'admin' })).toBe('tecnico')
+      expect(sanitizeUserRole(['maestro'])).toBe('tecnico')
     })
   })
 
@@ -62,6 +66,10 @@ describe('Types', () => {
     it('returns undefined for unknown team type', () => {
       expect(sanitizeTeamType('tecnico')).toBe('tecnico')
       expect(sanitizeTeamType('estructura')).toBeUndefined()
+      expect(sanitizeTeamType(null)).toBeUndefined()
+      expect(sanitizeTeamType(undefined)).toBeUndefined()
+      expect(sanitizeTeamType(10)).toBeUndefined()
+      expect(sanitizeTeamType({ equipo: 'tecnico' })).toBeUndefined()
     })
 
     it('returns undefined for unknown genero', () => {

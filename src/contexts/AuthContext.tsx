@@ -42,9 +42,13 @@ const sanitizeQuestionnaire = (value: unknown): User['questionnaire'] => {
   }
 }
 
+const isFirestoreTimestamp = (value: unknown): value is { toDate: () => Date } => {
+  return Boolean(value && typeof value === 'object' && typeof (value as { toDate?: () => Date }).toDate === 'function')
+}
+
 const sanitizeCreatedAt = (value: unknown, fallback: Date): Date => {
-  if (value && typeof value === 'object' && typeof (value as { toDate?: () => Date }).toDate === 'function') {
-    return (value as { toDate: () => Date }).toDate()
+  if (isFirestoreTimestamp(value)) {
+    return value.toDate()
   }
   return fallback
 }
