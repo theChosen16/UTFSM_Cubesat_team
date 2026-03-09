@@ -14,7 +14,7 @@ import {
   Crown,
   Settings
 } from 'lucide-react'
-import { User as UserType, ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, TEAM_LABELS } from '@/types'
+import { User as UserType, ROLE_LABELS, UserRole, TEAM_LABELS } from '@/types'
 import { logger } from '@/lib/logger'
 
 export default function Members() {
@@ -130,11 +130,19 @@ export default function Members() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
-                      <span className="text-white font-bold text-lg">
-                        {(member.nombre || '?')[0]}{(member.apellido || '?')[0]}
-                      </span>
-                    </div>
+                    {member.photoURL ? (
+                      <img 
+                        src={member.photoURL} 
+                        alt={`${member.nombre} ${member.apellido}`}
+                        className="w-12 h-12 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
+                        <span className="text-white font-bold text-lg">
+                          {(member.nombre || '?')[0]}{(member.apellido || '?')[0]}
+                        </span>
+                      </div>
+                    )}
                     <div>
                       <CardTitle className="text-lg text-white">
                         {member.nombre || ''} {member.apellido || ''}
@@ -153,27 +161,25 @@ export default function Members() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg bg-${getRoleVariant(member.rol)}-500/20`}>
-                    <RoleIcon className={`w-4 h-4 text-${getRoleVariant(member.rol)}-400`} />
-                  </div>
-                  <div className="flex-1">
-                    <Badge variant={getRoleVariant(member.rol)}>
-                      {ROLE_LABELS[member.rol]}
-                    </Badge>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {ROLE_DESCRIPTIONS[member.rol]}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Team info */}
-                {member.equipo && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Users className="w-4 h-4 text-blue-400" />
-                    <span>Equipo: <span className="text-white">{TEAM_LABELS[member.equipo]}</span></span>
+                {/* Show admin/maestro badge only for those roles */}
+                {(member.rol === 'admin' || member.rol === 'maestro') && (
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg bg-${getRoleVariant(member.rol)}-500/20`}>
+                      <RoleIcon className={`w-4 h-4 text-${getRoleVariant(member.rol)}-400`} />
+                    </div>
+                    <div className="flex-1">
+                      <Badge variant={getRoleVariant(member.rol)}>
+                        {ROLE_LABELS[member.rol]}
+                      </Badge>
+                    </div>
                   </div>
                 )}
+
+                {/* Team info — always shown */}
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Users className="w-4 h-4 text-blue-400" />
+                  <span>Equipo: <span className="text-white">{member.equipo ? TEAM_LABELS[member.equipo] : 'Sin equipo asignado'}</span></span>
+                </div>
 
                 {/* Role Change (Maestro can assign Admin, Admins can assign other roles) */}
                 {((isMaster) || (user?.rol === 'admin' && member.rol !== 'maestro')) && !isCurrentUser && (

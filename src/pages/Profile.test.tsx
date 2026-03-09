@@ -133,6 +133,26 @@ describe('Profile', () => {
     expect(screen.queryByRole('button', { name: /solicitar cambio de rol/i })).not.toBeInTheDocument()
   })
 
+  it('shows gender selection in edit mode', async () => {
+    const user = userEvent.setup()
+    renderProfile()
+
+    await user.click(screen.getByRole('button', { name: /completar cuestionario/i }))
+
+    await waitFor(() => {
+      const generoSelect = screen.getByTitle('Seleccionar género')
+      expect(generoSelect).toBeInTheDocument()
+    })
+  })
+
+  it('shows photo upload overlay on avatar hover', () => {
+    renderProfile()
+
+    // The file input for photo upload should exist
+    const fileInput = document.querySelector('input[type="file"][accept="image/*"]')
+    expect(fileInput).toBeInTheDocument()
+  })
+
   it('shows role request section for non-maestro/non-admin users', () => {
     currentMockUser = { ...currentMockUser, rol: 'tecnico' }
     renderProfile()

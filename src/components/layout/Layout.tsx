@@ -13,7 +13,8 @@ import {
   ListTodo,
   Crown,
   Shield,
-  Bell
+  Bell,
+  Lock
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
@@ -36,16 +37,16 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   const navItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/projects', label: 'Proyectos', icon: FolderKanban },
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, restricted: false },
+    { path: '/projects', label: 'Proyectos', icon: FolderKanban, restricted: false },
     ...(user?.rol === 'maestro' || user?.rol === 'admin' || user?.rol === 'manager' ? [
-      { path: '/tasks', label: 'Gestión de Tareas', icon: ListTodo },
+      { path: '/tasks', label: 'Gestión de Tareas', icon: ListTodo, restricted: true },
     ] : []),
-    { path: '/members', label: 'Miembros', icon: Users },
+    { path: '/members', label: 'Miembros', icon: Users, restricted: false },
     ...(user?.rol === 'maestro' ? [
-      { path: '/notifications', label: 'Solicitudes', icon: Bell },
+      { path: '/notifications', label: 'Solicitudes', icon: Bell, restricted: true },
     ] : []),
-    { path: '/profile', label: 'Mi Perfil', icon: User },
+    { path: '/profile', label: 'Mi Perfil', icon: User, restricted: false },
   ]
 
   return (
@@ -82,15 +83,23 @@ export default function Layout({ children }: LayoutProps) {
           {/* User info */}
           <div className="p-4 border-b border-space-600">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
-                {user?.rol === 'maestro' ? (
-                  <Crown className="w-5 h-5 text-white" />
-                ) : user?.rol === 'admin' ? (
-                  <Shield className="w-5 h-5 text-white" />
-                ) : (
-                  <Rocket className="w-5 h-5 text-white" />
-                )}
-              </div>
+              {user?.photoURL ? (
+                <img 
+                  src={user.photoURL} 
+                  alt={`${user.nombre} ${user.apellido}`}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
+                  {user?.rol === 'maestro' ? (
+                    <Crown className="w-5 h-5 text-white" />
+                  ) : user?.rol === 'admin' ? (
+                    <Shield className="w-5 h-5 text-white" />
+                  ) : (
+                    <Rocket className="w-5 h-5 text-white" />
+                  )}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">
                   {user?.nombre} {user?.apellido}
@@ -130,7 +139,10 @@ export default function Layout({ children }: LayoutProps) {
                   )}
                 >
                   <Icon size={20} />
-                  <span>{item.label}</span>
+                  <span className="flex-1">{item.label}</span>
+                  {item.restricted && (
+                    <Lock size={14} className="text-orange-400" />
+                  )}
                 </Link>
               )
             })}
