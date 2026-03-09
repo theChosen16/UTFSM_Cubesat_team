@@ -23,9 +23,10 @@ import {
   Save,
   Settings,
   Rocket,
-  Send
+  Send,
+  Camera
 } from 'lucide-react'
-import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS } from '@/types'
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS, Genero } from '@/types'
 import { logger } from '@/lib/logger'
 import { collection, addDoc, getDocs, query, where, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -62,11 +63,15 @@ export default function Profile() {
   const { user, updateUserProfile } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [photoError, setPhotoError] = useState('')
   
   // Profile fields
   const [career, setCareer] = useState(user?.career || '')
   const [year, setYear] = useState(user?.year || '')
   const [equipo, setEquipo] = useState<TeamType | ''>(user?.equipo || '')
+  const [genero, setGenero] = useState<Genero | ''>(user?.genero || '')
+  const [photoURL, setPhotoURL] = useState(user?.photoURL || '')
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   
   // Questionnaire fields
   const [intereses, setIntereses] = useState(user?.questionnaire?.intereses || '')
@@ -88,6 +93,8 @@ export default function Profile() {
       setCareer(user.career || '')
       setYear(user.year || '')
       setEquipo(user.equipo || '')
+      setGenero(user.genero || '')
+      setPhotoURL(user.photoURL || '')
       setIntereses(user.questionnaire?.intereses || '')
       setHabilidades(user.questionnaire?.habilidades || '')
       setMotivacion(user.questionnaire?.motivacion || '')
@@ -157,6 +164,8 @@ export default function Profile() {
         career,
         year,
         ...(equipo ? { equipo: equipo as TeamType } : {}),
+        ...(genero ? { genero: genero as Genero } : {}),
+        ...(photoURL ? { photoURL } : {}),
         questionnaire
       })
       setIsEditing(false)
@@ -164,6 +173,46 @@ export default function Profile() {
       logger.error('Error updating profile', { error: error instanceof Error ? error : undefined })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePhotoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setPhotoError('')
+
+    if (file.size > 500 * 1024) {
+      setPhotoError('La imagen debe ser menor a 500 KB.')
+      logger.warn('Photo file too large', { size: file.size })
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Solo se permiten archivos de imagen (JPG, PNG, etc.).')
+      logger.warn('Invalid file type for photo', { type: file.type })
+      return
+    }
+
+    setUploadingPhoto(true)
+    try {
+      const reader = new FileReader()
+      reader.onloadend = async () => {
+        const dataUrl = reader.result as string
+        setPhotoURL(dataUrl)
+        await updateUserProfile({ photoURL: dataUrl })
+        setUploadingPhoto(false)
+      }
+      reader.onerror = () => {
+        setPhotoError('Error al procesar la imagen. Intenta con otro archivo.')
+        logger.error('Error reading photo file')
+        setUploadingPhoto(false)
+      }
+      reader.readAsDataURL(file)
+    } catch (error) {
+      setPhotoError('Error al subir la foto. Intenta nuevamente.')
+      logger.error('Error uploading photo', { error: error instanceof Error ? error : undefined })
+      setUploadingPhoto(false)
     }
   }
 
@@ -200,16 +249,47 @@ export default function Profile() {
           <div className="flex flex-col md:flex-row md:items-center gap-6">
             {/* Avatar */}
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
-                <span className="text-white font-bold text-2xl">
-                  {user.nombre[0]}{user.apellido[0]}
-                </span>
+              <div className="relative group">
+                {user.photoURL ? (
+                  <img 
+                    src={user.photoURL} 
+                    alt={`${user.nombre} ${user.apellido}`}
+                    className="w-20 h-20 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
+                    <span className="text-white font-bold text-2xl">
+                      {user.nombre[0]}{user.apellido[0]}
+                    </span>
+                  </div>
+                )}
+                <label 
+                  className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  title="Subir foto de perfil"
+                >
+                  <Camera className="w-6 h-6 text-white" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                    disabled={uploadingPhoto}
+                  />
+                </label>
+                {uploadingPhoto && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
+                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
+                  </div>
+                )}
               </div>
               <div>
                 <CardTitle className="text-2xl text-white">
                   {user.nombre} {user.apellido}
                 </CardTitle>
                 <CardDescription className="text-base">{user.email}</CardDescription>
+                {photoError && (
+                  <p className="text-sm text-red-400 mt-1">{photoError}</p>
+                )}
               </div>
             </div>
             
@@ -283,6 +363,35 @@ export default function Profile() {
                 ) : (
                   <p className="text-white">
                     {user.equipo ? TEAM_LABELS[user.equipo] : 'No seleccionado — edita tu perfil para elegir equipo'}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Gender Selection */}
+          <div className="p-4 rounded-lg bg-space-600/50">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-pink-500/20">
+                <User className="w-6 h-6 text-pink-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground mb-1">Género</p>
+                {isEditing ? (
+                  <select
+                    value={genero}
+                    onChange={(e) => setGenero(e.target.value as Genero | '')}
+                    title="Seleccionar género"
+                    className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                  >
+                    <option value="">Selecciona tu género</option>
+                    <option value="masculino">Masculino</option>
+                    <option value="femenino">Femenino</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                ) : (
+                  <p className="text-white">
+                    {user.genero ? { masculino: 'Masculino', femenino: 'Femenino', otro: 'Otro' }[user.genero] : 'No seleccionado — edita tu perfil para elegir género'}
                   </p>
                 )}
               </div>

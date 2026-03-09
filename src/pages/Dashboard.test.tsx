@@ -12,6 +12,7 @@ const mockUser: Partial<UserType> = {
   nombre: 'Alejandro',
   apellido: 'Hernandez',
   rol: 'maestro',
+  genero: 'masculino',
   createdAt: new Date(),
   isActive: true,
 }
@@ -65,6 +66,19 @@ describe('Dashboard', () => {
     })
   })
 
+  it('renders feminine greeting for female user', async () => {
+    mockUser.genero = 'femenino'
+    mockUser.nombre = 'María'
+    renderDashboard()
+
+    await waitFor(() => {
+      expect(screen.getByText('¡Bienvenida, María!')).toBeInTheDocument()
+    })
+    // Reset
+    mockUser.genero = 'masculino'
+    mockUser.nombre = 'Alejandro'
+  })
+
   it('shows user role label', async () => {
     renderDashboard()
 
@@ -111,8 +125,8 @@ describe('Dashboard', () => {
   it('shows loading indicators then stats values', async () => {
     const usersSnapshot = {
       docs: [
-        { data: () => ({ rol: 'tecnico' }) },
-        { data: () => ({ rol: 'maestro' }) },
+        { data: () => ({ rol: 'tecnico', equipo: 'tecnico' }) },
+        { data: () => ({ rol: 'maestro', equipo: 'manager' }) },
       ],
       size: 2,
     }
@@ -139,6 +153,29 @@ describe('Dashboard', () => {
 
     await waitFor(() => {
       expect(screen.getByText('2')).toBeInTheDocument() // Members
+    })
+  })
+
+  it('counts team members by equipo field, not by role', async () => {
+    const usersSnapshot = {
+      docs: [
+        { data: () => ({ rol: 'manager', equipo: 'tecnico' }) },
+        { data: () => ({ rol: 'tecnico', equipo: 'tecnico' }) },
+        { data: () => ({ rol: 'admin' }) },
+      ],
+      size: 3,
+    }
+    const emptySnap = { docs: [], size: 0 }
+
+    mockGetDocs
+      .mockResolvedValueOnce(usersSnapshot)
+      .mockResolvedValueOnce(emptySnap)
+      .mockResolvedValueOnce(emptySnap)
+
+    renderDashboard()
+
+    await waitFor(() => {
+      expect(screen.getByText('2 miembros')).toBeInTheDocument()
     })
   })
 

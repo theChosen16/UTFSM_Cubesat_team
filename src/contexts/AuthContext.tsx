@@ -133,6 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         apellido: data.apellido || '',
         rol: data.rol || 'tecnico',
         equipo: data.equipo || undefined,
+        genero: data.genero || undefined,
+        photoURL: data.photoURL || undefined,
         createdAt: data.createdAt?.toDate?.() || new Date(),
         isActive: data.isActive ?? true,
         career: data.career || undefined,

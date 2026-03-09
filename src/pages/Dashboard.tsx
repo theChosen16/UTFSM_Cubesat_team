@@ -10,7 +10,7 @@ import {
   Clock,
   CheckCircle2
 } from 'lucide-react'
-import { ROLE_LABELS, UserRole } from '@/types'
+import { ROLE_LABELS, UserRole, TEAM_LABELS, TeamType } from '@/types'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
@@ -18,6 +18,7 @@ import { logger } from '@/lib/logger'
 interface MemberCount {
   total: number
   byRole: Record<string, number>
+  byTeam: Record<string, number>
 }
 
 interface DashboardStats {
@@ -28,7 +29,7 @@ interface DashboardStats {
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const [memberCount, setMemberCount] = useState<MemberCount>({ total: 0, byRole: {} })
+  const [memberCount, setMemberCount] = useState<MemberCount>({ total: 0, byRole: {}, byTeam: {} })
   const [stats, setStats] = useState<DashboardStats>({ activeProjects: 0, pendingTasks: 0, completedTasks: 0 })
   const [loadingStats, setLoadingStats] = useState(true)
 
@@ -42,12 +43,17 @@ export default function Dashboard() {
         ])
 
         const byRole: Record<string, number> = {}
+        const byTeam: Record<string, number> = {}
         usersSnapshot.docs.forEach(doc => {
           const data = doc.data()
           const role = data.rol || 'tecnico'
           byRole[role] = (byRole[role] || 0) + 1
+          const team = data.equipo
+          if (team) {
+            byTeam[team] = (byTeam[team] || 0) + 1
+          }
         })
-        setMemberCount({ total: usersSnapshot.size, byRole })
+        setMemberCount({ total: usersSnapshot.size, byRole, byTeam })
 
         const activeProjects = projectsSnapshot.docs.filter(d => {
           const estado = d.data().estado || d.data().status
@@ -106,10 +112,13 @@ export default function Dashboard() {
     },
   ]
 
-  const ROLE_TEAM_MAP: Record<string, { label: string; icon: typeof Cpu; colorClass: string; bgClass: string }> = {
-    tecnico: { label: 'Equipo Técnico', icon: Cpu, colorClass: 'text-purple-400', bgClass: 'bg-purple-500/20' },
-    manager: { label: 'Manager', icon: Users, colorClass: 'text-cyan-400', bgClass: 'bg-cyan-500/20' },
-    relaciones_publicas: { label: 'Relaciones Públicas', icon: Globe, colorClass: 'text-green-400', bgClass: 'bg-green-500/20' },
+  const greeting = user?.genero === 'femenino' ? 'Bienvenida' : user?.genero === 'otro' ? 'Bienvenido/a' : 'Bienvenido'
+  const displayName = user?.nombre || user?.email || ''
+
+  const TEAM_ICON_MAP: Record<TeamType, { icon: typeof Cpu; colorClass: string; bgClass: string }> = {
+    tecnico: { icon: Cpu, colorClass: 'text-purple-400', bgClass: 'bg-purple-500/20' },
+    manager: { icon: Users, colorClass: 'text-cyan-400', bgClass: 'bg-cyan-500/20' },
+    relaciones_publicas: { icon: Globe, colorClass: 'text-green-400', bgClass: 'bg-green-500/20' },
   }
 
   return (
@@ -118,7 +127,7 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">
-            ¡Bienvenido, {user?.nombre}!
+            ¡{greeting}, {displayName}!
           </h1>
           <p className="text-muted-foreground mt-1">
             Tu rol: <span className="text-cyan-400">{user ? ROLE_LABELS[user.rol as UserRole] : ''}</span>
@@ -184,16 +193,16 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {Object.entries(ROLE_TEAM_MAP).map(([role, config]) => {
-                const RoleIcon = config.icon
-                const count = memberCount.byRole[role] || 0
+              {Object.entries(TEAM_ICON_MAP).map(([team, config]) => {
+                const TeamIcon = config.icon
+                const count = memberCount.byTeam[team] || 0
                 return (
-                  <div key={role} className="flex items-center gap-3 p-3 rounded-lg bg-space-600/50">
+                  <div key={team} className="flex items-center gap-3 p-3 rounded-lg bg-space-600/50">
                     <div className={`w-8 h-8 rounded-lg ${config.bgClass} flex items-center justify-center`}>
-                      <RoleIcon className={`w-4 h-4 ${config.colorClass}`} />
+                      <TeamIcon className={`w-4 h-4 ${config.colorClass}`} />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-white">{config.label}</p>
+                      <p className="text-sm font-medium text-white">{TEAM_LABELS[team as TeamType]}</p>
                       <p className="text-xs text-muted-foreground">
                         {loadingStats ? '…' : `${count} miembro${count !== 1 ? 's' : ''}`}
                       </p>

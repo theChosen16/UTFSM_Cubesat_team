@@ -2,6 +2,8 @@ export type UserRole = 'maestro' | 'admin' | 'manager' | 'tecnico' | 'relaciones
 
 export type TeamType = 'tecnico' | 'manager' | 'relaciones_publicas'
 
+export type Genero = 'masculino' | 'femenino' | 'otro'
+
 export interface Questionnaire {
   intereses: string
   habilidades: string
@@ -17,6 +19,8 @@ export interface User {
   apellido: string
   rol: UserRole
   equipo?: TeamType
+  genero?: Genero
+  photoURL?: string
   createdAt: Date
   isActive: boolean
   career?: string
