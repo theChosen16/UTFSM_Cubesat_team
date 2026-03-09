@@ -74,9 +74,9 @@ export default function Members() {
   }
 
   const filteredMembers = members.filter(member =>
-    member.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    member.apellido.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    member.email.toLowerCase().includes(searchQuery.toLowerCase())
+    (member.nombre || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (member.apellido || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (member.email || '').toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   if (loading) {
@@ -131,12 +131,12 @@ export default function Members() {
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
                       <span className="text-white font-bold text-lg">
-                        {member.nombre[0]}{member.apellido[0]}
+                        {(member.nombre || '?')[0]}{(member.apellido || '?')[0]}
                       </span>
                     </div>
                     <div>
                       <CardTitle className="text-lg text-white">
-                        {member.nombre} {member.apellido}
+                        {member.nombre || ''} {member.apellido || ''}
                         {isCurrentUser && (
                           <span className="ml-2 text-xs text-cyan-400">(Tú)</span>
                         )}
