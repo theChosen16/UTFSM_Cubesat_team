@@ -229,6 +229,8 @@ export default function Profile() {
 
   const RoleIcon = getRoleIcon(user.rol)
   const roleStyles = ROLE_STYLES[user.rol]
+  const firstInitial = (user.nombre || '?').trim().charAt(0).toUpperCase() || '?'
+  const lastInitial = (user.apellido || '?').trim().charAt(0).toUpperCase() || '?'
   const handleInputChange = (setter: (value: string) => void) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setter(event.target.value)
   }
@@ -259,7 +261,7 @@ export default function Profile() {
                 ) : (
                   <div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
                     <span className="text-white font-bold text-2xl">
-                      {user.nombre[0]}{user.apellido[0]}
+                      {firstInitial}{lastInitial}
                     </span>
                   </div>
                 )}

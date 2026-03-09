@@ -160,4 +160,16 @@ describe('Profile', () => {
     // Should have a button to initiate a role request
     expect(screen.getByRole('button', { name: /solicitar cambio de rol/i })).toBeInTheDocument()
   })
+
+  it('renders fallback initials when user names are missing', () => {
+    currentMockUser = {
+      ...currentMockUser,
+      nombre: undefined as unknown as string,
+      apellido: undefined as unknown as string,
+    }
+
+    renderProfile()
+
+    expect(screen.getByText('??')).toBeInTheDocument()
+  })
 })
