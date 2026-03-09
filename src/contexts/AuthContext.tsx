@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, collection, getDocs, query, limit } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
-import { User, UserRole } from '@/types'
+import { User, UserRole, sanitizeGenero, sanitizeTeamType, sanitizeUserRole } from '@/types'
 import { logger } from '@/lib/logger'
 
 interface AuthContextType {
@@ -26,6 +26,46 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+const sanitizeQuestionnaire = (value: unknown): User['questionnaire'] => {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+
+  const raw = value as Record<string, unknown>
+  return {
+    intereses: typeof raw.intereses === 'string' ? raw.intereses : '',
+    habilidades: typeof raw.habilidades === 'string' ? raw.habilidades : '',
+    motivacion: typeof raw.motivacion === 'string' ? raw.motivacion : '',
+    disponibilidad: typeof raw.disponibilidad === 'string' ? raw.disponibilidad : '',
+    proyectosPrevios: typeof raw.proyectosPrevios === 'string' ? raw.proyectosPrevios : '',
+  }
+}
+
+const sanitizeCreatedAt = (value: unknown, fallback: Date): Date => {
+  if (value && typeof value === 'object' && typeof (value as { toDate?: () => Date }).toDate === 'function') {
+    return (value as { toDate: () => Date }).toDate()
+  }
+  return fallback
+}
+
+const mapFirestoreUser = (id: string, rawData: Record<string, unknown>, fallbackUser: User): User => {
+  return {
+    id,
+    email: typeof rawData.email === 'string' ? rawData.email : fallbackUser.email,
+    nombre: typeof rawData.nombre === 'string' ? rawData.nombre : fallbackUser.nombre,
+    apellido: typeof rawData.apellido === 'string' ? rawData.apellido : fallbackUser.apellido,
+    rol: sanitizeUserRole(rawData.rol),
+    equipo: sanitizeTeamType(rawData.equipo),
+    genero: sanitizeGenero(rawData.genero),
+    photoURL: typeof rawData.photoURL === 'string' ? rawData.photoURL : undefined,
+    createdAt: sanitizeCreatedAt(rawData.createdAt, fallbackUser.createdAt),
+    isActive: typeof rawData.isActive === 'boolean' ? rawData.isActive : true,
+    career: typeof rawData.career === 'string' ? rawData.career : undefined,
+    year: typeof rawData.year === 'string' ? rawData.year : undefined,
+    questionnaire: sanitizeQuestionnaire(rawData.questionnaire),
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -49,8 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const userDoc = await getDoc(doc(db, 'users', fbUser.uid))
           if (userDoc.exists()) {
-            const userData = userDoc.data() as User
-            setUser({ ...userData, id: fbUser.uid })
+            const userData = userDoc.data() as Record<string, unknown>
+            setUser(mapFirestoreUser(fbUser.uid, userData, fallbackUser))
           } else {
             setUser(fallbackUser)
           }
@@ -125,22 +165,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const getAllUsers = async (): Promise<User[]> => {
     const usersSnapshot = await getDocs(collection(db, 'users'))
     return usersSnapshot.docs.map(doc => {
-      const data = doc.data()
-      return {
+      const data = doc.data() as Record<string, unknown>
+      const fallbackUser: User = {
         id: doc.id,
-        email: data.email || '',
-        nombre: data.nombre || '',
-        apellido: data.apellido || '',
-        rol: data.rol || 'tecnico',
-        equipo: data.equipo || undefined,
-        genero: data.genero || undefined,
-        photoURL: data.photoURL || undefined,
-        createdAt: data.createdAt?.toDate?.() || new Date(),
-        isActive: data.isActive ?? true,
-        career: data.career || undefined,
-        year: data.year || undefined,
-        questionnaire: data.questionnaire || undefined,
-      } as User
+        email: '',
+        nombre: '',
+        apellido: '',
+        rol: 'tecnico',
+        createdAt: new Date(),
+        isActive: true,
+      }
+      return mapFirestoreUser(doc.id, data, fallbackUser)
     })
   }
 
