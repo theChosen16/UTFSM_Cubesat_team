@@ -4,6 +4,34 @@ export type TeamType = 'tecnico' | 'manager' | 'relaciones_publicas'
 
 export type Genero = 'masculino' | 'femenino' | 'otro'
 
+const USER_ROLES: readonly UserRole[] = ['maestro', 'admin', 'manager', 'tecnico', 'relaciones_publicas'] as const
+const TEAM_TYPES: readonly TeamType[] = ['tecnico', 'manager', 'relaciones_publicas'] as const
+const GENEROS: readonly Genero[] = ['masculino', 'femenino', 'otro'] as const
+
+export const isUserRole = (value: unknown): value is UserRole => {
+  return typeof value === 'string' && USER_ROLES.includes(value as UserRole)
+}
+
+export const isTeamType = (value: unknown): value is TeamType => {
+  return typeof value === 'string' && TEAM_TYPES.includes(value as TeamType)
+}
+
+export const isGenero = (value: unknown): value is Genero => {
+  return typeof value === 'string' && GENEROS.includes(value as Genero)
+}
+
+export const sanitizeUserRole = (value: unknown, fallback: UserRole = 'tecnico'): UserRole => {
+  return isUserRole(value) ? value : fallback
+}
+
+export const sanitizeTeamType = (value: unknown): TeamType | undefined => {
+  return isTeamType(value) ? value : undefined
+}
+
+export const sanitizeGenero = (value: unknown): Genero | undefined => {
+  return isGenero(value) ? value : undefined
+}
+
 export interface Questionnaire {
   intereses: string
   habilidades: string

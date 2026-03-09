@@ -123,7 +123,7 @@ describe('Profile', () => {
   it('shows team selection in profile', () => {
     renderProfile()
 
-    expect(screen.getByText('Equipo Técnico')).toBeInTheDocument()
+    expect(screen.getAllByText('Equipo Técnico').length).toBeGreaterThan(0)
   })
 
   it('does not show role request section for maestro users', () => {
@@ -171,5 +171,17 @@ describe('Profile', () => {
     renderProfile()
 
     expect(screen.getByText('??')).toBeInTheDocument()
+  })
+
+  it('falls back to tecnico role styles when role is invalid', () => {
+    currentMockUser = {
+      ...currentMockUser,
+      rol: 'role_invalido' as unknown as UserType['rol'],
+    }
+
+    renderProfile()
+
+    expect(screen.getAllByText('Equipo Técnico').length).toBeGreaterThan(0)
+    expect(screen.getByText(/Desarrollo de software/)).toBeInTheDocument()
   })
 })

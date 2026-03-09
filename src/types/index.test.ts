@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { TEAM_LABELS, TEAM_COLORS, ROLE_LABELS, ROLE_DESCRIPTIONS } from '@/types'
+import {
+  TEAM_LABELS,
+  TEAM_COLORS,
+  ROLE_LABELS,
+  ROLE_DESCRIPTIONS,
+  sanitizeUserRole,
+  sanitizeTeamType,
+  sanitizeGenero
+} from '@/types'
 import type { TeamType, UserRole } from '@/types'
 
 describe('Types', () => {
@@ -41,6 +49,32 @@ describe('Types', () => {
         expect(ROLE_DESCRIPTIONS[role]).toBeDefined()
         expect(ROLE_DESCRIPTIONS[role].length).toBeGreaterThan(10)
       })
+    })
+
+    it('sanitizes unknown roles with safe fallback', () => {
+      expect(sanitizeUserRole('maestro')).toBe('maestro')
+      expect(sanitizeUserRole('invalid-role')).toBe('tecnico')
+      expect(sanitizeUserRole(undefined, 'manager')).toBe('manager')
+      expect(sanitizeUserRole(null)).toBe('tecnico')
+      expect(sanitizeUserRole(123)).toBe('tecnico')
+      expect(sanitizeUserRole({ rol: 'admin' })).toBe('tecnico')
+      expect(sanitizeUserRole(['maestro'])).toBe('tecnico')
+    })
+  })
+
+  describe('Input sanitizers', () => {
+    it('returns undefined for unknown team type', () => {
+      expect(sanitizeTeamType('tecnico')).toBe('tecnico')
+      expect(sanitizeTeamType('estructura')).toBeUndefined()
+      expect(sanitizeTeamType(null)).toBeUndefined()
+      expect(sanitizeTeamType(undefined)).toBeUndefined()
+      expect(sanitizeTeamType(10)).toBeUndefined()
+      expect(sanitizeTeamType({ equipo: 'tecnico' })).toBeUndefined()
+    })
+
+    it('returns undefined for unknown genero', () => {
+      expect(sanitizeGenero('masculino')).toBe('masculino')
+      expect(sanitizeGenero('prefiero_no_decir')).toBeUndefined()
     })
   })
 })

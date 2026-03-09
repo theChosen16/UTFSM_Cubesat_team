@@ -26,7 +26,7 @@ import {
   Send,
   Camera
 } from 'lucide-react'
-import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS, Genero } from '@/types'
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS, Genero, sanitizeUserRole } from '@/types'
 import { logger } from '@/lib/logger'
 import { collection, addDoc, getDocs, query, where, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -227,8 +227,9 @@ export default function Profile() {
     }
   }
 
-  const RoleIcon = getRoleIcon(user.rol)
-  const roleStyles = ROLE_STYLES[user.rol]
+  const normalizedRole = sanitizeUserRole(user.rol)
+  const RoleIcon = getRoleIcon(normalizedRole)
+  const roleStyles = ROLE_STYLES[normalizedRole]
   const firstInitial = (user.nombre || '?').trim().charAt(0).toUpperCase() || '?'
   const lastInitial = (user.apellido || '?').trim().charAt(0).toUpperCase() || '?'
   const handleInputChange = (setter: (value: string) => void) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -329,14 +330,14 @@ export default function Profile() {
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <Badge variant={roleStyles.badge}>
-                    {ROLE_LABELS[user.rol]}
+                    {ROLE_LABELS[normalizedRole]}
                   </Badge>
-                  {user.rol === 'maestro' && (
+                  {normalizedRole === 'maestro' && (
                     <Shield className="w-4 h-4 text-orange-400" />
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {ROLE_DESCRIPTIONS[user.rol]}
+                  {ROLE_DESCRIPTIONS[normalizedRole]}
                 </p>
               </div>
             </div>
