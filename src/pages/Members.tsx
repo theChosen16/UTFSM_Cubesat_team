@@ -63,17 +63,6 @@ export default function Members() {
     }
   }
 
-  const getRoleVariant = (rol: UserRole): 'orange' | 'red' | 'cyan' | 'purple' | 'green' => {
-    switch (rol) {
-      case 'maestro': return 'orange'
-      case 'admin': return 'red'
-      case 'manager': return 'cyan'
-      case 'tecnico': return 'purple'
-      case 'relaciones_publicas': return 'green'
-      default: return 'purple'
-    }
-  }
-
   const filteredMembers = members.filter(member =>
     (member.nombre || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (member.apellido || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -162,13 +151,25 @@ export default function Members() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Show admin/maestro badge only for those roles */}
-                {(member.rol === 'admin' || member.rol === 'maestro') && (
+                {member.rol === 'maestro' && (
                   <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg bg-${getRoleVariant(member.rol)}-500/20`}>
-                      <RoleIcon className={`w-4 h-4 text-${getRoleVariant(member.rol)}-400`} />
+                    <div className="p-2 rounded-lg bg-orange-500/20">
+                      <RoleIcon className="w-4 h-4 text-orange-400" />
                     </div>
                     <div className="flex-1">
-                      <Badge variant={getRoleVariant(member.rol)}>
+                      <Badge variant="orange">
+                        {ROLE_LABELS[member.rol]}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+                {member.rol === 'admin' && (
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-red-500/20">
+                      <RoleIcon className="w-4 h-4 text-red-400" />
+                    </div>
+                    <div className="flex-1">
+                      <Badge variant="red">
                         {ROLE_LABELS[member.rol]}
                       </Badge>
                     </div>

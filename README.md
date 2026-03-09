@@ -36,11 +36,16 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 - **Landing page** pública con información del equipo
 - **Autenticación**: registro, inicio de sesión y recuperación de contraseña vía Firebase Auth
 - **Dashboard** privado con estadísticas en tiempo real desde Firestore (proyectos activos, tareas pendientes, completadas y miembros)
+  - Saludo personalizado según género del usuario (Bienvenido/Bienvenida)
+  - Estructura del equipo muestra distribución de miembros por equipo (`equipo`), no por rol
 - **Proyectos**: listado y gestión de proyectos del equipo (datos desde Firestore)
 - **Gestión de Tareas**: dashboard para maestro, admin y manager que permite crear tareas asignando proyecto, equipo encargado, prioridad y responsable(s)
 - **Selección de equipo**: cada usuario puede elegir a qué equipo pertenecer desde su perfil, sin asignación automática
-- **Miembros**: directorio de integrantes con gestión de roles (accesible para maestro y admin). Solo el maestro puede asignar el rol de administrador
-- **Perfil**: vista y edición de datos personales, selección de equipo y cuestionario de cualidades
+- **Miembros**: directorio de integrantes mostrando equipo asignado. Solo se muestra el badge de rol para admin y maestro. Gestión de roles accesible para maestro y admin
+- **Perfil**: vista y edición de datos personales, selección de equipo, género y cuestionario de cualidades
+  - **Foto de perfil**: los usuarios pueden subir una foto de perfil (máx. 500 KB) que se muestra en el sidebar, perfil y directorio de miembros
+  - **Selección de género**: permite al usuario indicar su género para personalizar el saludo en el dashboard
+- **Indicadores de permisos**: las opciones restringidas del menú lateral muestran un ícono de candado para distinguir acciones que requieren permisos especiales
 - **Rutas protegidas** que redirigen a login cuando el usuario no está autenticado
 - **Redirección automática**: usuarios autenticados son redirigidos al dashboard si visitan login/registro
 - **Error Boundary** global que captura errores de React y muestra una pantalla de recuperación
@@ -61,6 +66,14 @@ El sistema soporta 5 roles jerárquicos:
 ### Administrador del sistema
 
 El usuario **maestro** actual es el primer usuario registrado en la plataforma. **Solo el maestro** puede asignar el rol de administrador a otros usuarios. Los usuarios **admin** pueden gestionar miembros y roles (excepto admin y maestro) desde la sección "Miembros" del menú lateral.
+
+### Visibilidad de roles
+
+En el directorio de miembros, solo los badges de **admin** y **maestro** son visibles públicamente. El equipo al que pertenece cada miembro siempre se muestra. Los demás roles (manager, técnico, relaciones públicas) no muestran badge en el directorio, ya que lo relevante es el equipo, no el rol de gestión.
+
+### Indicadores de permisos
+
+Las opciones del menú lateral que requieren permisos especiales (como "Gestión de Tareas" y "Solicitudes") muestran un ícono de candado (🔒) para indicar que son acciones restringidas a ciertos roles.
 
 > **Nota:** Solo correos institucionales de la USM (`@usm.cl` o `@sansano.usm.cl`) son aceptados para registro.
 

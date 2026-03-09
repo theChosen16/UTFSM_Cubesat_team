@@ -63,6 +63,7 @@ export default function Profile() {
   const { user, updateUserProfile } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [photoError, setPhotoError] = useState('')
   
   // Profile fields
   const [career, setCareer] = useState(user?.career || '')
@@ -179,12 +180,16 @@ export default function Profile() {
     const file = e.target.files?.[0]
     if (!file) return
 
+    setPhotoError('')
+
     if (file.size > 500 * 1024) {
+      setPhotoError('La imagen debe ser menor a 500 KB.')
       logger.warn('Photo file too large', { size: file.size })
       return
     }
 
     if (!file.type.startsWith('image/')) {
+      setPhotoError('Solo se permiten archivos de imagen (JPG, PNG, etc.).')
       logger.warn('Invalid file type for photo', { type: file.type })
       return
     }
@@ -199,11 +204,13 @@ export default function Profile() {
         setUploadingPhoto(false)
       }
       reader.onerror = () => {
+        setPhotoError('Error al procesar la imagen. Intenta con otro archivo.')
         logger.error('Error reading photo file')
         setUploadingPhoto(false)
       }
       reader.readAsDataURL(file)
     } catch (error) {
+      setPhotoError('Error al subir la foto. Intenta nuevamente.')
       logger.error('Error uploading photo', { error: error instanceof Error ? error : undefined })
       setUploadingPhoto(false)
     }
@@ -280,6 +287,9 @@ export default function Profile() {
                   {user.nombre} {user.apellido}
                 </CardTitle>
                 <CardDescription className="text-base">{user.email}</CardDescription>
+                {photoError && (
+                  <p className="text-sm text-red-400 mt-1">{photoError}</p>
+                )}
               </div>
             </div>
             
@@ -381,7 +391,7 @@ export default function Profile() {
                   </select>
                 ) : (
                   <p className="text-white">
-                    {user.genero === 'masculino' ? 'Masculino' : user.genero === 'femenino' ? 'Femenino' : user.genero === 'otro' ? 'Otro' : 'No seleccionado — edita tu perfil para elegir género'}
+                    {user.genero ? { masculino: 'Masculino', femenino: 'Femenino', otro: 'Otro' }[user.genero] : 'No seleccionado — edita tu perfil para elegir género'}
                   </p>
                 )}
               </div>

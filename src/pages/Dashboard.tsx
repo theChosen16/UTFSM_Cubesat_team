@@ -112,7 +112,7 @@ export default function Dashboard() {
     },
   ]
 
-  const greeting = user?.genero === 'femenino' ? 'Bienvenida' : 'Bienvenido'
+  const greeting = user?.genero === 'femenino' ? 'Bienvenida' : user?.genero === 'otro' ? 'Bienvenido/a' : 'Bienvenido'
   const displayName = user?.nombre || user?.email || ''
 
   const TEAM_ICON_MAP: Record<TeamType, { icon: typeof Cpu; colorClass: string; bgClass: string }> = {
