@@ -79,7 +79,19 @@ export default function TaskManagement() {
         nombre: d.data().nombre || d.data().name || 'Sin nombre',
       })))
 
-      setMembers(membersSnap.docs.map(d => ({ ...d.data(), id: d.id } as UserType)))
+      setMembers(membersSnap.docs.map(d => {
+        const data = d.data()
+        return {
+          id: d.id,
+          email: data.email || '',
+          nombre: data.nombre || '',
+          apellido: data.apellido || '',
+          rol: data.rol || 'tecnico',
+          equipo: data.equipo || undefined,
+          createdAt: data.createdAt?.toDate?.() || new Date(),
+          isActive: data.isActive ?? true,
+        } as UserType
+      }))
     } catch (error) {
       logger.error('Error loading task management data', { error })
     } finally {
@@ -138,7 +150,7 @@ export default function TaskManagement() {
 
   const getMemberName = (memberId: string) => {
     const member = members.find(m => m.id === memberId)
-    return member ? `${member.nombre} ${member.apellido}` : memberId
+    return member ? `${member.nombre || ''} ${member.apellido || ''}`.trim() || memberId : memberId
   }
 
   const getProjectName = (pId: string) => {
@@ -303,7 +315,7 @@ export default function TaskManagement() {
                         : 'bg-space-600 text-muted-foreground hover:bg-space-500 hover:text-white'
                     }`}
                   >
-                    {member.nombre} {member.apellido}
+                    {member.nombre || ''} {member.apellido || ''}
                   </button>
                 ))}
               </div>

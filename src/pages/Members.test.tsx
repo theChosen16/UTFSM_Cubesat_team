@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import Members from '@/pages/Members'
-import { User as UserType } from '@/types'
+import { User as UserType, UserRole } from '@/types'
 
 const mockGetAllUsers = vi.fn()
 const mockUpdateUserRole = vi.fn()
@@ -170,6 +170,57 @@ describe('Members', () => {
     renderMembers()
 
     // Should not crash – should render without error
+    await waitFor(() => {
+      expect(screen.getByText('Miembros del Equipo')).toBeInTheDocument()
+    })
+  })
+
+  it('filters members with undefined fields without crashing', async () => {
+    const membersWithMissing: UserType[] = [
+      {
+        id: 'broken',
+        email: undefined as unknown as string,
+        nombre: undefined as unknown as string,
+        apellido: undefined as unknown as string,
+        rol: 'tecnico',
+        createdAt: new Date(),
+        isActive: true,
+      },
+      ...sampleMembers,
+    ]
+    mockGetAllUsers.mockResolvedValue(membersWithMissing)
+
+    const user = userEvent.setup()
+    renderMembers()
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Maestro')).toBeInTheDocument()
+    })
+
+    // Typing a search query should not crash even with undefined fields
+    await user.type(screen.getByPlaceholderText('Buscar miembros...'), 'Admin')
+
+    expect(screen.getByText('Admin User')).toBeInTheDocument()
+    expect(screen.queryByText('Test Maestro')).not.toBeInTheDocument()
+  })
+
+  it('renders member card with undefined rol gracefully', async () => {
+    const membersWithBadRole: UserType[] = [
+      {
+        id: 'bad-role',
+        email: 'test@usm.cl',
+        nombre: 'Test',
+        apellido: 'User',
+        rol: undefined as unknown as UserRole,
+        createdAt: new Date(),
+        isActive: true,
+      },
+    ]
+    mockGetAllUsers.mockResolvedValue(membersWithBadRole)
+
+    renderMembers()
+
+    // Should not crash
     await waitFor(() => {
       expect(screen.getByText('Miembros del Equipo')).toBeInTheDocument()
     })

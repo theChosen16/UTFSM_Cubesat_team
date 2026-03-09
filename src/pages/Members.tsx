@@ -70,6 +70,7 @@ export default function Members() {
       case 'manager': return 'cyan'
       case 'tecnico': return 'purple'
       case 'relaciones_publicas': return 'green'
+      default: return 'purple'
     }
   }
 
