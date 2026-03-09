@@ -20,15 +20,27 @@ interface MemberCount {
   byRole: Record<string, number>
 }
 
+interface DashboardStats {
+  activeProjects: number
+  pendingTasks: number
+  completedTasks: number
+}
+
 export default function Dashboard() {
   const { user } = useAuth()
   const [memberCount, setMemberCount] = useState<MemberCount>({ total: 0, byRole: {} })
+  const [stats, setStats] = useState<DashboardStats>({ activeProjects: 0, pendingTasks: 0, completedTasks: 0 })
   const [loadingStats, setLoadingStats] = useState(true)
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const usersSnapshot = await getDocs(collection(db, 'users'))
+        const [usersSnapshot, projectsSnapshot, tasksSnapshot] = await Promise.all([
+          getDocs(collection(db, 'users')),
+          getDocs(collection(db, 'projects')),
+          getDocs(collection(db, 'tasks')),
+        ])
+
         const byRole: Record<string, number> = {}
         usersSnapshot.docs.forEach(doc => {
           const data = doc.data()
@@ -36,6 +48,24 @@ export default function Dashboard() {
           byRole[role] = (byRole[role] || 0) + 1
         })
         setMemberCount({ total: usersSnapshot.size, byRole })
+
+        const activeProjects = projectsSnapshot.docs.filter(d => {
+          const estado = d.data().estado || d.data().status
+          return estado !== 'completado'
+        }).length
+
+        let pendingTasks = 0
+        let completedTasks = 0
+        tasksSnapshot.docs.forEach(d => {
+          const estado = d.data().estado
+          if (estado === 'completado') {
+            completedTasks++
+          } else if (estado === 'pendiente' || estado === 'en_progreso') {
+            pendingTasks++
+          }
+        })
+
+        setStats({ activeProjects, pendingTasks, completedTasks })
       } catch (error) {
         logger.error('Error loading dashboard stats', { error })
       } finally {
@@ -45,24 +75,24 @@ export default function Dashboard() {
     loadStats()
   }, [])
 
-  const stats = [
+  const statCards = [
     {
       title: 'Proyectos Activos',
-      value: '—',
+      value: loadingStats ? '…' : String(stats.activeProjects),
       icon: FolderKanban,
       color: 'text-cyan-400',
       bg: 'bg-cyan-500/20'
     },
     {
-      title: 'Tareas Pendientes',
-      value: '—',
+      title: 'Tareas Activas',
+      value: loadingStats ? '…' : String(stats.pendingTasks),
       icon: Clock,
       color: 'text-orange-400',
       bg: 'bg-orange-500/20'
     },
     {
       title: 'Completadas',
-      value: '—',
+      value: loadingStats ? '…' : String(stats.completedTasks),
       icon: CheckCircle2,
       color: 'text-green-400',
       bg: 'bg-green-500/20'
@@ -103,7 +133,7 @@ export default function Dashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => {
+        {statCards.map((stat) => {
           const Icon = stat.icon
           return (
             <Card key={stat.title} className="bg-space-700/50 border-space-600">

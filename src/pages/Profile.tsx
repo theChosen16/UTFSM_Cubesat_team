@@ -24,7 +24,7 @@ import {
   Settings,
   Rocket
 } from 'lucide-react'
-import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire } from '@/types'
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS } from '@/types'
 import { logger } from '@/lib/logger'
 
 const ROLE_STYLES: Record<UserRole, { badge: 'orange' | 'red' | 'cyan' | 'purple' | 'green'; icon: string; background: string }> = {
@@ -63,6 +63,7 @@ export default function Profile() {
   // Profile fields
   const [career, setCareer] = useState(user?.career || '')
   const [year, setYear] = useState(user?.year || '')
+  const [equipo, setEquipo] = useState<TeamType | ''>(user?.equipo || '')
   
   // Questionnaire fields
   const [intereses, setIntereses] = useState(user?.questionnaire?.intereses || '')
@@ -75,6 +76,7 @@ export default function Profile() {
     if (user) {
       setCareer(user.career || '')
       setYear(user.year || '')
+      setEquipo(user.equipo || '')
       setIntereses(user.questionnaire?.intereses || '')
       setHabilidades(user.questionnaire?.habilidades || '')
       setMotivacion(user.questionnaire?.motivacion || '')
@@ -98,6 +100,7 @@ export default function Profile() {
       await updateUserProfile({
         career,
         year,
+        ...(equipo ? { equipo: equipo as TeamType } : {}),
         questionnaire
       })
       setIsEditing(false)
@@ -197,6 +200,35 @@ export default function Profile() {
                 <p className="text-sm text-muted-foreground">
                   {ROLE_DESCRIPTIONS[user.rol]}
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Team Selection */}
+          <div className="p-4 rounded-lg bg-space-600/50">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-blue-500/20">
+                <Users className="w-6 h-6 text-blue-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground mb-1">Equipo</p>
+                {isEditing ? (
+                  <select
+                    value={equipo}
+                    onChange={(e) => setEquipo(e.target.value as TeamType | '')}
+                    title="Seleccionar equipo"
+                    className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                  >
+                    <option value="">Selecciona tu equipo</option>
+                    {Object.entries(TEAM_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="text-white">
+                    {user.equipo ? TEAM_LABELS[user.equipo] : 'No seleccionado — edita tu perfil para elegir equipo'}
+                  </p>
+                )}
               </div>
             </div>
           </div>

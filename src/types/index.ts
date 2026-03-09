@@ -1,5 +1,7 @@
 export type UserRole = 'maestro' | 'admin' | 'manager' | 'tecnico' | 'relaciones_publicas'
 
+export type TeamType = 'estructura' | 'software' | 'comunicaciones' | 'propulsion' | 'gestion' | 'relaciones_publicas'
+
 export interface Questionnaire {
   intereses: string
   habilidades: string
@@ -14,6 +16,7 @@ export interface User {
   nombre: string
   apellido: string
   rol: UserRole
+  equipo?: TeamType
   createdAt: Date
   isActive: boolean
   career?: string
@@ -38,8 +41,10 @@ export interface Task {
   titulo: string
   descripcion: string
   estado: 'pendiente' | 'en_progreso' | 'completado'
-  asignadoA: string
+  asignadoA: string[]
+  equipo: TeamType
   prioridad: 'alta' | 'media' | 'baja'
+  creadoPor: string
   createdAt: Date
 }
 
@@ -65,4 +70,22 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   manager: 'Crea proyectos, controla el equipo y guía el desarrollo.',
   tecnico: 'Desarrollo de software, hardware, estructura, simulación y cálculos.',
   relaciones_publicas: 'Redes sociales, FabLab, contactos universitarios y trámites.',
+}
+
+export const TEAM_LABELS: Record<TeamType, string> = {
+  estructura: 'Estructura',
+  software: 'Software',
+  comunicaciones: 'Comunicaciones',
+  propulsion: 'Propulsión',
+  gestion: 'Gestión',
+  relaciones_publicas: 'Relaciones Públicas',
+}
+
+export const TEAM_COLORS: Record<TeamType, string> = {
+  estructura: 'bg-amber-500',
+  software: 'bg-blue-500',
+  comunicaciones: 'bg-indigo-500',
+  propulsion: 'bg-red-500',
+  gestion: 'bg-cyan-500',
+  relaciones_publicas: 'bg-green-500',
 }
