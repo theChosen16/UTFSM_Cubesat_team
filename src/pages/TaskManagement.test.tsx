@@ -131,6 +131,16 @@ describe('TaskManagement', () => {
     })
   })
 
+  it('shows manager users the "Nueva Tarea" button', async () => {
+    currentMockUser = { ...mockUser, rol: 'manager' }
+
+    renderTaskManagement()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /nueva tarea/i })).toBeInTheDocument()
+    })
+  })
+
   it('disables "Crear Tarea" button when title is empty', async () => {
     const user = userEvent.setup()
     renderTaskManagement()

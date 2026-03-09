@@ -10,6 +10,7 @@ import Projects from './pages/Projects'
 import Members from './pages/Members'
 import Profile from './pages/Profile'
 import TaskManagement from './pages/TaskManagement'
+import Notifications from './pages/Notifications'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -39,6 +40,7 @@ function App() {
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/tasks" element={<TaskManagement />} />
                 <Route path="/members" element={<Members />} />
+                <Route path="/notifications" element={<Notifications />} />
                 <Route path="/profile" element={<Profile />} />
               </Routes>
             </Layout>

@@ -14,7 +14,7 @@ import {
   Crown,
   Settings
 } from 'lucide-react'
-import { User as UserType, ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole } from '@/types'
+import { User as UserType, ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, TEAM_LABELS } from '@/types'
 import { logger } from '@/lib/logger'
 
 export default function Members() {
@@ -94,13 +94,15 @@ export default function Members() {
         <div>
           <h1 className="text-3xl font-bold text-white">Miembros del Equipo</h1>
           <p className="text-muted-foreground mt-1">
-            Gestiona los roles y permisos de los miembros
+            Directorio de miembros y sus funciones en el equipo
           </p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Shield className="w-4 h-4 text-orange-400" />
-          <span>Usuario Maestro</span>
-        </div>
+        {(user?.rol === 'maestro' || user?.rol === 'admin') && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Shield className="w-4 h-4 text-orange-400" />
+            <span>Gestión de roles habilitada</span>
+          </div>
+        )}
       </div>
 
       {/* Search */}
@@ -163,6 +165,14 @@ export default function Members() {
                     </p>
                   </div>
                 </div>
+
+                {/* Team info */}
+                {member.equipo && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Users className="w-4 h-4 text-blue-400" />
+                    <span>Equipo: <span className="text-white">{TEAM_LABELS[member.equipo]}</span></span>
+                  </div>
+                )}
 
                 {/* Role Change (Maestro can assign Admin, Admins can assign other roles) */}
                 {((isMaster) || (user?.rol === 'admin' && member.rol !== 'maestro')) && !isCurrentUser && (
