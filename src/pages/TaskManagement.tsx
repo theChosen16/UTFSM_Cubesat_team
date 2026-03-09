@@ -56,13 +56,17 @@ export default function TaskManagement() {
 
       setTasks(tasksSnap.docs.map(d => {
         const data = d.data()
+        const rawAsignadoA = data.asignadoA
+        const normalizedAsignadoA = Array.isArray(rawAsignadoA)
+          ? rawAsignadoA
+          : rawAsignadoA ? [rawAsignadoA] : []
         return {
           id: d.id,
           projectId: data.projectId || '',
           titulo: data.titulo || '',
           descripcion: data.descripcion || '',
           estado: data.estado || 'pendiente',
-          asignadoA: Array.isArray(data.asignadoA) ? data.asignadoA : (data.asignadoA ? [data.asignadoA] : []),
+          asignadoA: normalizedAsignadoA,
           equipo: data.equipo || 'software',
           prioridad: data.prioridad || 'media',
           creadoPor: data.creadoPor || '',

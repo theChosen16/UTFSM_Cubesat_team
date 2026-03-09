@@ -58,8 +58,11 @@ export default function Dashboard() {
         let completedTasks = 0
         tasksSnapshot.docs.forEach(d => {
           const estado = d.data().estado
-          if (estado === 'completado') completedTasks++
-          else pendingTasks++
+          if (estado === 'completado') {
+            completedTasks++
+          } else if (estado === 'pendiente' || estado === 'en_progreso') {
+            pendingTasks++
+          }
         })
 
         setStats({ activeProjects, pendingTasks, completedTasks })
@@ -81,7 +84,7 @@ export default function Dashboard() {
       bg: 'bg-cyan-500/20'
     },
     {
-      title: 'Tareas Pendientes',
+      title: 'Tareas Activas',
       value: loadingStats ? '…' : String(stats.pendingTasks),
       icon: Clock,
       color: 'text-orange-400',
