@@ -10,7 +10,7 @@ import {
   Clock,
   CheckCircle2
 } from 'lucide-react'
-import { ROLE_LABELS, UserRole, TEAM_LABELS, TeamType } from '@/types'
+import { ROLE_LABELS, TEAM_LABELS, TeamType } from '@/types'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'

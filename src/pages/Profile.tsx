@@ -12,7 +12,6 @@ import {
   Shield, 
   Cpu, 
   Users, 
-  Globe,
   Crown,
   Edit,
   GraduationCap,

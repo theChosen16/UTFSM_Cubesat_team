@@ -6,9 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { 
   User, 
   Shield, 
-  Cpu, 
   Users, 
-  Globe,
   Search,
   MoreHorizontal,
   Crown,
