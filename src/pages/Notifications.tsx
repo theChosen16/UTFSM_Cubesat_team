@@ -123,12 +123,12 @@ export default function Notifications() {
   const loadUsers = async () => {
     try {
       const users = await getAllUsers()
-      setAllUsers(users.filter(u => u.id !== user?.id).map(u => ({
-        id: u.id,
-        nombre: u.nombre,
-        apellido: u.apellido,
-        email: u.email,
-      })))
+      setAllUsers(users.reduce<{ id: string; nombre: string; apellido: string; email: string }[]>((acc, u) => {
+        if (u.id !== user?.id) {
+          acc.push({ id: u.id, nombre: u.nombre, apellido: u.apellido, email: u.email })
+        }
+        return acc
+      }, []))
     } catch (error) {
       logger.error('Error loading users for compose', { error })
     }
@@ -249,15 +249,15 @@ export default function Notifications() {
     }
   }
 
-  const getNotificationColor = (type: NotificationType['type']) => {
+  const getNotificationColor = (type: NotificationType['type']): { icon: string; bg: string } => {
     switch (type) {
-      case 'role_request_received': return 'text-cyan-400 bg-cyan-500/20'
-      case 'role_request_approved': return 'text-green-400 bg-green-500/20'
-      case 'role_request_rejected': return 'text-red-400 bg-red-500/20'
-      case 'task_assigned': return 'text-purple-400 bg-purple-500/20'
-      case 'message': return 'text-blue-400 bg-blue-500/20'
-      case 'system': return 'text-orange-400 bg-orange-500/20'
-      default: return 'text-gray-400 bg-gray-500/20'
+      case 'role_request_received': return { icon: 'text-cyan-400', bg: 'bg-cyan-500/20' }
+      case 'role_request_approved': return { icon: 'text-green-400', bg: 'bg-green-500/20' }
+      case 'role_request_rejected': return { icon: 'text-red-400', bg: 'bg-red-500/20' }
+      case 'task_assigned': return { icon: 'text-purple-400', bg: 'bg-purple-500/20' }
+      case 'message': return { icon: 'text-blue-400', bg: 'bg-blue-500/20' }
+      case 'system': return { icon: 'text-orange-400', bg: 'bg-orange-500/20' }
+      default: return { icon: 'text-gray-400', bg: 'bg-gray-500/20' }
     }
   }
 
@@ -269,8 +269,17 @@ export default function Notifications() {
     )
   }
 
-  const filteredNotifications = notifications.filter(n => n.type !== 'message')
-  const messageNotifications = notifications.filter(n => n.type === 'message')
+  const { filteredNotifications, messageNotifications } = notifications.reduce<{
+    filteredNotifications: NotificationType[]
+    messageNotifications: NotificationType[]
+  }>((acc, n) => {
+    if (n.type === 'message') {
+      acc.messageNotifications.push(n)
+    } else {
+      acc.filteredNotifications.push(n)
+    }
+    return acc
+  }, { filteredNotifications: [], messageNotifications: [] })
 
   const tabs: { id: TabType; label: string; icon: typeof Bell; count?: number; restricted?: boolean }[] = [
     { id: 'notifications', label: 'Notificaciones', icon: Bell, count: unreadNonMessageCount },
@@ -339,8 +348,7 @@ export default function Notifications() {
             <div className="grid gap-3">
               {filteredNotifications.map(notification => {
                 const Icon = getNotificationIcon(notification.type)
-                const colorClasses = getNotificationColor(notification.type)
-                const [iconColor, bgColor] = colorClasses.split(' ')
+                const { icon: iconColor, bg: bgColor } = getNotificationColor(notification.type)
                 return (
                   <Card
                     key={notification.id}

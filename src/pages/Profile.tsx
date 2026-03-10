@@ -157,7 +157,7 @@ export default function Profile() {
           })
         }
       } catch (notifError) {
-        logger.error('Error creating notification for maestro', { error: notifError instanceof Error ? notifError : undefined })
+        logger.error('Error creating notifications for maestro users', { error: notifError instanceof Error ? notifError : undefined })
       }
       setRequestSent(true)
       setHasPendingRequest(true)
