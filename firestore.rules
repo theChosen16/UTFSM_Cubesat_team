@@ -19,6 +19,19 @@ service cloud.firestore {
       allow delete: if request.auth != null && 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'maestro';
     }
+
+    match /notifications/{notificationId} {
+      // Users can read their own notifications
+      allow read: if request.auth != null && 
+        resource.data.recipientId == request.auth.uid;
+      
+      // Any authenticated user can create notifications (for messages and system events)
+      allow create: if request.auth != null;
+      
+      // Users can update their own notifications (e.g., mark as read)
+      allow update: if request.auth != null && 
+        resource.data.recipientId == request.auth.uid;
+    }
     
     // Default rules for other collections
     match /{document=**} {
