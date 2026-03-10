@@ -21,3 +21,6 @@ dist-ssr
 
 # TypeScript build info
 tsconfig.tsbuildinfo
+
+# Playwright MCP session data
+.playwright-mcp
