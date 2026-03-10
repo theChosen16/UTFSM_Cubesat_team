@@ -128,3 +128,33 @@ export interface RoleRequest {
   resolvedAt?: Date
   resolvedBy?: string
 }
+
+export type NotificationType =
+  | 'role_request_received'
+  | 'role_request_approved'
+  | 'role_request_rejected'
+  | 'task_assigned'
+  | 'message'
+  | 'system'
+
+export interface Notification {
+  id: string
+  recipientId: string
+  type: NotificationType
+  title: string
+  message: string
+  read: boolean
+  createdAt: Date
+  senderId?: string
+  senderName?: string
+  relatedId?: string
+}
+
+export const NOTIFICATION_LABELS: Record<NotificationType, string> = {
+  role_request_received: 'Solicitud de Rol',
+  role_request_approved: 'Rol Aprobado',
+  role_request_rejected: 'Rol Rechazado',
+  task_assigned: 'Tarea Asignada',
+  message: 'Mensaje',
+  system: 'Sistema',
+}

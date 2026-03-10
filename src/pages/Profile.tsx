@@ -60,7 +60,7 @@ const ROLE_STYLES: Record<UserRole, { badge: 'orange' | 'red' | 'cyan' | 'purple
 }
 
 export default function Profile() {
-  const { user, updateUserProfile } = useAuth()
+  const { user, updateUserProfile, getAllUsers } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [photoError, setPhotoError] = useState('')
@@ -130,7 +130,7 @@ export default function Profile() {
     if (!user) return
     setRequestSending(true)
     try {
-      await addDoc(collection(db, 'role_requests'), {
+      const roleRequestDoc = await addDoc(collection(db, 'role_requests'), {
         userId: user.id,
         userEmail: user.email,
         userName: `${user.nombre} ${user.apellido}`,
@@ -139,6 +139,26 @@ export default function Profile() {
         estado: 'pendiente',
         createdAt: Timestamp.now(),
       })
+      // Create notifications for all maestro users
+      try {
+        const allUsersData = await getAllUsers()
+        const maestroUsers = allUsersData.filter(u => u.rol === 'maestro')
+        for (const maestro of maestroUsers) {
+          await addDoc(collection(db, 'notifications'), {
+            recipientId: maestro.id,
+            type: 'role_request_received',
+            title: 'Nueva Solicitud de Rol',
+            message: `${user.nombre} ${user.apellido} ha solicitado el rol de ${ROLE_LABELS[requestedRole]}.`,
+            read: false,
+            createdAt: Timestamp.now(),
+            senderId: user.id,
+            senderName: `${user.nombre} ${user.apellido}`,
+            relatedId: roleRequestDoc.id,
+          })
+        }
+      } catch (notifError) {
+        logger.error('Error creating notification for maestro', { error: notifError instanceof Error ? notifError : undefined })
+      }
       setRequestSent(true)
       setHasPendingRequest(true)
       setShowRoleRequest(false)

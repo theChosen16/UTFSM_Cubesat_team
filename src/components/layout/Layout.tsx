@@ -43,9 +43,7 @@ export default function Layout({ children }: LayoutProps) {
       { path: '/tasks', label: 'Gestión de Tareas', icon: ListTodo, restricted: true },
     ] : []),
     { path: '/members', label: 'Miembros', icon: Users, restricted: false },
-    ...(user?.rol === 'maestro' ? [
-      { path: '/notifications', label: 'Solicitudes', icon: Bell, restricted: true },
-    ] : []),
+    { path: '/notifications', label: 'Buzón', icon: Bell, restricted: false },
     { path: '/profile', label: 'Mi Perfil', icon: User, restricted: false },
   ]
 
