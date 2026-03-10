@@ -3,10 +3,11 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import Members from '@/pages/Members'
-import { User as UserType, UserRole } from '@/types'
+import { User as UserType } from '@/types'
 
 const mockGetAllUsers = vi.fn()
 const mockUpdateUserRole = vi.fn()
+const mockUpdateUserTeam = vi.fn()
 
 const mockCurrentUser: Partial<UserType> = {
   id: 'user1',
@@ -25,6 +26,7 @@ vi.mock('@/contexts/AuthContext', () => ({
     user: currentMockUser,
     getAllUsers: mockGetAllUsers,
     updateUserRole: mockUpdateUserRole,
+    updateUserTeam: mockUpdateUserTeam,
   }),
 }))
 
@@ -63,7 +65,7 @@ const sampleMembers: UserType[] = [
     email: 'tecnico@usm.cl',
     nombre: 'Tecnico',
     apellido: 'Dev',
-    rol: 'tecnico',
+    rol: undefined,
     equipo: 'tecnico',
     createdAt: new Date(),
     isActive: true,
@@ -160,7 +162,7 @@ describe('Members', () => {
         email: undefined as unknown as string,
         nombre: undefined as unknown as string,
         apellido: undefined as unknown as string,
-        rol: 'tecnico',
+        rol: undefined,
         createdAt: new Date(),
         isActive: true,
       },
@@ -182,7 +184,7 @@ describe('Members', () => {
         email: undefined as unknown as string,
         nombre: undefined as unknown as string,
         apellido: undefined as unknown as string,
-        rol: 'tecnico',
+        rol: undefined,
         createdAt: new Date(),
         isActive: true,
       },
@@ -211,7 +213,7 @@ describe('Members', () => {
         email: 'test@usm.cl',
         nombre: 'Test',
         apellido: 'User',
-        rol: undefined as unknown as UserRole,
+        rol: undefined,
         createdAt: new Date(),
         isActive: true,
       },
@@ -244,8 +246,8 @@ describe('Members', () => {
     })
   })
 
-  it('does not show role management badge for tecnico', async () => {
-    currentMockUser = { ...mockCurrentUser, rol: 'tecnico' }
+  it('does not show role management badge for regular member', async () => {
+    currentMockUser = { ...mockCurrentUser, rol: undefined }
 
     renderMembers()
 
@@ -314,7 +316,7 @@ describe('Members', () => {
     })
 
     const selects = screen.getAllByTitle('Cambiar rol del miembro')
-    await user.selectOptions(selects[0], 'manager')
+    await user.selectOptions(selects[0], 'admin')
 
     await waitFor(() => {
       expect(mockUpdateUserRole).toHaveBeenCalled()

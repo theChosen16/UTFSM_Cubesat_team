@@ -110,8 +110,8 @@ describe('TaskManagement', () => {
     expect(screen.getByText('Responsable(s)')).toBeInTheDocument()
   })
 
-  it('does not show "Nueva Tarea" button for tecnico users', async () => {
-    currentMockUser = { ...mockUser, rol: 'tecnico' }
+  it('does not show "Nueva Tarea" button for regular members', async () => {
+    currentMockUser = { ...mockUser, rol: undefined, equipo: 'tecnico' }
 
     renderTaskManagement()
 
@@ -131,8 +131,8 @@ describe('TaskManagement', () => {
     })
   })
 
-  it('shows manager users the "Nueva Tarea" button', async () => {
-    currentMockUser = { ...mockUser, rol: 'manager' }
+  it('shows manager team members the "Nueva Tarea" button', async () => {
+    currentMockUser = { ...mockUser, equipo: 'manager' }
 
     renderTaskManagement()
 

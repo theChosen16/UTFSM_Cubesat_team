@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Satellite, Rocket, Cpu, Users, Globe, ArrowRight } from 'lucide-react'
+import { Rocket, Cpu, Users, Globe, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function Landing() {
@@ -17,7 +17,7 @@ export default function Landing() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-cyan-500/20">
-                <Satellite className="w-6 h-6 text-cyan-400" />
+                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="w-6 h-6" />
               </div>
               <span className="text-xl font-bold text-white">USM Cubesat Team</span>
             </div>
@@ -122,7 +122,7 @@ export default function Landing() {
         <div className="container mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Satellite className="w-5 h-5 text-cyan-400" />
+              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="w-5 h-5" />
               <span className="text-muted-foreground">USM Cubesat Team © {new Date().getFullYear()}</span>
             </div>
             <div className="flex items-center gap-6">
@@ -131,9 +131,6 @@ export default function Landing() {
               </a>
               <a href="https://www.instagram.com/usm.cubesat.team/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-cyan-400 transition-colors">
                 Instagram
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-cyan-400 transition-colors">
-                LinkedIn
               </a>
             </div>
           </div>

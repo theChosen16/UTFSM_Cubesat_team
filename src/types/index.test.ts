@@ -36,7 +36,7 @@ describe('Types', () => {
 
   describe('Role constants', () => {
     it('defines all role labels', () => {
-      const roles: UserRole[] = ['maestro', 'admin', 'manager', 'tecnico', 'relaciones_publicas']
+      const roles: UserRole[] = ['maestro', 'admin']
       roles.forEach(role => {
         expect(ROLE_LABELS[role]).toBeDefined()
         expect(typeof ROLE_LABELS[role]).toBe('string')
@@ -44,7 +44,7 @@ describe('Types', () => {
     })
 
     it('defines all role descriptions', () => {
-      const roles: UserRole[] = ['maestro', 'admin', 'manager', 'tecnico', 'relaciones_publicas']
+      const roles: UserRole[] = ['maestro', 'admin']
       roles.forEach(role => {
         expect(ROLE_DESCRIPTIONS[role]).toBeDefined()
         expect(ROLE_DESCRIPTIONS[role].length).toBeGreaterThan(10)
@@ -53,12 +53,13 @@ describe('Types', () => {
 
     it('sanitizes unknown roles with safe fallback', () => {
       expect(sanitizeUserRole('maestro')).toBe('maestro')
-      expect(sanitizeUserRole('invalid-role')).toBe('tecnico')
-      expect(sanitizeUserRole(undefined, 'manager')).toBe('manager')
-      expect(sanitizeUserRole(null)).toBe('tecnico')
-      expect(sanitizeUserRole(123)).toBe('tecnico')
-      expect(sanitizeUserRole({ rol: 'admin' })).toBe('tecnico')
-      expect(sanitizeUserRole(['maestro'])).toBe('tecnico')
+      expect(sanitizeUserRole('admin')).toBe('admin')
+      expect(sanitizeUserRole('invalid-role')).toBeUndefined()
+      expect(sanitizeUserRole(undefined)).toBeUndefined()
+      expect(sanitizeUserRole(null)).toBeUndefined()
+      expect(sanitizeUserRole(123)).toBeUndefined()
+      expect(sanitizeUserRole({ rol: 'admin' })).toBeUndefined()
+      expect(sanitizeUserRole(['maestro'])).toBeUndefined()
     })
   })
 

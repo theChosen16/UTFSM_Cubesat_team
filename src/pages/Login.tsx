@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, Navigate } from 'react-router-dom'
-import { Satellite, Mail, Lock, AlertCircle, ShieldAlert } from 'lucide-react'
+import { Mail, Lock, AlertCircle, ShieldAlert } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -91,7 +91,7 @@ export default function Login() {
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 rounded-xl bg-cyan-500/20">
-              <Satellite className="w-8 h-8 text-cyan-400" />
+              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="w-8 h-8" />
             </div>
           </div>
           <CardTitle className="text-2xl text-white">Bienvenido de vuelta</CardTitle>

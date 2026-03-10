@@ -23,15 +23,13 @@ import {
   Save,
   Settings,
   Rocket,
-  Send,
   Camera
 } from 'lucide-react'
-import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS, Genero, sanitizeUserRole } from '@/types'
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS, Genero } from '@/types'
 import { logger } from '@/lib/logger'
-import { collection, addDoc, getDocs, query, where, Timestamp } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { extractNameFromEmail } from '@/lib/utils'
 
-const ROLE_STYLES: Record<UserRole, { badge: 'orange' | 'red' | 'cyan' | 'purple' | 'green'; icon: string; background: string }> = {
+const ROLE_STYLES: Record<UserRole, { badge: 'orange' | 'red'; icon: string; background: string }> = {
   maestro: {
     badge: 'orange',
     icon: 'text-orange-400',
@@ -42,25 +40,10 @@ const ROLE_STYLES: Record<UserRole, { badge: 'orange' | 'red' | 'cyan' | 'purple
     icon: 'text-red-400',
     background: 'bg-red-500/20'
   },
-  manager: {
-    badge: 'cyan',
-    icon: 'text-cyan-400',
-    background: 'bg-cyan-500/20'
-  },
-  tecnico: {
-    badge: 'purple',
-    icon: 'text-purple-400',
-    background: 'bg-purple-500/20'
-  },
-  relaciones_publicas: {
-    badge: 'green',
-    icon: 'text-green-400',
-    background: 'bg-green-500/20'
-  }
 }
 
 export default function Profile() {
-  const { user, updateUserProfile, getAllUsers } = useAuth()
+  const { user, updateUserProfile } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [photoError, setPhotoError] = useState('')
@@ -80,14 +63,6 @@ export default function Profile() {
   const [disponibilidad, setDisponibilidad] = useState(user?.questionnaire?.disponibilidad || '')
   const [proyectosPrevios, setProyectosPrevios] = useState(user?.questionnaire?.proyectosPrevios || '')
 
-  // Role request state
-  const [showRoleRequest, setShowRoleRequest] = useState(false)
-  const [requestedRole, setRequestedRole] = useState<UserRole>('manager')
-  const [roleRequestMessage, setRoleRequestMessage] = useState('')
-  const [requestSending, setRequestSending] = useState(false)
-  const [requestSent, setRequestSent] = useState(false)
-  const [hasPendingRequest, setHasPendingRequest] = useState(false)
-
   useEffect(() => {
     if (user) {
       setCareer(user.career || '')
@@ -103,72 +78,7 @@ export default function Profile() {
     }
   }, [user])
 
-  useEffect(() => {
-    const checkPendingRequest = async () => {
-      if (!user) return
-      try {
-        const snapshot = await getDocs(
-          query(
-            collection(db, 'role_requests'),
-            where('userId', '==', user.id),
-            where('estado', '==', 'pendiente')
-          )
-        )
-        setHasPendingRequest(!snapshot.empty)
-      } catch (error) {
-        logger.error('Error checking pending role request', { error: error instanceof Error ? error : undefined })
-      }
-    }
-    checkPendingRequest()
-  }, [user])
-
   if (!user) return null
-
-  const canRequestRole = user.rol !== 'maestro' && user.rol !== 'admin'
-
-  const handleRoleRequest = async () => {
-    if (!user) return
-    setRequestSending(true)
-    try {
-      const roleRequestDoc = await addDoc(collection(db, 'role_requests'), {
-        userId: user.id,
-        userEmail: user.email,
-        userName: `${user.nombre} ${user.apellido}`,
-        rolSolicitado: requestedRole,
-        mensaje: roleRequestMessage.trim(),
-        estado: 'pendiente',
-        createdAt: Timestamp.now(),
-      })
-      // Create notifications for all maestro users
-      try {
-        const allUsersData = await getAllUsers()
-        const maestroUsers = allUsersData.filter(u => u.rol === 'maestro')
-        for (const maestro of maestroUsers) {
-          await addDoc(collection(db, 'notifications'), {
-            recipientId: maestro.id,
-            type: 'role_request_received',
-            title: 'Nueva Solicitud de Rol',
-            message: `${user.nombre} ${user.apellido} ha solicitado el rol de ${ROLE_LABELS[requestedRole]}.`,
-            read: false,
-            createdAt: Timestamp.now(),
-            senderId: user.id,
-            senderName: `${user.nombre} ${user.apellido}`,
-            relatedId: roleRequestDoc.id,
-          })
-        }
-      } catch (notifError) {
-        logger.error('Error creating notifications for maestro users', { error: notifError instanceof Error ? notifError : undefined })
-      }
-      setRequestSent(true)
-      setHasPendingRequest(true)
-      setShowRoleRequest(false)
-      setRoleRequestMessage('')
-    } catch (error) {
-      logger.error('Error sending role request', { error: error instanceof Error ? error : undefined })
-    } finally {
-      setRequestSending(false)
-    }
-  }
 
   const handleSave = async () => {
     setLoading(true)
@@ -236,22 +146,19 @@ export default function Profile() {
     }
   }
 
-  const getRoleIcon = (rol: UserRole) => {
+  const getRoleIcon = (rol?: UserRole) => {
     switch (rol) {
       case 'maestro': return Crown
       case 'admin': return Settings
-      case 'manager': return Users
-      case 'tecnico': return Cpu
-      case 'relaciones_publicas': return Globe
       default: return User
     }
   }
 
-  const normalizedRole = sanitizeUserRole(user.rol)
-  const RoleIcon = getRoleIcon(normalizedRole)
-  const roleStyles = ROLE_STYLES[normalizedRole]
-  const firstInitial = (user.nombre || '?').trim().charAt(0).toUpperCase() || '?'
-  const lastInitial = (user.apellido || '?').trim().charAt(0).toUpperCase() || '?'
+  const RoleIcon = getRoleIcon(user.rol)
+  const roleStyles = user.rol ? ROLE_STYLES[user.rol] : null
+  const displayName = user.nombre || extractNameFromEmail(user.email)
+  const firstInitial = displayName.trim().charAt(0).toUpperCase() || '?'
+  const lastInitial = (user.apellido || '').trim().charAt(0).toUpperCase()
   const handleInputChange = (setter: (value: string) => void) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setter(event.target.value)
   }
@@ -307,7 +214,7 @@ export default function Profile() {
               </div>
               <div>
                 <CardTitle className="text-2xl text-white">
-                  {user.nombre} {user.apellido}
+                  {displayName} {user.apellido || ''}
                 </CardTitle>
                 <CardDescription className="text-base">{user.email}</CardDescription>
                 {photoError && (
@@ -342,26 +249,41 @@ export default function Profile() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Role Section */}
-          <div className="p-4 rounded-lg bg-space-600/50">
-            <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-xl ${roleStyles.background}`}>
-                  <RoleIcon className={`w-6 h-6 ${roleStyles.icon}`} />
+          {roleStyles && user.rol ? (
+            <div className="p-4 rounded-lg bg-space-600/50">
+              <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-xl ${roleStyles.background}`}>
+                    <RoleIcon className={`w-6 h-6 ${roleStyles.icon}`} />
+                  </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant={roleStyles.badge}>
+                      {ROLE_LABELS[user.rol]}
+                    </Badge>
+                    {user.rol === 'maestro' && (
+                      <Shield className="w-4 h-4 text-orange-400" />
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {ROLE_DESCRIPTIONS[user.rol]}
+                  </p>
                 </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <Badge variant={roleStyles.badge}>
-                    {ROLE_LABELS[normalizedRole]}
-                  </Badge>
-                  {normalizedRole === 'maestro' && (
-                    <Shield className="w-4 h-4 text-orange-400" />
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {ROLE_DESCRIPTIONS[normalizedRole]}
-                </p>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="p-4 rounded-lg bg-space-600/50">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-gray-500/20">
+                  <User className="w-6 h-6 text-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">
+                    Sin rol asignado. El usuario maestro te asignará un rol.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Team Selection */}
           <div className="p-4 rounded-lg bg-space-600/50">
@@ -590,7 +512,7 @@ export default function Profile() {
 
           {/* Permissions */}
           <div className="space-y-3">
-            <h3 className="text-lg font-semibold text-white">Permisos del Rol</h3>
+            <h3 className="text-lg font-semibold text-white">Permisos</h3>
             <div className="grid gap-2">
               {user.rol === 'maestro' && (
                 <>
@@ -600,11 +522,7 @@ export default function Profile() {
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Users className="w-4 h-4 text-orange-400" />
-                    <span>Asignar y cambiar roles de miembros</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Shield className="w-4 h-4 text-orange-400" />
-                    <span>Eliminar miembros del equipo</span>
+                    <span>Asignar roles y equipos a miembros</span>
                   </div>
                 </>
               )}
@@ -616,11 +534,11 @@ export default function Profile() {
                   </div>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Users className="w-4 h-4 text-red-400" />
-                    <span>Gestionar miembros y asignar roles (excepto maestro)</span>
+                    <span>Asignar equipos a miembros</span>
                   </div>
                 </>
               )}
-              {(user.rol === 'maestro' || user.rol === 'admin' || user.rol === 'manager') && (
+              {(user.rol === 'maestro' || user.rol === 'admin' || user.equipo === 'manager') && (
                 <>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Cpu className="w-4 h-4 text-cyan-400" />
@@ -632,106 +550,16 @@ export default function Profile() {
                   </div>
                 </>
               )}
-              {user.rol === 'tecnico' && (
-                <>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Cpu className="w-4 h-4 text-purple-400" />
-                    <span>Ver proyectos asignados</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Cpu className="w-4 h-4 text-purple-400" />
-                    <span>Actualizar estado de tareas</span>
-                  </div>
-                </>
-              )}
-              {user.rol === 'relaciones_publicas' && (
-                <>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Globe className="w-4 h-4 text-green-400" />
-                    <span>Gestionar redes sociales</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Globe className="w-4 h-4 text-green-400" />
-                    <span>Coordinar recursos universitarios</span>
-                  </div>
-                </>
+              {!user.rol && !user.equipo && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <User className="w-4 h-4 text-gray-400" />
+                  <span>Ver proyectos del equipo</span>
+                </div>
               )}
             </div>
           </div>
         </CardContent>
       </Card>
-
-      {/* Role Request Section */}
-      {canRequestRole && (
-        <Card className="bg-space-700/50 border-space-600">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
-              <Send className="w-5 h-5 text-cyan-400" />
-              Solicitar Cambio de Rol
-            </CardTitle>
-            <CardDescription>
-              Envía una solicitud al Usuario Maestro para cambiar tu rol en la plataforma
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {requestSent || hasPendingRequest ? (
-              <div className="p-4 rounded-lg bg-orange-500/20 text-orange-300 text-sm">
-                Ya tienes una solicitud de rol pendiente. El Usuario Maestro la revisará pronto.
-              </div>
-            ) : showRoleRequest ? (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-white">Rol solicitado</label>
-                  <select
-                    value={requestedRole}
-                    onChange={(e) => setRequestedRole(e.target.value as UserRole)}
-                    title="Seleccionar rol"
-                    className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
-                  >
-                    <option value="manager">Manager</option>
-                    <option value="admin">Administrador</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-white">Mensaje (opcional)</label>
-                  <Textarea
-                    value={roleRequestMessage}
-                    onChange={(e) => setRoleRequestMessage(e.target.value)}
-                    placeholder="Explica por qué deseas este rol..."
-                    className="bg-space-700 border-space-500 text-white min-h-[80px]"
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <Button
-                    onClick={handleRoleRequest}
-                    disabled={requestSending}
-                    className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
-                  >
-                    <Send className="w-4 h-4 mr-2" />
-                    {requestSending ? 'Enviando...' : 'Enviar Solicitud'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowRoleRequest(false)}
-                    className="border-space-600 text-white hover:bg-space-600"
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button
-                onClick={() => setShowRoleRequest(true)}
-                variant="outline"
-                className="border-space-600 text-white hover:bg-space-600"
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Solicitar Cambio de Rol
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

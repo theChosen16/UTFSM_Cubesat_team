@@ -14,6 +14,7 @@ import { ROLE_LABELS, UserRole, TEAM_LABELS, TeamType } from '@/types'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
+import { extractNameFromEmail } from '@/lib/utils'
 
 interface MemberCount {
   total: number
@@ -113,7 +114,7 @@ export default function Dashboard() {
   ]
 
   const greeting = user?.genero === 'femenino' ? 'Bienvenida' : user?.genero === 'otro' ? 'Bienvenido/a' : 'Bienvenido'
-  const displayName = user?.nombre || user?.email || ''
+  const displayName = user?.nombre || extractNameFromEmail(user?.email || '')
 
   const TEAM_ICON_MAP: Record<TeamType, { icon: typeof Cpu; colorClass: string; bgClass: string }> = {
     tecnico: { icon: Cpu, colorClass: 'text-purple-400', bgClass: 'bg-purple-500/20' },
@@ -130,7 +131,15 @@ export default function Dashboard() {
             ¡{greeting}, {displayName}!
           </h1>
           <p className="text-muted-foreground mt-1">
-            Tu rol: <span className="text-cyan-400">{user ? ROLE_LABELS[user.rol as UserRole] : ''}</span>
+            {user?.rol && (
+              <>Tu rol: <span className="text-cyan-400">{ROLE_LABELS[user.rol]}</span>{' '}</>  
+            )}
+            {user?.equipo && (
+              <>Equipo: <span className="text-purple-400">{TEAM_LABELS[user.equipo]}</span></>  
+            )}
+            {!user?.rol && !user?.equipo && (
+              <span className="text-muted-foreground">Sin rol ni equipo asignado</span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">

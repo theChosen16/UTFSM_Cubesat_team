@@ -14,11 +14,12 @@ import {
   Crown,
   Settings
 } from 'lucide-react'
-import { User as UserType, ROLE_LABELS, UserRole, TEAM_LABELS } from '@/types'
+import { User as UserType, ROLE_LABELS, UserRole, TEAM_LABELS, TeamType } from '@/types'
 import { logger } from '@/lib/logger'
+import { extractNameFromEmail } from '@/lib/utils'
 
 export default function Members() {
-  const { user, getAllUsers, updateUserRole } = useAuth()
+  const { user, getAllUsers, updateUserRole, updateUserTeam } = useAuth()
   const [members, setMembers] = useState<UserType[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -39,9 +40,9 @@ export default function Members() {
   }
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
-    // Only maestro can assign admin or maestro roles
-    if ((newRole === 'admin' || newRole === 'maestro') && user?.rol !== 'maestro') {
-      logger.warn('Non-maestro user attempted to assign admin/maestro role', { userId, newRole })
+    // Only maestro can assign admin roles
+    if (user?.rol !== 'maestro') {
+      logger.warn('Non-maestro user attempted to assign role', { userId, newRole })
       return
     }
     try {
@@ -52,22 +53,43 @@ export default function Members() {
     }
   }
 
-  const getRoleIcon = (rol: UserRole) => {
+  const handleTeamChange = async (userId: string, newTeam: TeamType) => {
+    try {
+      await updateUserTeam(userId, newTeam)
+      await loadMembers()
+    } catch (error) {
+      logger.error('Error updating team', { error: error instanceof Error ? error : undefined, userId, newTeam })
+    }
+  }
+
+  const getRoleIcon = (rol?: UserRole) => {
     switch (rol) {
       case 'maestro': return Crown
       case 'admin': return Settings
-      case 'manager': return Users
-      case 'tecnico': return Cpu
-      case 'relaciones_publicas': return Globe
       default: return User
     }
   }
 
-  const filteredMembers = members.filter(member =>
+      const filteredMembers = members.filter(member =>
     (member.nombre || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (member.apellido || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (member.email || '').toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  const getMemberDisplayName = (member: UserType) => {
+    if (member.nombre) return `${member.nombre} ${member.apellido || ''}`
+    return extractNameFromEmail(member.email)
+  }
+
+  const getMemberInitials = (member: UserType) => {
+    if (member.nombre) {
+      const first = member.nombre.trim().charAt(0).toUpperCase() || '?'
+      const last = (member.apellido || '').trim().charAt(0).toUpperCase()
+      return last ? `${first}${last}` : first
+    }
+    const extracted = extractNameFromEmail(member.email)
+    return extracted.charAt(0).toUpperCase() || '?'
+  }
 
   if (loading) {
     return (
@@ -126,15 +148,15 @@ export default function Members() {
                         className="w-12 h-12 rounded-full object-cover"
                       />
                     ) : (
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
                         <span className="text-white font-bold text-lg">
-                          {(member.nombre || '?')[0]}{(member.apellido || '?')[0]}
+                          {getMemberInitials(member)}
                         </span>
                       </div>
                     )}
                     <div>
                       <CardTitle className="text-lg text-white">
-                        {member.nombre || ''} {member.apellido || ''}
+                        {getMemberDisplayName(member)}
                         {isCurrentUser && (
                           <span className="ml-2 text-xs text-cyan-400">(Tú)</span>
                         )}
@@ -182,21 +204,43 @@ export default function Members() {
                   <span>Equipo: <span className="text-white">{member.equipo ? TEAM_LABELS[member.equipo] : 'Sin equipo asignado'}</span></span>
                 </div>
 
-                {/* Role Change (Maestro can assign Admin, Admins can assign other roles) */}
-                {((isMaster) || (user?.rol === 'admin' && member.rol !== 'maestro')) && !isCurrentUser && (
+                {/* Role Change (Maestro can assign Admin) */}
+                {isMaster && !isCurrentUser && (
                   <div className="pt-3 border-t border-space-600">
-                    <label className="text-xs text-muted-foreground mb-2 block">Cambiar rol:</label>
+                    <label className="text-xs text-muted-foreground mb-2 block">Asignar rol:</label>
                     <select
-                      value={member.rol}
-                      onChange={(e) => handleRoleChange(member.id, e.target.value as UserRole)}
+                      value={member.rol || ''}
+                      onChange={(e) => {
+                        const val = e.target.value as UserRole
+                        if (val) handleRoleChange(member.id, val)
+                      }}
                       title="Cambiar rol del miembro"
                       className="w-full px-3 py-2 rounded-lg bg-space-600 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
                     >
+                      <option value="">Sin rol</option>
+                      <option value="admin">Administrador</option>
+                      <option value="maestro">Usuario Maestro</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Team Assignment (Maestro or Admin) */}
+                {(isMaster || user?.rol === 'admin') && !isCurrentUser && (
+                  <div className="pt-3 border-t border-space-600">
+                    <label className="text-xs text-muted-foreground mb-2 block">Asignar equipo:</label>
+                    <select
+                      value={member.equipo || ''}
+                      onChange={(e) => {
+                        const val = e.target.value as TeamType
+                        if (val) handleTeamChange(member.id, val)
+                      }}
+                      title="Cambiar equipo del miembro"
+                      className="w-full px-3 py-2 rounded-lg bg-space-600 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                    >
+                      <option value="">Sin equipo</option>
                       <option value="tecnico">Equipo Técnico</option>
                       <option value="manager">Manager</option>
                       <option value="relaciones_publicas">Relaciones Públicas</option>
-                      {isMaster && <option value="admin">Administrador</option>}
-                      {isMaster && <option value="maestro">Usuario Maestro</option>}
                     </select>
                   </div>
                 )}

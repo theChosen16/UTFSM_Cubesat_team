@@ -1,7 +1,6 @@
 import { ReactNode, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { 
-  Satellite, 
   LayoutDashboard, 
   FolderKanban, 
   Users, 
@@ -17,8 +16,8 @@ import {
   Lock
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
-import { cn } from '@/lib/utils'
-import { ROLE_LABELS } from '@/types'
+import { cn, extractNameFromEmail } from '@/lib/utils'
+import { ROLE_LABELS, TEAM_LABELS } from '@/types'
 import { Badge } from '@/components/ui/badge'
 
 interface LayoutProps {
@@ -39,7 +38,7 @@ export default function Layout({ children }: LayoutProps) {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, restricted: false },
     { path: '/projects', label: 'Proyectos', icon: FolderKanban, restricted: false },
-    ...(user?.rol === 'maestro' || user?.rol === 'admin' || user?.rol === 'manager' ? [
+    ...(user?.rol === 'maestro' || user?.rol === 'admin' || user?.equipo === 'manager' ? [
       { path: '/tasks', label: 'Gestión de Tareas', icon: ListTodo, restricted: true },
     ] : []),
     { path: '/members', label: 'Miembros', icon: Users, restricted: false },
@@ -69,7 +68,7 @@ export default function Layout({ children }: LayoutProps) {
           <div className="p-6 border-b border-space-600">
             <Link to="/dashboard" className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-cyan-500/20">
-                <Satellite className="w-6 h-6 text-cyan-400" />
+                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="w-6 h-6" />
               </div>
               <div>
                 <h1 className="text-lg font-bold text-white">USM Cubesat</h1>
@@ -100,20 +99,30 @@ export default function Layout({ children }: LayoutProps) {
               )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">
-                  {user?.nombre} {user?.apellido}
+                  {user?.nombre || extractNameFromEmail(user?.email || '')} {user?.apellido || ''}
                 </p>
                 {user && (
-                  <Badge 
-                    variant={
-                      user.rol === 'maestro' ? 'orange' :
-                      user.rol === 'admin' ? 'red' :
-                      user.rol === 'manager' ? 'cyan' :
-                      user.rol === 'tecnico' ? 'purple' : 'green'
-                    }
-                    className="mt-1 text-xs"
-                  >
-                    {ROLE_LABELS[user.rol]}
-                  </Badge>
+                  <div className="flex flex-col gap-1 mt-1">
+                    {user.rol && (
+                      <Badge 
+                        variant={user.rol === 'maestro' ? 'orange' : 'red'}
+                        className="text-xs"
+                      >
+                        {ROLE_LABELS[user.rol]}
+                      </Badge>
+                    )}
+                    {user.equipo && (
+                      <Badge 
+                        variant={
+                          user.equipo === 'manager' ? 'cyan' :
+                          user.equipo === 'tecnico' ? 'purple' : 'green'
+                        }
+                        className="text-xs"
+                      >
+                        {TEAM_LABELS[user.equipo]}
+                      </Badge>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

@@ -153,12 +153,11 @@ describe('Profile', () => {
     expect(fileInput).toBeInTheDocument()
   })
 
-  it('shows role request section for non-maestro/non-admin users', () => {
-    currentMockUser = { ...currentMockUser, rol: 'tecnico' }
+  it('does not show role request button for users without role', () => {
+    currentMockUser = { ...currentMockUser, rol: undefined }
     renderProfile()
 
-    // Should have a button to initiate a role request
-    expect(screen.getByRole('button', { name: /solicitar cambio de rol/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /solicitar cambio de rol/i })).not.toBeInTheDocument()
   })
 
   it('renders fallback initials when user names are missing', () => {
@@ -170,18 +169,18 @@ describe('Profile', () => {
 
     renderProfile()
 
-    expect(screen.getByText('??')).toBeInTheDocument()
+    // With no nombre, extractNameFromEmail derives 'Test' from email, so first initial is 'T'
+    expect(screen.getByText('T')).toBeInTheDocument()
   })
 
-  it('falls back to tecnico role styles when role is invalid', () => {
+  it('shows no-role fallback when role is undefined', () => {
     currentMockUser = {
       ...currentMockUser,
-      rol: 'role_invalido' as unknown as UserType['rol'],
+      rol: undefined,
     }
 
     renderProfile()
 
-    expect(screen.getAllByText('Equipo Técnico').length).toBeGreaterThan(0)
-    expect(screen.getByText(/Desarrollo de software/)).toBeInTheDocument()
+    expect(screen.getByText(/Sin rol asignado/)).toBeInTheDocument()
   })
 })

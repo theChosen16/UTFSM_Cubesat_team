@@ -125,7 +125,7 @@ describe('Dashboard', () => {
   it('shows loading indicators then stats values', async () => {
     const usersSnapshot = {
       docs: [
-        { data: () => ({ rol: 'tecnico', equipo: 'tecnico' }) },
+        { data: () => ({ rol: undefined, equipo: 'tecnico' }) },
         { data: () => ({ rol: 'maestro', equipo: 'manager' }) },
       ],
       size: 2,
@@ -159,8 +159,8 @@ describe('Dashboard', () => {
   it('counts team members by equipo field, not by role', async () => {
     const usersSnapshot = {
       docs: [
-        { data: () => ({ rol: 'manager', equipo: 'tecnico' }) },
-        { data: () => ({ rol: 'tecnico', equipo: 'tecnico' }) },
+        { data: () => ({ rol: 'admin', equipo: 'tecnico' }) },
+        { data: () => ({ rol: undefined, equipo: 'tecnico' }) },
         { data: () => ({ rol: 'admin' }) },
       ],
       size: 3,

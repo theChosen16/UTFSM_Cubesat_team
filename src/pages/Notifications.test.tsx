@@ -5,7 +5,6 @@ import Notifications from '@/pages/Notifications'
 import { User as UserType } from '@/types'
 
 const mockGetDocs = vi.fn()
-const mockUpdateUserRole = vi.fn()
 const mockUpdateDoc = vi.fn()
 const mockAddDoc = vi.fn()
 const mockGetAllUsers = vi.fn()
@@ -23,7 +22,6 @@ let currentMockUser: Partial<UserType> = {
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
     user: currentMockUser,
-    updateUserRole: mockUpdateUserRole,
     getAllUsers: mockGetAllUsers,
   }),
 }))
@@ -79,7 +77,7 @@ describe('Notifications', () => {
   })
 
   it('renders inbox header for all users', async () => {
-    currentMockUser = { ...currentMockUser, rol: 'tecnico' }
+    currentMockUser = { ...currentMockUser, rol: undefined }
     renderNotifications()
 
     await waitFor(() => {
@@ -96,7 +94,7 @@ describe('Notifications', () => {
   })
 
   it('shows notifications tab for all users', async () => {
-    currentMockUser = { ...currentMockUser, rol: 'tecnico' }
+    currentMockUser = { ...currentMockUser, rol: undefined }
     renderNotifications()
 
     await waitFor(() => {
@@ -105,30 +103,12 @@ describe('Notifications', () => {
   })
 
   it('shows messages tab for all users', async () => {
-    currentMockUser = { ...currentMockUser, rol: 'tecnico' }
+    currentMockUser = { ...currentMockUser, rol: undefined }
     renderNotifications()
 
     await waitFor(() => {
       expect(screen.getByText('Mensajes')).toBeInTheDocument()
     })
-  })
-
-  it('shows role requests tab only for maestro', async () => {
-    renderNotifications()
-
-    await waitFor(() => {
-      expect(screen.getByText('Solicitudes de Rol')).toBeInTheDocument()
-    })
-  })
-
-  it('does not show role requests tab for non-maestro users', async () => {
-    currentMockUser = { ...currentMockUser, rol: 'tecnico' }
-    renderNotifications()
-
-    await waitFor(() => {
-      expect(screen.getByText('Buzón')).toBeInTheDocument()
-    })
-    expect(screen.queryByText('Solicitudes de Rol')).not.toBeInTheDocument()
   })
 
   it('shows empty state for notifications', async () => {
@@ -153,124 +133,6 @@ describe('Notifications', () => {
     })
   })
 
-  it('shows empty state for role requests when role requests tab is clicked', async () => {
-    renderNotifications()
-
-    await waitFor(() => {
-      expect(screen.getByText('Buzón')).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByText('Solicitudes de Rol'))
-
-    await waitFor(() => {
-      expect(screen.getByText('No hay solicitudes de rol.')).toBeInTheDocument()
-    })
-  })
-
-  it('renders pending role requests in role requests tab', async () => {
-    const requestsSnapshot = {
-      docs: [
-        {
-          id: 'req1',
-          data: () => ({
-            userId: 'user2',
-            userEmail: 'user@usm.cl',
-            userName: 'Carlos Perez',
-            rolSolicitado: 'admin',
-            mensaje: 'Quiero ser admin',
-            estado: 'pendiente',
-            createdAt: { toDate: () => new Date('2025-01-15') },
-          }),
-        },
-      ],
-    }
-    // First call is for notifications (query), second for role_requests (collection)
-    mockGetDocs.mockResolvedValue(requestsSnapshot)
-
-    renderNotifications()
-
-    await waitFor(() => {
-      expect(screen.getByText('Buzón')).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByText('Solicitudes de Rol'))
-
-    await waitFor(() => {
-      expect(screen.getByText('Carlos Perez')).toBeInTheDocument()
-      expect(screen.getByText('user@usm.cl')).toBeInTheDocument()
-      expect(screen.getByText('Quiero ser admin')).toBeInTheDocument()
-      expect(screen.getByText('Pendiente')).toBeInTheDocument()
-    })
-  })
-
-  it('shows approve and reject buttons for pending requests', async () => {
-    const requestsSnapshot = {
-      docs: [
-        {
-          id: 'req1',
-          data: () => ({
-            userId: 'user2',
-            userEmail: 'user@usm.cl',
-            userName: 'Carlos Perez',
-            rolSolicitado: 'admin',
-            mensaje: '',
-            estado: 'pendiente',
-            createdAt: { toDate: () => new Date() },
-          }),
-        },
-      ],
-    }
-    mockGetDocs.mockResolvedValue(requestsSnapshot)
-
-    renderNotifications()
-
-    await waitFor(() => {
-      expect(screen.getByText('Buzón')).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByText('Solicitudes de Rol'))
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /aprobar/i })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /rechazar/i })).toBeInTheDocument()
-    })
-  })
-
-  it('does not show action buttons for resolved requests', async () => {
-    const requestsSnapshot = {
-      docs: [
-        {
-          id: 'req1',
-          data: () => ({
-            userId: 'user2',
-            userEmail: 'user@usm.cl',
-            userName: 'Carlos Perez',
-            rolSolicitado: 'admin',
-            mensaje: '',
-            estado: 'aprobado',
-            createdAt: { toDate: () => new Date() },
-            resolvedAt: { toDate: () => new Date() },
-            resolvedBy: 'user1',
-          }),
-        },
-      ],
-    }
-    mockGetDocs.mockResolvedValue(requestsSnapshot)
-
-    renderNotifications()
-
-    await waitFor(() => {
-      expect(screen.getByText('Buzón')).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByText('Solicitudes de Rol'))
-
-    await waitFor(() => {
-      expect(screen.getByText('Aprobado')).toBeInTheDocument()
-    })
-    expect(screen.queryByRole('button', { name: /aprobar/i })).not.toBeInTheDocument()
-  })
-
   it('shows new message button in messages tab', async () => {
     renderNotifications()
 
@@ -287,7 +149,7 @@ describe('Notifications', () => {
 
   it('shows compose form when new message button is clicked', async () => {
     mockGetAllUsers.mockResolvedValue([
-      { id: 'user2', nombre: 'Carlos', apellido: 'Perez', email: 'carlos@usm.cl', rol: 'tecnico', createdAt: new Date(), isActive: true },
+      { id: 'user2', nombre: 'Carlos', apellido: 'Perez', email: 'carlos@usm.cl', rol: undefined, createdAt: new Date(), isActive: true },
     ])
 
     renderNotifications()

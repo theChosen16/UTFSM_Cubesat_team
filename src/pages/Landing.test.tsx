@@ -65,7 +65,6 @@ describe('Landing', () => {
 
     expect(screen.getByText('GitHub')).toBeInTheDocument()
     expect(screen.getByText('Instagram')).toBeInTheDocument()
-    expect(screen.getByText('LinkedIn')).toBeInTheDocument()
   })
 
   it('contains links to login and register pages', () => {

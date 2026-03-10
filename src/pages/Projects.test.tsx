@@ -92,8 +92,8 @@ describe('Projects', () => {
     })
   })
 
-  it('shows "Nuevo Proyecto" button for manager', async () => {
-    currentMockUser = { ...currentMockUser, rol: 'manager' }
+  it('shows "Nuevo Proyecto" button for manager team member', async () => {
+    currentMockUser = { ...currentMockUser, rol: undefined, equipo: 'manager' }
     renderProjects()
 
     await waitFor(() => {
@@ -101,8 +101,8 @@ describe('Projects', () => {
     })
   })
 
-  it('does not show "Nuevo Proyecto" button for tecnico', async () => {
-    currentMockUser = { ...currentMockUser, rol: 'tecnico' }
+  it('does not show "Nuevo Proyecto" button for regular member', async () => {
+    currentMockUser = { ...currentMockUser, rol: undefined, equipo: 'tecnico' }
     renderProjects()
 
     await waitFor(() => {

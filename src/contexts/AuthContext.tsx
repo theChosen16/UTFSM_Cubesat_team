@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, collection, getDocs, query, limit } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
-import { User, UserRole, sanitizeGenero, sanitizeTeamType, sanitizeUserRole } from '@/types'
+import { User, UserRole, sanitizeGenero, sanitizeTeamType, sanitizeUserRole, TeamType } from '@/types'
 import { logger } from '@/lib/logger'
 
 interface AuthContextType {
@@ -20,6 +20,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, nombre: string, apellido: string) => Promise<void>
   signOut: () => Promise<void>
   updateUserRole: (userId: string, newRole: UserRole) => Promise<void>
+  updateUserTeam: (userId: string, newTeam: TeamType) => Promise<void>
   updateUserProfile: (data: Partial<User>) => Promise<void>
   resetPassword: (email: string) => Promise<void>
   getAllUsers: () => Promise<User[]>
@@ -85,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: fbUser.email || '',
           nombre: fbUser.displayName?.split(' ')[0] || '',
           apellido: fbUser.displayName?.split(' ').slice(1).join(' ') || '',
-          rol: 'tecnico',
+          rol: undefined,
           createdAt: new Date(),
           isActive: true,
         }
@@ -132,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       nombre,
       apellido,
-      rol: isFirstUser ? 'maestro' : 'tecnico',
+      rol: isFirstUser ? 'maestro' : undefined,
       createdAt: new Date(),
       isActive: true,
     }
@@ -166,6 +167,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const updateUserTeam = async (userId: string, newTeam: TeamType) => {
+    await setDoc(doc(db, 'users', userId), { equipo: newTeam }, { merge: true })
+    if (user && user.id === userId) {
+      setUser({ ...user, equipo: newTeam })
+    }
+  }
+
   const getAllUsers = async (): Promise<User[]> => {
     const usersSnapshot = await getDocs(collection(db, 'users'))
     return usersSnapshot.docs.map(doc => {
@@ -175,7 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: '',
         nombre: '',
         apellido: '',
-        rol: 'tecnico',
+        rol: undefined,
         createdAt: new Date(),
         isActive: true,
       }
@@ -192,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp, 
       signOut,
       updateUserRole,
+      updateUserTeam,
       updateUserProfile,
       resetPassword,
       getAllUsers
