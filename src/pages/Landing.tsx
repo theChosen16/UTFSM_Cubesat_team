@@ -16,8 +16,8 @@ export default function Landing() {
         <nav className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-cyan-500/20">
-                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="w-6 h-6" />
+              <div className="p-3 rounded-xl bg-cyan-500/20">
+                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="w-10 h-10" />
               </div>
               <span className="text-xl font-bold text-white">USM Cubesat Team</span>
             </div>
@@ -39,6 +39,12 @@ export default function Landing() {
         {/* Hero Content */}
         <div className="container mx-auto px-6 py-20 lg:py-32">
           <div className="max-w-4xl mx-auto text-center">
+            <div className="flex justify-center mb-8">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-cyan-500/20 blur-xl animate-pulse" />
+                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="relative w-28 h-28 drop-shadow-[0_0_25px_rgba(6,182,212,0.4)]" />
+              </div>
+            </div>
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-space-700 border border-space-600 mb-8">
               <Rocket className="w-4 h-4 text-orange-400" />
               <span className="text-sm text-muted-foreground">Universidad Técnica Federico Santa María</span>
@@ -122,7 +128,7 @@ export default function Landing() {
         <div className="container mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="w-5 h-5" />
+              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="w-8 h-8" />
               <span className="text-muted-foreground">USM Cubesat Team © {new Date().getFullYear()}</span>
             </div>
             <div className="flex items-center gap-6">

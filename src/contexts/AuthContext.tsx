@@ -95,6 +95,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const userDoc = await getDoc(doc(db, 'users', fbUser.uid))
           if (userDoc.exists()) {
             const userData = userDoc.data() as Record<string, unknown>
+            // Auto-repair: if Firestore doc is missing email, backfill from Auth
+            const needsRepair = !userData.email && fbUser.email
+            if (needsRepair) {
+              const repairData: Record<string, string> = { email: fbUser.email! }
+              if (!userData.nombre && fbUser.displayName) {
+                repairData.nombre = fbUser.displayName.split(' ')[0]
+                const rest = fbUser.displayName.split(' ').slice(1).join(' ')
+                if (rest) repairData.apellido = rest
+              }
+              await setDoc(doc(db, 'users', fbUser.uid), repairData, { merge: true })
+              Object.assign(userData, repairData)
+            }
             setUser(mapFirestoreUser(fbUser.uid, userData, fallbackUser))
           } else {
             setUser(fallbackUser)

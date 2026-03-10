@@ -10,11 +10,22 @@ import {
   Search,
   MoreHorizontal,
   Crown,
-  Settings
+  Settings,
+  Cpu,
+  Globe,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react'
-import { User as UserType, ROLE_LABELS, UserRole, TEAM_LABELS, TeamType } from '@/types'
+import { User as UserType, ROLE_LABELS, UserRole, TeamType } from '@/types'
 import { logger } from '@/lib/logger'
 import { extractNameFromEmail } from '@/lib/utils'
+
+const TEAM_CONFIG: { key: TeamType | 'none'; label: string; icon: typeof Users; color: string; bgColor: string; borderColor: string }[] = [
+  { key: 'tecnico', label: 'Equipo Técnico', icon: Cpu, color: 'text-purple-400', bgColor: 'bg-purple-500/20', borderColor: 'border-purple-500/30' },
+  { key: 'manager', label: 'Manager', icon: Users, color: 'text-cyan-400', bgColor: 'bg-cyan-500/20', borderColor: 'border-cyan-500/30' },
+  { key: 'relaciones_publicas', label: 'Relaciones Públicas', icon: Globe, color: 'text-green-400', bgColor: 'bg-green-500/20', borderColor: 'border-green-500/30' },
+  { key: 'none', label: 'Sin equipo asignado', icon: User, color: 'text-gray-400', bgColor: 'bg-gray-500/20', borderColor: 'border-gray-500/30' },
+]
 
 export default function Members() {
   const { user, getAllUsers, updateUserRole, updateUserTeam } = useAuth()
@@ -89,6 +100,24 @@ export default function Members() {
     return extracted.charAt(0).toUpperCase() || '?'
   }
 
+  const [collapsedTeams, setCollapsedTeams] = useState<Set<string>>(new Set())
+
+  const toggleTeam = (teamKey: string) => {
+    setCollapsedTeams(prev => {
+      const next = new Set(prev)
+      if (next.has(teamKey)) next.delete(teamKey)
+      else next.add(teamKey)
+      return next
+    })
+  }
+
+  const groupedMembers = TEAM_CONFIG.reduce<Record<string, UserType[]>>((acc, team) => {
+    acc[team.key] = filteredMembers.filter(m =>
+      team.key === 'none' ? !m.equipo : m.equipo === team.key
+    )
+    return acc
+  }, {})
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -127,126 +156,153 @@ export default function Members() {
         />
       </div>
 
-      {/* Members Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredMembers.map((member) => {
-          const RoleIcon = getRoleIcon(member.rol)
-          const isCurrentUser = user?.id === member.id
-          const isMaster = user?.rol === 'maestro'
+      {/* Members grouped by team */}
+      {TEAM_CONFIG.map((team) => {
+        const teamMembers = groupedMembers[team.key]
+        if (teamMembers.length === 0) return null
 
-          return (
-            <Card key={member.id} className="bg-space-700/50 border-space-600">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-4">
-                    {member.photoURL ? (
-                      <img 
-                        src={member.photoURL} 
-                        alt={`${member.nombre} ${member.apellido}`}
-                        className="w-12 h-12 rounded-full object-cover"
-                      />
-                    ) : (
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
-                        <span className="text-white font-bold text-lg">
-                          {getMemberInitials(member)}
-                        </span>
-                      </div>
-                    )}
-                    <div>
-                      <CardTitle className="text-lg text-white">
-                        {getMemberDisplayName(member)}
-                        {isCurrentUser && (
-                          <span className="ml-2 text-xs text-cyan-400">(Tú)</span>
+        const TeamIcon = team.icon
+        const isCollapsed = collapsedTeams.has(team.key)
+
+        return (
+          <div key={team.key} className="space-y-4">
+            {/* Team section header */}
+            <button
+              onClick={() => toggleTeam(team.key)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${team.bgColor} border ${team.borderColor} hover:brightness-110 transition-all`}
+            >
+              <div className={`p-2 rounded-lg ${team.bgColor}`}>
+                <TeamIcon className={`w-5 h-5 ${team.color}`} />
+              </div>
+              <h2 className="text-lg font-semibold text-white flex-1 text-left">{team.label}</h2>
+              <Badge variant="secondary" className="text-xs">
+                {teamMembers.length} {teamMembers.length === 1 ? 'miembro' : 'miembros'}
+              </Badge>
+              {isCollapsed
+                ? <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                : <ChevronDown className="w-5 h-5 text-muted-foreground" />
+              }
+            </button>
+
+            {/* Team member cards */}
+            {!isCollapsed && (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 pl-2">
+                {teamMembers.map((member) => {
+                  const RoleIcon = getRoleIcon(member.rol)
+                  const isCurrentUser = user?.id === member.id
+                  const isMaster = user?.rol === 'maestro'
+
+                  return (
+                    <Card key={member.id} className="bg-space-700/50 border-space-600">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-4">
+                            {member.photoURL ? (
+                              <img 
+                                src={member.photoURL} 
+                                alt={`${member.nombre} ${member.apellido}`}
+                                className="w-12 h-12 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
+                                <span className="text-white font-bold text-lg">
+                                  {getMemberInitials(member)}
+                                </span>
+                              </div>
+                            )}
+                            <div>
+                              <CardTitle className="text-lg text-white">
+                                {getMemberDisplayName(member)}
+                                {isCurrentUser && (
+                                  <span className="ml-2 text-xs text-cyan-400">(Tú)</span>
+                                )}
+                              </CardTitle>
+                              <CardDescription className="text-sm">{member.email}</CardDescription>
+                            </div>
+                          </div>
+                          {isMaster && !isCurrentUser && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Show admin/maestro badge only for those roles */}
+                        {member.rol === 'maestro' && (
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-orange-500/20">
+                              <RoleIcon className="w-4 h-4 text-orange-400" />
+                            </div>
+                            <div className="flex-1">
+                              <Badge variant="orange">
+                                {ROLE_LABELS[member.rol]}
+                              </Badge>
+                            </div>
+                          </div>
                         )}
-                      </CardTitle>
-                      <CardDescription className="text-sm">{member.email}</CardDescription>
-                    </div>
-                  </div>
-                  {isMaster && !isCurrentUser && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Show admin/maestro badge only for those roles */}
-                {member.rol === 'maestro' && (
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-orange-500/20">
-                      <RoleIcon className="w-4 h-4 text-orange-400" />
-                    </div>
-                    <div className="flex-1">
-                      <Badge variant="orange">
-                        {ROLE_LABELS[member.rol]}
-                      </Badge>
-                    </div>
-                  </div>
-                )}
-                {member.rol === 'admin' && (
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-red-500/20">
-                      <RoleIcon className="w-4 h-4 text-red-400" />
-                    </div>
-                    <div className="flex-1">
-                      <Badge variant="red">
-                        {ROLE_LABELS[member.rol]}
-                      </Badge>
-                    </div>
-                  </div>
-                )}
+                        {member.rol === 'admin' && (
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-red-500/20">
+                              <RoleIcon className="w-4 h-4 text-red-400" />
+                            </div>
+                            <div className="flex-1">
+                              <Badge variant="red">
+                                {ROLE_LABELS[member.rol]}
+                              </Badge>
+                            </div>
+                          </div>
+                        )}
 
-                {/* Team info — always shown */}
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="w-4 h-4 text-blue-400" />
-                  <span>Equipo: <span className="text-white">{member.equipo ? TEAM_LABELS[member.equipo] : 'Sin equipo asignado'}</span></span>
-                </div>
+                        {/* Role Change (Maestro can assign Admin) */}
+                        {isMaster && !isCurrentUser && (
+                          <div className="pt-3 border-t border-space-600">
+                            <label className="text-xs text-muted-foreground mb-2 block">Asignar rol:</label>
+                            <select
+                              value={member.rol || ''}
+                              onChange={(e) => {
+                                const val = e.target.value as UserRole
+                                if (val) handleRoleChange(member.id, val)
+                              }}
+                              title="Cambiar rol del miembro"
+                              className="w-full px-3 py-2 rounded-lg bg-space-600 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                            >
+                              <option value="">Sin rol</option>
+                              <option value="admin">Administrador</option>
+                              <option value="maestro">Usuario Maestro</option>
+                            </select>
+                          </div>
+                        )}
 
-                {/* Role Change (Maestro can assign Admin) */}
-                {isMaster && !isCurrentUser && (
-                  <div className="pt-3 border-t border-space-600">
-                    <label className="text-xs text-muted-foreground mb-2 block">Asignar rol:</label>
-                    <select
-                      value={member.rol || ''}
-                      onChange={(e) => {
-                        const val = e.target.value as UserRole
-                        if (val) handleRoleChange(member.id, val)
-                      }}
-                      title="Cambiar rol del miembro"
-                      className="w-full px-3 py-2 rounded-lg bg-space-600 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
-                    >
-                      <option value="">Sin rol</option>
-                      <option value="admin">Administrador</option>
-                      <option value="maestro">Usuario Maestro</option>
-                    </select>
-                  </div>
-                )}
-
-                {/* Team Assignment (Maestro or Admin) */}
-                {(isMaster || user?.rol === 'admin') && !isCurrentUser && (
-                  <div className="pt-3 border-t border-space-600">
-                    <label className="text-xs text-muted-foreground mb-2 block">Asignar equipo:</label>
-                    <select
-                      value={member.equipo || ''}
-                      onChange={(e) => {
-                        const val = e.target.value as TeamType
-                        if (val) handleTeamChange(member.id, val)
-                      }}
-                      title="Cambiar equipo del miembro"
-                      className="w-full px-3 py-2 rounded-lg bg-space-600 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
-                    >
-                      <option value="">Sin equipo</option>
-                      <option value="tecnico">Equipo Técnico</option>
-                      <option value="manager">Manager</option>
-                      <option value="relaciones_publicas">Relaciones Públicas</option>
-                    </select>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+                        {/* Team Assignment (Maestro or Admin) */}
+                        {(isMaster || user?.rol === 'admin') && !isCurrentUser && (
+                          <div className="pt-3 border-t border-space-600">
+                            <label className="text-xs text-muted-foreground mb-2 block">Asignar equipo:</label>
+                            <select
+                              value={member.equipo || ''}
+                              onChange={(e) => {
+                                const val = e.target.value as TeamType
+                                if (val) handleTeamChange(member.id, val)
+                              }}
+                              title="Cambiar equipo del miembro"
+                              className="w-full px-3 py-2 rounded-lg bg-space-600 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                            >
+                              <option value="">Sin equipo</option>
+                              <option value="tecnico">Equipo Técnico</option>
+                              <option value="manager">Manager</option>
+                              <option value="relaciones_publicas">Relaciones Públicas</option>
+                            </select>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
 
       {filteredMembers.length === 0 && (
         <div className="text-center py-12">
