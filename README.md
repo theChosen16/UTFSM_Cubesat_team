@@ -53,15 +53,14 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 
 ## Roles y permisos
 
-El sistema soporta 5 roles jerárquicos:
+El sistema define **roles** (permisos de administración) y **equipos** (área de trabajo) de forma independiente.
 
 | Rol | Descripción | Permisos clave |
 |-----|-------------|----------------|
-| **Maestro** | Dueño del sistema | Administración total, asignar cualquier rol (incluido admin), eliminar miembros, gestionar tareas |
+| **Maestro** | Dueño del sistema | Administración total, asignar cualquier rol (incluido admin), gestionar tareas y proyectos |
 | **Admin** | Administrador | Gestionar contenido, proyectos, tareas y asignar roles (excepto admin y maestro) |
-| **Manager** | Líder de proyecto | Crear proyectos, controlar el equipo, guiar desarrollo |
-| **Técnico** | Equipo técnico | Ver proyectos asignados, actualizar estado de tareas |
-| **Relaciones Públicas** | Comunicación | Gestionar redes sociales, coordinar recursos universitarios |
+
+Los usuarios sin rol asignado pueden ver contenido pero no realizar acciones de gestión.
 
 ### Administrador del sistema
 
@@ -69,11 +68,11 @@ El usuario **maestro** actual es el primer usuario registrado en la plataforma. 
 
 ### Visibilidad de roles
 
-En el directorio de miembros, solo los badges de **admin** y **maestro** son visibles públicamente. El equipo al que pertenece cada miembro siempre se muestra. Los demás roles (manager, técnico, relaciones públicas) no muestran badge en el directorio, ya que lo relevante es el equipo, no el rol de gestión.
+En el directorio de miembros, solo los badges de **admin** y **maestro** son visibles públicamente. El equipo al que pertenece cada miembro siempre se muestra.
 
 ### Indicadores de permisos
 
-Las opciones del menú lateral que requieren permisos especiales (como "Gestión de Tareas" y "Solicitudes") muestran un ícono de candado (🔒) para indicar que son acciones restringidas a ciertos roles.
+Las opciones del menú lateral que requieren permisos especiales (como "Gestión de Tareas") muestran un ícono de candado (🔒) para indicar que son acciones restringidas a ciertos roles o equipos.
 
 > **Nota:** Solo correos institucionales de la USM (`@usm.cl` o `@sansano.usm.cl`) son aceptados para registro.
 

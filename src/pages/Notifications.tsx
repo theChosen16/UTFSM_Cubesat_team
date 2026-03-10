@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -37,18 +37,19 @@ export default function Notifications() {
   const [messageSent, setMessageSent] = useState(false)
   const [allUsers, setAllUsers] = useState<{ id: string; nombre: string; apellido: string; email: string }[]>([])
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
     try {
       await Promise.all([loadNotifications(), loadUsers()])
     } finally {
       setLoading(false)
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   const loadNotifications = async () => {
     if (!user) return

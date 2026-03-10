@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { logger } from '@/lib/logger'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -23,7 +24,7 @@ export default function ForgotPassword() {
       await resetPassword(email)
       setMessage('Se ha enviado un correo para restablecer tu contraseña. Revisa tu bandeja de entrada.')
     } catch (err: unknown) {
-      console.error('Error al restablecer contraseña:', err)
+      logger.error('Error al restablecer contraseña', { error: err instanceof Error ? err : undefined })
       const firebaseError = err as { code?: string }
       if (firebaseError.code === 'auth/user-not-found') {
         setError('No existe una cuenta con este correo electrónico.')

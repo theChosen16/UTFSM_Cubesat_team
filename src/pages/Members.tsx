@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -22,11 +22,7 @@ export default function Members() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
-  useEffect(() => {
-    loadMembers()
-  }, [])
-
-  const loadMembers = async () => {
+  const loadMembers = useCallback(async () => {
     try {
       const users = await getAllUsers()
       setMembers(users)
@@ -35,7 +31,11 @@ export default function Members() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [getAllUsers])
+
+  useEffect(() => {
+    loadMembers()
+  }, [loadMembers])
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
     // Only maestro can assign admin roles
