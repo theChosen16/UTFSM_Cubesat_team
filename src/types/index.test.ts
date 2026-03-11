@@ -5,9 +5,11 @@ import {
   ROLE_LABELS,
   ROLE_DESCRIPTIONS,
   sanitizeUserRole,
-  sanitizeUserRoles,
+  sanitizeUserTeams,
   hasRole,
   hasAnyRole,
+  hasTeam,
+  hasAnyTeam,
   sanitizeTeamType,
   sanitizeGenero
 } from '@/types'
@@ -82,50 +84,50 @@ describe('Types', () => {
     })
   })
 
-  describe('sanitizeUserRoles', () => {
+  describe('sanitizeUserTeams', () => {
     it('returns empty array for undefined/null input', () => {
-      expect(sanitizeUserRoles(undefined)).toEqual([])
-      expect(sanitizeUserRoles(null)).toEqual([])
+      expect(sanitizeUserTeams(undefined)).toEqual([])
+      expect(sanitizeUserTeams(null)).toEqual([])
     })
 
-    it('sanitizes a valid roles array', () => {
-      expect(sanitizeUserRoles(['maestro'])).toEqual(['maestro'])
-      expect(sanitizeUserRoles(['admin', 'maestro'])).toEqual(['admin', 'maestro'])
+    it('sanitizes a valid teams array', () => {
+      expect(sanitizeUserTeams(['tecnico'])).toEqual(['tecnico'])
+      expect(sanitizeUserTeams(['manager', 'tecnico'])).toEqual(['manager', 'tecnico'])
     })
 
-    it('filters out invalid roles from array', () => {
-      expect(sanitizeUserRoles(['maestro', 'invalid'])).toEqual(['maestro'])
-      expect(sanitizeUserRoles(['invalid'])).toEqual([])
+    it('filters out invalid teams from array', () => {
+      expect(sanitizeUserTeams(['tecnico', 'invalid'])).toEqual(['tecnico'])
+      expect(sanitizeUserTeams(['invalid'])).toEqual([])
     })
 
-    it('limits to max 2 roles', () => {
-      expect(sanitizeUserRoles(['maestro', 'admin', 'maestro'])).toEqual(['maestro', 'admin'])
+    it('limits to max 2 teams', () => {
+      expect(sanitizeUserTeams(['tecnico', 'manager', 'relaciones_publicas'])).toEqual(['tecnico', 'manager'])
     })
 
-    it('deduplicates roles', () => {
-      expect(sanitizeUserRoles(['maestro', 'maestro'])).toEqual(['maestro'])
+    it('deduplicates teams', () => {
+      expect(sanitizeUserTeams(['tecnico', 'tecnico'])).toEqual(['tecnico'])
     })
 
-    it('falls back to legacy rol when roles is not an array', () => {
-      expect(sanitizeUserRoles(undefined, 'maestro')).toEqual(['maestro'])
-      expect(sanitizeUserRoles(null, 'admin')).toEqual(['admin'])
+    it('falls back to legacy equipo when teams is not an array', () => {
+      expect(sanitizeUserTeams(undefined, 'tecnico')).toEqual(['tecnico'])
+      expect(sanitizeUserTeams(null, 'manager')).toEqual(['manager'])
     })
 
-    it('ignores invalid legacy rol', () => {
-      expect(sanitizeUserRoles(undefined, 'invalid')).toEqual([])
-      expect(sanitizeUserRoles(undefined, undefined)).toEqual([])
+    it('ignores invalid legacy equipo', () => {
+      expect(sanitizeUserTeams(undefined, 'invalid')).toEqual([])
+      expect(sanitizeUserTeams(undefined, undefined)).toEqual([])
     })
   })
 
   describe('hasRole', () => {
     it('returns true when user has the role', () => {
-      expect(hasRole({ roles: ['maestro'] }, 'maestro')).toBe(true)
-      expect(hasRole({ roles: ['admin', 'maestro'] }, 'admin')).toBe(true)
+      expect(hasRole({ rol: 'maestro' }, 'maestro')).toBe(true)
+      expect(hasRole({ rol: 'admin' }, 'admin')).toBe(true)
     })
 
     it('returns false when user does not have the role', () => {
-      expect(hasRole({ roles: ['admin'] }, 'maestro')).toBe(false)
-      expect(hasRole({ roles: [] }, 'maestro')).toBe(false)
+      expect(hasRole({ rol: 'admin' }, 'maestro')).toBe(false)
+      expect(hasRole({ rol: undefined }, 'maestro')).toBe(false)
     })
 
     it('returns false for null/undefined user', () => {
@@ -133,22 +135,53 @@ describe('Types', () => {
       expect(hasRole(undefined, 'maestro')).toBe(false)
     })
 
-    it('returns false when roles is undefined', () => {
-      expect(hasRole({ roles: undefined }, 'maestro')).toBe(false)
+    it('returns false when rol is undefined', () => {
+      expect(hasRole({ rol: undefined }, 'maestro')).toBe(false)
     })
   })
 
   describe('hasAnyRole', () => {
     it('returns true when user has any of the specified roles', () => {
-      expect(hasAnyRole({ roles: ['admin'] }, 'maestro', 'admin')).toBe(true)
+      expect(hasAnyRole({ rol: 'admin' }, 'maestro', 'admin')).toBe(true)
     })
 
     it('returns false when user has none of the specified roles', () => {
-      expect(hasAnyRole({ roles: [] }, 'maestro', 'admin')).toBe(false)
+      expect(hasAnyRole({ rol: undefined }, 'maestro', 'admin')).toBe(false)
     })
 
     it('returns false for null/undefined user', () => {
       expect(hasAnyRole(null, 'maestro', 'admin')).toBe(false)
+    })
+  })
+
+  describe('hasTeam', () => {
+    it('returns true when user belongs to the team', () => {
+      expect(hasTeam({ equipos: ['tecnico'] }, 'tecnico')).toBe(true)
+      expect(hasTeam({ equipos: ['tecnico', 'manager'] }, 'manager')).toBe(true)
+    })
+
+    it('returns false when user does not belong to the team', () => {
+      expect(hasTeam({ equipos: ['tecnico'] }, 'manager')).toBe(false)
+      expect(hasTeam({ equipos: [] }, 'tecnico')).toBe(false)
+    })
+
+    it('returns false for null/undefined user', () => {
+      expect(hasTeam(null, 'tecnico')).toBe(false)
+      expect(hasTeam(undefined, 'tecnico')).toBe(false)
+    })
+  })
+
+  describe('hasAnyTeam', () => {
+    it('returns true when user belongs to any of the specified teams', () => {
+      expect(hasAnyTeam({ equipos: ['tecnico'] }, 'tecnico', 'manager')).toBe(true)
+    })
+
+    it('returns false when user belongs to none of the specified teams', () => {
+      expect(hasAnyTeam({ equipos: ['relaciones_publicas'] }, 'tecnico', 'manager')).toBe(false)
+    })
+
+    it('returns false for null/undefined user', () => {
+      expect(hasAnyTeam(null, 'tecnico', 'manager')).toBe(false)
     })
   })
 })

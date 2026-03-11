@@ -24,7 +24,7 @@ import {
   Rocket,
   Camera
 } from 'lucide-react'
-import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS, Genero, hasRole, hasAnyRole } from '@/types'
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS, Genero, hasRole, hasAnyRole, hasTeam } from '@/types'
 import { logger } from '@/lib/logger'
 import { extractNameFromEmail } from '@/lib/utils'
 
@@ -50,7 +50,7 @@ export default function Profile() {
   // Profile fields
   const [career, setCareer] = useState(user?.career || '')
   const [year, setYear] = useState(user?.year || '')
-  const [equipo, setEquipo] = useState<TeamType | ''>(user?.equipo || '')
+  const [equipos, setEquipos] = useState<TeamType[]>(user?.equipos || [])
   const [genero, setGenero] = useState<Genero | ''>(user?.genero || '')
   const [photoURL, setPhotoURL] = useState(user?.photoURL || '')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
@@ -66,7 +66,7 @@ export default function Profile() {
     if (user) {
       setCareer(user.career || '')
       setYear(user.year || '')
-      setEquipo(user.equipo || '')
+      setEquipos(user.equipos || [])
       setGenero(user.genero || '')
       setPhotoURL(user.photoURL || '')
       setIntereses(user.questionnaire?.intereses || '')
@@ -92,7 +92,7 @@ export default function Profile() {
       await updateUserProfile({
         career,
         year,
-        ...(equipo ? { equipo: equipo as TeamType } : {}),
+        equipos,
         ...(genero ? { genero: genero as Genero } : {}),
         ...(photoURL ? { photoURL } : {}),
         questionnaire
@@ -246,36 +246,32 @@ export default function Profile() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Role Section */}
-          {user.roles && user.roles.length > 0 ? (
-            <div className="space-y-3">
-              {user.roles.map(role => {
-                const Icon = getRoleIcon(role)
-                const styles = ROLE_STYLES[role]
-                return (
-                  <div key={role} className="p-4 rounded-lg bg-space-600/50">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-xl ${styles.background}`}>
-                        <Icon className={`w-6 h-6 ${styles.icon}`} />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge variant={styles.badge}>
-                            {ROLE_LABELS[role]}
-                          </Badge>
-                          {role === 'maestro' && (
-                            <Shield className="w-4 h-4 text-orange-400" />
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {ROLE_DESCRIPTIONS[role]}
-                        </p>
-                      </div>
-                    </div>
+          {user.rol ? (() => {
+            const Icon = getRoleIcon(user.rol)
+            const styles = ROLE_STYLES[user.rol]
+            return (
+              <div className="p-4 rounded-lg bg-space-600/50">
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-xl ${styles.background}`}>
+                    <Icon className={`w-6 h-6 ${styles.icon}`} />
                   </div>
-                )
-              })}
-            </div>
-          ) : (
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant={styles.badge}>
+                        {ROLE_LABELS[user.rol]}
+                      </Badge>
+                      {user.rol === 'maestro' && (
+                        <Shield className="w-4 h-4 text-orange-400" />
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {ROLE_DESCRIPTIONS[user.rol]}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          })() : (
             <div className="p-4 rounded-lg bg-space-600/50">
               <div className="flex items-center gap-4">
                 <div className="p-3 rounded-xl bg-gray-500/20">
@@ -297,22 +293,39 @@ export default function Profile() {
                 <Users className="w-6 h-6 text-blue-400" />
               </div>
               <div className="flex-1">
-                <p className="text-sm text-muted-foreground mb-1">Equipo</p>
+                <p className="text-sm text-muted-foreground mb-1">Equipos (máx. 2)</p>
                 {isEditing ? (
-                  <select
-                    value={equipo}
-                    onChange={(e) => setEquipo(e.target.value as TeamType | '')}
-                    title="Seleccionar equipo"
-                    className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
-                  >
-                    <option value="">Selecciona tu equipo</option>
-                    {Object.entries(TEAM_LABELS).map(([key, label]) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
+                  <div className="space-y-2 mt-2">
+                    {Object.entries(TEAM_LABELS).map(([key, label]) => {
+                      const teamKey = key as TeamType
+                      const checked = equipos.includes(teamKey)
+                      const disabled = !checked && equipos.length >= 2
+                      return (
+                        <label key={key} className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-sm cursor-pointer ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-cyan-500'}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={disabled}
+                            onChange={() => {
+                              if (checked) {
+                                setEquipos(equipos.filter(t => t !== teamKey))
+                              } else if (equipos.length < 2) {
+                                setEquipos([...equipos, teamKey])
+                              }
+                            }}
+                            className="accent-cyan-500"
+                            title={`Seleccionar equipo ${label}`}
+                          />
+                          <span className="text-white">{label}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
                 ) : (
                   <p className="text-white">
-                    {user.equipo ? TEAM_LABELS[user.equipo] : 'No seleccionado — edita tu perfil para elegir equipo'}
+                    {user.equipos && user.equipos.length > 0 
+                      ? user.equipos.map(t => TEAM_LABELS[t]).join(', ') 
+                      : 'No seleccionado — edita tu perfil para elegir equipo'}
                   </p>
                 )}
               </div>
@@ -543,7 +556,7 @@ export default function Profile() {
                   </div>
                 </>
               )}
-              {(hasAnyRole(user, 'maestro', 'admin') || user.equipo === 'manager') && (
+              {(hasAnyRole(user, 'maestro', 'admin') || hasTeam(user, 'manager')) && (
                 <>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Cpu className="w-4 h-4 text-cyan-400" />
@@ -555,7 +568,7 @@ export default function Profile() {
                   </div>
                 </>
               )}
-              {(!user.roles || user.roles.length === 0) && !user.equipo && (
+              {!user.rol && (!user.equipos || user.equipos.length === 0) && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <User className="w-4 h-4 text-gray-400" />
                   <span>Ver proyectos del equipo</span>

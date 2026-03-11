@@ -40,14 +40,14 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
   - Estructura del equipo muestra distribución de miembros por equipo (`equipo`), no por rol
 - **Proyectos**: listado y creación de proyectos del equipo con formulario integrado (nombre, descripción, equipo, prioridad, fecha límite). Datos almacenados en Firestore con feedback de errores al usuario
 - **Gestión de Tareas**: dashboard para maestro, admin y manager que permite crear tareas asignando proyecto, equipo encargado, prioridad y responsable(s). Mensajes de error visibles al usuario en caso de fallo
-- **Selección de equipo**: cada usuario puede elegir a qué equipo pertenecer desde su perfil, sin asignación automática
-- **Miembros**: directorio de integrantes mostrando equipo asignado y roles asignados (máximo 2). Solo se muestran badges de rol para admin y maestro. Gestión de roles mediante checkboxes, accesible para maestro y admin. Manejo de errores en imágenes de avatar con fallback automático
-- **Perfil**: vista y edición de datos personales, selección de equipo, género y cuestionario de cualidades
+- **Selección de equipos**: cada usuario puede pertenecer a hasta 2 equipos simultáneamente, seleccionables desde su perfil mediante checkboxes
+- **Miembros**: directorio de integrantes mostrando equipos asignados (máximo 2) y rol. Solo se muestran badges de rol para admin y maestro. Gestión de rol mediante dropdown, accesible para maestro. Asignación de equipos mediante checkboxes, accesible para maestro y admin. Manejo de errores en imágenes de avatar con fallback automático
+- **Perfil**: vista y edición de datos personales, selección de equipos (máx. 2), género y cuestionario de cualidades
   - **Foto de perfil**: los usuarios pueden subir una foto de perfil (máx. 500 KB) que se muestra en el sidebar, perfil y directorio de miembros
   - **Selección de género**: permite al usuario indicar su género para personalizar el saludo en el dashboard
 - **Indicadores de permisos**: las opciones restringidas del menú lateral muestran un ícono de candado para distinguir acciones que requieren permisos especiales
 - **Diseño responsivo**: interfaz adaptativa optimizada para móvil y escritorio con prevención de solapamiento de texto/iconos en pantallas pequeñas (320px+). Navegación compacta en landing, textos truncados en tarjetas, badges y encabezados
-- **Animación de fondo estelar**: tres capas parallax de estrellas con movimiento orbital y parpadeo (94 estrellas en total), con densidad y velocidad mejoradas. Compatible con `prefers-reduced-motion` y optimizada para móvil
+- **Animación de fondo estelar**: tres capas parallax de estrellas con movimiento caótico multi-waypoint, rotaciones sutiles y brillo dinámico con variaciones de `opacity` y `filter: brightness()` (94 estrellas en total). Compatible con `prefers-reduced-motion` y optimizada para móvil
 - **Rutas protegidas** que redirigen a login cuando el usuario no está autenticado
 - **Redirección automática**: usuarios autenticados son redirigidos al dashboard si visitan login/registro
 - **Error Boundary** global que captura errores de React y muestra una pantalla de recuperación
@@ -55,7 +55,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 
 ## Roles y permisos
 
-El sistema define **roles** (permisos de administración) y **equipos** (área de trabajo) de forma independiente. Cada usuario puede tener **hasta 2 roles** simultáneamente.
+El sistema define **roles** (permisos de administración) y **equipos** (área de trabajo) de forma independiente. Cada usuario tiene **un único rol** y puede pertenecer a **hasta 2 equipos** simultáneamente.
 
 | Rol | Descripción | Permisos clave |
 |-----|-------------|----------------|
@@ -64,11 +64,17 @@ El sistema define **roles** (permisos de administración) y **equipos** (área d
 
 Los usuarios sin rol asignado pueden ver contenido pero no realizar acciones de gestión.
 
-### Multi-rol
+### Rol único
 
-Los roles se almacenan como un arreglo (`roles: UserRole[]`) en Firestore, con un máximo de 2 roles por usuario. El sistema mantiene compatibilidad con el campo legacy `rol` (string) mediante la función `sanitizeUserRoles()`. Las funciones auxiliares `hasRole()` y `hasAnyRole()` permiten verificar permisos de forma consistente.
+El rol se almacena como un campo simple (`rol: UserRole`) en Firestore. El sistema mantiene compatibilidad con el campo legacy `roles` (array) leyendo el primer elemento si `rol` no existe. Las funciones auxiliares `hasRole()` y `hasAnyRole()` verifican el rol único del usuario.
 
-La asignación de roles se realiza desde la sección "Miembros" mediante una interfaz de checkboxes.
+La asignación de rol se realiza desde la sección "Miembros" mediante un dropdown (solo maestro).
+
+### Multi-equipo
+
+Los equipos se almacenan como un arreglo (`equipos: TeamType[]`) en Firestore, con un máximo de 2 equipos por usuario. El sistema mantiene compatibilidad con el campo legacy `equipo` (string) mediante la función `sanitizeUserTeams()`. Las funciones auxiliares `hasTeam()` y `hasAnyTeam()` permiten verificar pertenencia a equipos.
+
+La asignación de equipos se realiza desde la sección "Miembros" mediante checkboxes (maestro y admin) o desde el perfil del usuario.
 
 ### Administrador del sistema
 
@@ -86,7 +92,7 @@ Las opciones del menú lateral que requieren permisos especiales (como "Gestión
 
 ## Equipos
 
-Los usuarios pueden seleccionar el equipo al que desean pertenecer desde su perfil. La asignación de equipo es independiente del rol y no se realiza de forma automática al registrarse. Los equipos disponibles son:
+Los usuarios pueden seleccionar los equipos a los que desean pertenecer desde su perfil (máximo 2 equipos simultáneamente). La asignación de equipo es independiente del rol. Los equipos disponibles son:
 
 | Equipo | Descripción |
 |--------|-------------|

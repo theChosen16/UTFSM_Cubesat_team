@@ -18,7 +18,7 @@ import {
 import { collection, getDocs, addDoc, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
-import { hasAnyRole } from '@/types'
+import { hasAnyRole, hasTeam } from '@/types'
 
 interface ProjectData {
   id: string
@@ -99,7 +99,7 @@ export default function Projects() {
     }
   }
 
-  const canCreateProject = hasAnyRole(user, 'maestro', 'admin') || user?.equipo === 'manager'
+  const canCreateProject = hasAnyRole(user, 'maestro', 'admin') || hasTeam(user, 'manager')
 
   const resetForm = () => {
     setNombre('')

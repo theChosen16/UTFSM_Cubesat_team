@@ -17,7 +17,7 @@ import {
 import { collection, getDocs, addDoc, doc, updateDoc, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
-import { Task, User as UserType, TeamType, TEAM_LABELS, hasAnyRole } from '@/types'
+import { Task, User as UserType, TeamType, TEAM_LABELS, hasAnyRole, hasTeam } from '@/types'
 
 interface ProjectOption {
   id: string
@@ -42,7 +42,7 @@ export default function TaskManagement() {
   const [asignadoA, setAsignadoA] = useState<string[]>([])
   const [prioridad, setPrioridad] = useState<'alta' | 'media' | 'baja'>('media')
 
-  const canManageTasks = hasAnyRole(user, 'maestro', 'admin') || user?.equipo === 'manager'
+  const canManageTasks = hasAnyRole(user, 'maestro', 'admin') || hasTeam(user, 'manager')
 
   useEffect(() => {
     loadData()
@@ -88,8 +88,8 @@ export default function TaskManagement() {
           email: data.email || '',
           nombre: data.nombre || '',
           apellido: data.apellido || '',
-          roles: Array.isArray(data.roles) ? data.roles : (data.rol ? [data.rol] : []),
-          equipo: data.equipo || undefined,
+          rol: data.rol || (Array.isArray(data.roles) ? data.roles[0] : undefined),
+          equipos: Array.isArray(data.equipos) ? data.equipos : (data.equipo ? [data.equipo] : []),
           createdAt: data.createdAt?.toDate?.() || new Date(),
           isActive: data.isActive ?? true,
         } as UserType

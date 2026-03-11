@@ -25,41 +25,50 @@ export const sanitizeUserRole = (value: unknown): UserRole | undefined => {
 }
 
 /**
- * Sanitize a roles array from Firestore. Handles:
- * - Legacy single `rol` string field (backward compat)
- * - New `roles` array field
- * Returns an array with at most 2 unique valid roles.
+ * Sanitize a teams array from Firestore. Handles:
+ * - Legacy single `equipo` string field (backward compat)
+ * - New `equipos` array field
+ * Returns an array with at most 2 unique valid teams.
  */
-export const sanitizeUserRoles = (roles: unknown, legacyRol?: unknown): UserRole[] => {
-  const result: UserRole[] = []
-  if (Array.isArray(roles)) {
-    for (const r of roles) {
-      if (isUserRole(r) && !result.includes(r)) {
-        result.push(r)
+export const sanitizeUserTeams = (teams: unknown, legacyEquipo?: unknown): TeamType[] => {
+  const result: TeamType[] = []
+  if (Array.isArray(teams)) {
+    for (const t of teams) {
+      if (isTeamType(t) && !result.includes(t)) {
+        result.push(t)
       }
       if (result.length >= 2) break
     }
   }
-  // Fallback: if no roles array but legacy single rol exists
-  if (result.length === 0 && legacyRol !== undefined) {
-    const sanitized = sanitizeUserRole(legacyRol)
+  if (result.length === 0 && legacyEquipo !== undefined) {
+    const sanitized = sanitizeTeamType(legacyEquipo)
     if (sanitized) result.push(sanitized)
   }
   return result
 }
 
-/** Check if a user has a specific role */
-export const hasRole = (user: { roles?: UserRole[] } | null | undefined, role: UserRole): boolean => {
-  return user?.roles?.includes(role) ?? false
+/** Check if a user has a specific role (single role model) */
+export const hasRole = (user: { rol?: UserRole } | null | undefined, role: UserRole): boolean => {
+  return user?.rol === role
 }
 
 /** Check if a user has any of the specified roles */
-export const hasAnyRole = (user: { roles?: UserRole[] } | null | undefined, ...roles: UserRole[]): boolean => {
-  return roles.some(r => hasRole(user, r))
+export const hasAnyRole = (user: { rol?: UserRole } | null | undefined, ...roles: UserRole[]): boolean => {
+  return user?.rol !== undefined && roles.includes(user.rol)
 }
 
 export const sanitizeTeamType = (value: unknown): TeamType | undefined => {
   return isTeamType(value) ? value : undefined
+}
+
+/** Check if a user belongs to a specific team */
+export const hasTeam = (user: { equipos?: TeamType[] } | null | undefined, team: TeamType): boolean => {
+  return user?.equipos?.includes(team) ?? false
+}
+
+/** Check if a user belongs to any of the specified teams */
+export const hasAnyTeam = (user: { equipos?: TeamType[] } | null | undefined, ...teams: TeamType[]): boolean => {
+  return teams.some(t => hasTeam(user, t))
 }
 
 export const sanitizeGenero = (value: unknown): Genero | undefined => {
@@ -79,8 +88,8 @@ export interface User {
   email: string
   nombre: string
   apellido: string
-  roles?: UserRole[]
-  equipo?: TeamType
+  rol?: UserRole
+  equipos?: TeamType[]
   genero?: Genero
   photoURL?: string
   createdAt: Date

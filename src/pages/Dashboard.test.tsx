@@ -11,7 +11,7 @@ const mockUser: Partial<UserType> = {
   email: 'maestro@usm.cl',
   nombre: 'Alejandro',
   apellido: 'Hernandez',
-  roles: ['maestro'],
+  rol: 'maestro',
   genero: 'masculino',
   createdAt: new Date(),
   isActive: true,
@@ -125,8 +125,8 @@ describe('Dashboard', () => {
   it('shows loading indicators then stats values', async () => {
     const usersSnapshot = {
       docs: [
-        { data: () => ({ rol: undefined, equipo: 'tecnico' }) },
-        { data: () => ({ rol: 'maestro', equipo: 'manager' }) },
+        { data: () => ({ rol: undefined, equipos: ['tecnico'] }) },
+        { data: () => ({ rol: 'maestro', equipos: ['manager'] }) },
       ],
       size: 2,
     }
@@ -159,8 +159,8 @@ describe('Dashboard', () => {
   it('counts team members by equipo field, not by role', async () => {
     const usersSnapshot = {
       docs: [
-        { data: () => ({ rol: 'admin', equipo: 'tecnico' }) },
-        { data: () => ({ rol: undefined, equipo: 'tecnico' }) },
+        { data: () => ({ rol: 'admin', equipos: ['tecnico'] }) },
+        { data: () => ({ rol: undefined, equipos: ['tecnico'] }) },
         { data: () => ({ rol: 'admin' }) },
       ],
       size: 3,

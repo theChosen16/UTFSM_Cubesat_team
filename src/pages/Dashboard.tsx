@@ -47,14 +47,14 @@ export default function Dashboard() {
         const byTeam: Record<string, number> = {}
         usersSnapshot.docs.forEach(doc => {
           const data = doc.data()
-          const roles: string[] = Array.isArray(data.roles) ? data.roles : (data.rol ? [data.rol] : [])
-          roles.forEach(role => {
+          const role = data.rol || (Array.isArray(data.roles) ? data.roles[0] : undefined)
+          if (role) {
             byRole[role] = (byRole[role] || 0) + 1
-          })
-          const team = data.equipo
-          if (team) {
-            byTeam[team] = (byTeam[team] || 0) + 1
           }
+          const teams: string[] = Array.isArray(data.equipos) ? data.equipos : (data.equipo ? [data.equipo] : [])
+          teams.forEach(team => {
+            byTeam[team] = (byTeam[team] || 0) + 1
+          })
         })
         setMemberCount({ total: usersSnapshot.size, byRole, byTeam })
 
@@ -133,13 +133,13 @@ export default function Dashboard() {
             ¡{greeting}, {displayName}!
           </h1>
           <p className="text-muted-foreground mt-1">
-            {user?.roles && user.roles.length > 0 && (
-              <>Tu rol: <span className="text-cyan-400">{user.roles.map(r => ROLE_LABELS[r]).join(', ')}</span>{' '}</>  
+            {user?.rol && (
+              <>Tu rol: <span className="text-cyan-400">{ROLE_LABELS[user.rol]}</span>{' '}</>  
             )}
-            {user?.equipo && (
-              <>Equipo: <span className="text-purple-400">{TEAM_LABELS[user.equipo]}</span></>  
+            {user?.equipos && user.equipos.length > 0 && (
+              <>Equipos: <span className="text-purple-400">{user.equipos.map(t => TEAM_LABELS[t]).join(', ')}</span></>  
             )}
-            {(!user?.roles || user.roles.length === 0) && !user?.equipo && (
+            {!user?.rol && (!user?.equipos || user.equipos.length === 0) && (
               <span className="text-muted-foreground">Sin rol ni equipo asignado</span>
             )}
           </p>

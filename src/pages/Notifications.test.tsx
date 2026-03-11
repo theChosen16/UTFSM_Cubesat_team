@@ -14,7 +14,7 @@ let currentMockUser: Partial<UserType> = {
   email: 'maestro@usm.cl',
   nombre: 'Test',
   apellido: 'Maestro',
-  roles: ['maestro'],
+  rol: 'maestro',
   createdAt: new Date(),
   isActive: true,
 }
@@ -68,7 +68,7 @@ describe('Notifications', () => {
       email: 'maestro@usm.cl',
       nombre: 'Test',
       apellido: 'Maestro',
-      roles: ['maestro'],
+      rol: 'maestro',
       createdAt: new Date(),
       isActive: true,
     }
@@ -77,7 +77,7 @@ describe('Notifications', () => {
   })
 
   it('renders inbox header for all users', async () => {
-    currentMockUser = { ...currentMockUser, roles: [] }
+    currentMockUser = { ...currentMockUser, rol: undefined }
     renderNotifications()
 
     await waitFor(() => {
@@ -94,7 +94,7 @@ describe('Notifications', () => {
   })
 
   it('shows notifications tab for all users', async () => {
-    currentMockUser = { ...currentMockUser, roles: [] }
+    currentMockUser = { ...currentMockUser, rol: undefined }
     renderNotifications()
 
     await waitFor(() => {
@@ -103,7 +103,7 @@ describe('Notifications', () => {
   })
 
   it('shows messages tab for all users', async () => {
-    currentMockUser = { ...currentMockUser, roles: [] }
+    currentMockUser = { ...currentMockUser, rol: undefined }
     renderNotifications()
 
     await waitFor(() => {

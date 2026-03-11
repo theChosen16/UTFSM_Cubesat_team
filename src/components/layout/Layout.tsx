@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn, extractNameFromEmail } from '@/lib/utils'
-import { ROLE_LABELS, TEAM_LABELS, hasAnyRole, hasRole } from '@/types'
+import { ROLE_LABELS, TEAM_LABELS, hasAnyRole, hasRole, hasTeam } from '@/types'
 import { Badge } from '@/components/ui/badge'
 
 interface LayoutProps {
@@ -38,7 +38,7 @@ export default function Layout({ children }: LayoutProps) {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, restricted: false },
     { path: '/projects', label: 'Proyectos', icon: FolderKanban, restricted: false },
-    ...(hasAnyRole(user, 'maestro', 'admin') || user?.equipo === 'manager' ? [
+    ...(hasAnyRole(user, 'maestro', 'admin') || hasTeam(user, 'manager') ? [
       { path: '/tasks', label: 'Gestión de Tareas', icon: ListTodo, restricted: true },
     ] : []),
     { path: '/members', label: 'Miembros', icon: Users, restricted: false },
@@ -103,26 +103,26 @@ export default function Layout({ children }: LayoutProps) {
                 </p>
                 {user && (
                   <div className="flex flex-col gap-1 mt-1">
-                    {user.roles?.map(role => (
+                    {user.rol && (
                       <Badge 
-                        key={role}
-                        variant={role === 'maestro' ? 'orange' : 'red'}
+                        variant={user.rol === 'maestro' ? 'orange' : 'red'}
                         className="text-xs"
                       >
-                        {ROLE_LABELS[role]}
+                        {ROLE_LABELS[user.rol]}
                       </Badge>
-                    ))}
-                    {user.equipo && (
+                    )}
+                    {user.equipos?.map(team => (
                       <Badge 
+                        key={team}
                         variant={
-                          user.equipo === 'manager' ? 'cyan' :
-                          user.equipo === 'tecnico' ? 'purple' : 'green'
+                          team === 'manager' ? 'cyan' :
+                          team === 'tecnico' ? 'purple' : 'green'
                         }
                         className="text-xs"
                       >
-                        {TEAM_LABELS[user.equipo]}
+                        {TEAM_LABELS[team]}
                       </Badge>
-                    )}
+                    ))}
                   </div>
                 )}
               </div>
