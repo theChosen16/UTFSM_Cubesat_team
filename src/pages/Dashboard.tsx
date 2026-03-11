@@ -47,8 +47,10 @@ export default function Dashboard() {
         const byTeam: Record<string, number> = {}
         usersSnapshot.docs.forEach(doc => {
           const data = doc.data()
-          const role = data.rol || 'tecnico'
-          byRole[role] = (byRole[role] || 0) + 1
+          const roles: string[] = Array.isArray(data.roles) ? data.roles : (data.rol ? [data.rol] : [])
+          roles.forEach(role => {
+            byRole[role] = (byRole[role] || 0) + 1
+          })
           const team = data.equipo
           if (team) {
             byTeam[team] = (byTeam[team] || 0) + 1

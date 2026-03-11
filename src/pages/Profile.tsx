@@ -145,8 +145,8 @@ export default function Profile() {
     }
   }
 
-  const getRoleIcon = (rol: UserRole) => {
-    switch (rol) {
+  const getRoleIcon = (role: UserRole) => {
+    switch (role) {
       case 'maestro': return Crown
       case 'admin': return Settings
     }
@@ -200,6 +200,7 @@ export default function Profile() {
                     onChange={handlePhotoUpload}
                     className="hidden"
                     disabled={uploadingPhoto}
+                    title="Subir foto de perfil"
                   />
                 </label>
                 {uploadingPhoto && (

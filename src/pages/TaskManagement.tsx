@@ -88,7 +88,7 @@ export default function TaskManagement() {
           email: data.email || '',
           nombre: data.nombre || '',
           apellido: data.apellido || '',
-          rol: data.rol || 'tecnico',
+          roles: Array.isArray(data.roles) ? data.roles : (data.rol ? [data.rol] : []),
           equipo: data.equipo || undefined,
           createdAt: data.createdAt?.toDate?.() || new Date(),
           isActive: data.isActive ?? true,

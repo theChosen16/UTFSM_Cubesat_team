@@ -41,7 +41,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 - **Proyectos**: listado y creación de proyectos del equipo con formulario integrado (nombre, descripción, equipo, prioridad, fecha límite). Datos almacenados en Firestore con feedback de errores al usuario
 - **Gestión de Tareas**: dashboard para maestro, admin y manager que permite crear tareas asignando proyecto, equipo encargado, prioridad y responsable(s). Mensajes de error visibles al usuario en caso de fallo
 - **Selección de equipo**: cada usuario puede elegir a qué equipo pertenecer desde su perfil, sin asignación automática
-- **Miembros**: directorio de integrantes mostrando equipo asignado. Solo se muestra el badge de rol para admin y maestro. Gestión de roles accesible para maestro y admin
+- **Miembros**: directorio de integrantes mostrando equipo asignado y roles asignados (máximo 2). Solo se muestran badges de rol para admin y maestro. Gestión de roles mediante checkboxes, accesible para maestro y admin. Manejo de errores en imágenes de avatar con fallback automático
 - **Perfil**: vista y edición de datos personales, selección de equipo, género y cuestionario de cualidades
   - **Foto de perfil**: los usuarios pueden subir una foto de perfil (máx. 500 KB) que se muestra en el sidebar, perfil y directorio de miembros
   - **Selección de género**: permite al usuario indicar su género para personalizar el saludo en el dashboard
@@ -55,7 +55,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 
 ## Roles y permisos
 
-El sistema define **roles** (permisos de administración) y **equipos** (área de trabajo) de forma independiente.
+El sistema define **roles** (permisos de administración) y **equipos** (área de trabajo) de forma independiente. Cada usuario puede tener **hasta 2 roles** simultáneamente.
 
 | Rol | Descripción | Permisos clave |
 |-----|-------------|----------------|
@@ -63,6 +63,12 @@ El sistema define **roles** (permisos de administración) y **equipos** (área d
 | **Admin** | Administrador | Gestionar contenido, proyectos, tareas y asignar roles (excepto admin y maestro) |
 
 Los usuarios sin rol asignado pueden ver contenido pero no realizar acciones de gestión.
+
+### Multi-rol
+
+Los roles se almacenan como un arreglo (`roles: UserRole[]`) en Firestore, con un máximo de 2 roles por usuario. El sistema mantiene compatibilidad con el campo legacy `rol` (string) mediante la función `sanitizeUserRoles()`. Las funciones auxiliares `hasRole()` y `hasAnyRole()` permiten verificar permisos de forma consistente.
+
+La asignación de roles se realiza desde la sección "Miembros" mediante una interfaz de checkboxes.
 
 ### Administrador del sistema
 

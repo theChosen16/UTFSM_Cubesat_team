@@ -81,8 +81,8 @@ export default function Members() {
     }
   }
 
-  const getRoleIcon = (rol: UserRole) => {
-    switch (rol) {
+  const getRoleIcon = (role: UserRole) => {
+    switch (role) {
       case 'maestro': return Crown
       case 'admin': return Settings
     }
