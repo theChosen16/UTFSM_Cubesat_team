@@ -156,12 +156,12 @@ export default function Dashboard() {
           return (
             <Card key={stat.title} className="bg-space-700/50 border-space-600">
               <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{stat.title}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-muted-foreground truncate">{stat.title}</p>
                     <p className="text-3xl font-bold text-white mt-1">{stat.value}</p>
                   </div>
-                  <div className={`p-3 rounded-xl ${stat.bg}`}>
+                  <div className={`p-3 rounded-xl flex-shrink-0 ${stat.bg}`}>
                     <Icon className={`w-6 h-6 ${stat.color}`} />
                   </div>
                 </div>
@@ -210,9 +210,9 @@ export default function Dashboard() {
                     <div className={`w-8 h-8 rounded-lg ${config.bgClass} flex items-center justify-center`}>
                       <TeamIcon className={`w-4 h-4 ${config.colorClass}`} />
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-white">{TEAM_LABELS[team as TeamType]}</p>
-                      <p className="text-xs text-muted-foreground">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{TEAM_LABELS[team as TeamType]}</p>
+                      <p className="text-xs text-muted-foreground truncate">
                         {loadingStats ? '…' : `${count} miembro${count !== 1 ? 's' : ''}`}
                       </p>
                     </div>

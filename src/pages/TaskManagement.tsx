@@ -379,8 +379,8 @@ export default function TaskManagement() {
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row md:items-start gap-4">
                   <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <h3 className="text-lg font-semibold text-white">{task.titulo}</h3>
+                    <div className="flex items-center gap-3 flex-wrap min-w-0">
+                      <h3 className="text-lg font-semibold text-white truncate max-w-full sm:max-w-none">{task.titulo}</h3>
                       <Badge variant={getStatusBadge(task.estado) as 'orange' | 'cyan' | 'green'}>
                         {getStatusLabel(task.estado)}
                       </Badge>

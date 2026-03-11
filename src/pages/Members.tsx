@@ -174,8 +174,8 @@ export default function Members() {
               <div className={`p-2 rounded-lg ${team.bgColor}`}>
                 <TeamIcon className={`w-5 h-5 ${team.color}`} />
               </div>
-              <h2 className="text-lg font-semibold text-white flex-1 text-left">{team.label}</h2>
-              <Badge variant="secondary" className="text-xs">
+              <h2 className="text-lg font-semibold text-white flex-1 text-left truncate">{team.label}</h2>
+              <Badge variant="secondary" className="text-xs flex-shrink-0">
                 {teamMembers.length} {teamMembers.length === 1 ? 'miembro' : 'miembros'}
               </Badge>
               {isCollapsed

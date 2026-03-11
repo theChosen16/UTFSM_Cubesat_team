@@ -38,14 +38,16 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 - **Dashboard** privado con estadísticas en tiempo real desde Firestore (proyectos activos, tareas pendientes, completadas y miembros)
   - Saludo personalizado según género del usuario (Bienvenido/Bienvenida)
   - Estructura del equipo muestra distribución de miembros por equipo (`equipo`), no por rol
-- **Proyectos**: listado y gestión de proyectos del equipo (datos desde Firestore)
-- **Gestión de Tareas**: dashboard para maestro, admin y manager que permite crear tareas asignando proyecto, equipo encargado, prioridad y responsable(s)
+- **Proyectos**: listado y creación de proyectos del equipo con formulario integrado (nombre, descripción, equipo, prioridad, fecha límite). Datos almacenados en Firestore con feedback de errores al usuario
+- **Gestión de Tareas**: dashboard para maestro, admin y manager que permite crear tareas asignando proyecto, equipo encargado, prioridad y responsable(s). Mensajes de error visibles al usuario en caso de fallo
 - **Selección de equipo**: cada usuario puede elegir a qué equipo pertenecer desde su perfil, sin asignación automática
 - **Miembros**: directorio de integrantes mostrando equipo asignado. Solo se muestra el badge de rol para admin y maestro. Gestión de roles accesible para maestro y admin
 - **Perfil**: vista y edición de datos personales, selección de equipo, género y cuestionario de cualidades
   - **Foto de perfil**: los usuarios pueden subir una foto de perfil (máx. 500 KB) que se muestra en el sidebar, perfil y directorio de miembros
   - **Selección de género**: permite al usuario indicar su género para personalizar el saludo en el dashboard
 - **Indicadores de permisos**: las opciones restringidas del menú lateral muestran un ícono de candado para distinguir acciones que requieren permisos especiales
+- **Diseño responsivo**: interfaz adaptativa optimizada para móvil y escritorio con prevención de solapamiento de texto/iconos en pantallas pequeñas (320px+). Navegación compacta en landing, textos truncados en tarjetas, badges y encabezados
+- **Animación de fondo estelar**: tres capas parallax de estrellas con movimiento orbital y parpadeo (94 estrellas en total), con densidad y velocidad mejoradas. Compatible con `prefers-reduced-motion` y optimizada para móvil
 - **Rutas protegidas** que redirigen a login cuando el usuario no está autenticado
 - **Redirección automática**: usuarios autenticados son redirigidos al dashboard si visitan login/registro
 - **Error Boundary** global que captura errores de React y muestra una pantalla de recuperación

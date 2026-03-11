@@ -21,7 +21,7 @@ export default function Landing() {
               </div>
               <span className="text-xl font-bold text-white">USM Cubesat Team</span>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="hidden sm:flex items-center gap-4">
               <Link to="/login">
                 <Button variant="ghost" className="text-white hover:text-cyan-400">
                   Iniciar Sesión
@@ -30,6 +30,18 @@ export default function Landing() {
               <Link to="/register">
                 <Button className="bg-cyan-500 hover:bg-cyan-600 text-space-900">
                   Unirse al Equipo
+                </Button>
+              </Link>
+            </div>
+            <div className="flex sm:hidden items-center gap-2">
+              <Link to="/login">
+                <Button variant="ghost" size="sm" className="text-white hover:text-cyan-400 px-2">
+                  Entrar
+                </Button>
+              </Link>
+              <Link to="/register">
+                <Button size="sm" className="bg-cyan-500 hover:bg-cyan-600 text-space-900 px-2">
+                  Unirse
                 </Button>
               </Link>
             </div>

@@ -211,11 +211,11 @@ export default function Profile() {
                   </div>
                 )}
               </div>
-              <div>
-                <CardTitle className="text-2xl text-white">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-2xl text-white truncate">
                   {displayName} {user.apellido || ''}
                 </CardTitle>
-                <CardDescription className="text-base">{user.email}</CardDescription>
+                <CardDescription className="text-base truncate">{user.email}</CardDescription>
                 {photoError && (
                   <p className="text-sm text-red-400 mt-1">{photoError}</p>
                 )}
