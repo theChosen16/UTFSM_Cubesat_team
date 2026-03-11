@@ -152,9 +152,6 @@ export default function Profile() {
     }
   }
 
-  const primaryRole = user.roles?.[0]
-  const RoleIcon = primaryRole ? getRoleIcon(primaryRole) : User
-  const roleStyles = primaryRole ? ROLE_STYLES[primaryRole] : null
   const displayName = user.nombre || extractNameFromEmail(user.email)
   const firstInitial = displayName.trim().charAt(0).toUpperCase() || '?'
   const lastInitial = (user.apellido || '').trim().charAt(0).toUpperCase()
