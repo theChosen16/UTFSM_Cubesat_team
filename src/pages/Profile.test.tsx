@@ -14,7 +14,7 @@ let currentMockUser: UserType = {
   email: 'test@sansano.usm.cl',
   nombre: 'Alejandro',
   apellido: 'Hernandez',
-  rol: 'maestro',
+  roles: ['maestro'],
   equipo: 'tecnico',
   createdAt: new Date(),
   isActive: true,
@@ -66,7 +66,7 @@ describe('Profile', () => {
       email: 'test@sansano.usm.cl',
       nombre: 'Alejandro',
       apellido: 'Hernandez',
-      rol: 'maestro',
+      roles: ['maestro'],
       equipo: 'tecnico',
       createdAt: new Date(),
       isActive: true,
@@ -154,7 +154,7 @@ describe('Profile', () => {
   })
 
   it('does not show role request button for users without role', () => {
-    currentMockUser = { ...currentMockUser, rol: undefined }
+    currentMockUser = { ...currentMockUser, roles: [] }
     renderProfile()
 
     expect(screen.queryByRole('button', { name: /solicitar cambio de rol/i })).not.toBeInTheDocument()
@@ -176,7 +176,7 @@ describe('Profile', () => {
   it('shows no-role fallback when role is undefined', () => {
     currentMockUser = {
       ...currentMockUser,
-      rol: undefined,
+      roles: [],
     }
 
     renderProfile()

@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, collection, getDocs, query, limit } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
-import { User, UserRole, sanitizeGenero, sanitizeTeamType, sanitizeUserRole, TeamType } from '@/types'
+import { User, UserRole, sanitizeGenero, sanitizeTeamType, sanitizeUserRoles, TeamType } from '@/types'
 import { logger } from '@/lib/logger'
 
 interface AuthContextType {
@@ -19,7 +19,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, nombre: string, apellido: string) => Promise<void>
   signOut: () => Promise<void>
-  updateUserRole: (userId: string, newRole: UserRole) => Promise<void>
+  updateUserRoles: (userId: string, newRoles: UserRole[]) => Promise<void>
   updateUserTeam: (userId: string, newTeam: TeamType) => Promise<void>
   updateUserProfile: (data: Partial<User>) => Promise<void>
   resetPassword: (email: string) => Promise<void>
@@ -60,7 +60,7 @@ const mapFirestoreUser = (id: string, rawData: Record<string, unknown>, fallback
     email: typeof rawData.email === 'string' ? rawData.email : fallbackUser.email,
     nombre: typeof rawData.nombre === 'string' ? rawData.nombre : fallbackUser.nombre,
     apellido: typeof rawData.apellido === 'string' ? rawData.apellido : fallbackUser.apellido,
-    rol: sanitizeUserRole(rawData.rol),
+    roles: sanitizeUserRoles(rawData.roles, rawData.rol),
     equipo: sanitizeTeamType(rawData.equipo),
     genero: sanitizeGenero(rawData.genero),
     photoURL: typeof rawData.photoURL === 'string' ? rawData.photoURL : undefined,
@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: fbUser.email || '',
           nombre: fbUser.displayName?.split(' ')[0] || '',
           apellido: fbUser.displayName?.split(' ').slice(1).join(' ') || '',
-          rol: undefined,
+          roles: [],
           createdAt: new Date(),
           isActive: true,
         }
@@ -145,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       nombre,
       apellido,
-      rol: isFirstUser ? 'maestro' : undefined,
+      roles: isFirstUser ? ['maestro'] : [],
       createdAt: new Date(),
       isActive: true,
     }
@@ -172,10 +172,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setFirebaseUser(null)
   }
 
-  const updateUserRole = async (userId: string, newRole: UserRole) => {
-    await setDoc(doc(db, 'users', userId), { rol: newRole }, { merge: true })
+  const updateUserRoles = async (userId: string, newRoles: UserRole[]) => {
+    const limitedRoles = newRoles.slice(0, 2)
+    await setDoc(doc(db, 'users', userId), { roles: limitedRoles }, { merge: true })
     if (user && user.id === userId) {
-      setUser({ ...user, rol: newRole })
+      setUser({ ...user, roles: limitedRoles })
     }
   }
 
@@ -195,7 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: '',
         nombre: '',
         apellido: '',
-        rol: undefined,
+        roles: [],
         createdAt: new Date(),
         isActive: true,
       }
@@ -211,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn, 
       signUp, 
       signOut,
-      updateUserRole,
+      updateUserRoles,
       updateUserTeam,
       updateUserProfile,
       resetPassword,

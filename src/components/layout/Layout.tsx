@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn, extractNameFromEmail } from '@/lib/utils'
-import { ROLE_LABELS, TEAM_LABELS } from '@/types'
+import { ROLE_LABELS, TEAM_LABELS, hasAnyRole, hasRole } from '@/types'
 import { Badge } from '@/components/ui/badge'
 
 interface LayoutProps {
@@ -38,7 +38,7 @@ export default function Layout({ children }: LayoutProps) {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, restricted: false },
     { path: '/projects', label: 'Proyectos', icon: FolderKanban, restricted: false },
-    ...(user?.rol === 'maestro' || user?.rol === 'admin' || user?.equipo === 'manager' ? [
+    ...(hasAnyRole(user, 'maestro', 'admin') || user?.equipo === 'manager' ? [
       { path: '/tasks', label: 'Gestión de Tareas', icon: ListTodo, restricted: true },
     ] : []),
     { path: '/members', label: 'Miembros', icon: Users, restricted: false },
@@ -85,32 +85,33 @@ export default function Layout({ children }: LayoutProps) {
                   src={user.photoURL} 
                   alt={`${user.nombre} ${user.apellido}`}
                   className="w-10 h-10 rounded-full object-cover"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden') }}
                 />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
-                  {user?.rol === 'maestro' ? (
+              ) : null}
+                <div className={`w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center ${user?.photoURL ? 'hidden' : ''}`}>
+                  {hasRole(user, 'maestro') ? (
                     <Crown className="w-5 h-5 text-white" />
-                  ) : user?.rol === 'admin' ? (
+                  ) : hasRole(user, 'admin') ? (
                     <Shield className="w-5 h-5 text-white" />
                   ) : (
                     <Rocket className="w-5 h-5 text-white" />
                   )}
                 </div>
-              )}
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">
                   {user?.nombre || extractNameFromEmail(user?.email || '')} {user?.apellido || ''}
                 </p>
                 {user && (
                   <div className="flex flex-col gap-1 mt-1">
-                    {user.rol && (
+                    {user.roles?.map(role => (
                       <Badge 
-                        variant={user.rol === 'maestro' ? 'orange' : 'red'}
+                        key={role}
+                        variant={role === 'maestro' ? 'orange' : 'red'}
                         className="text-xs"
                       >
-                        {ROLE_LABELS[user.rol]}
+                        {ROLE_LABELS[role]}
                       </Badge>
-                    )}
+                    ))}
                     {user.equipo && (
                       <Badge 
                         variant={

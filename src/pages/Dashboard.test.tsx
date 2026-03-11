@@ -11,7 +11,7 @@ const mockUser: Partial<UserType> = {
   email: 'maestro@usm.cl',
   nombre: 'Alejandro',
   apellido: 'Hernandez',
-  rol: 'maestro',
+  roles: ['maestro'],
   genero: 'masculino',
   createdAt: new Date(),
   isActive: true,

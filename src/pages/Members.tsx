@@ -16,7 +16,7 @@ import {
   ChevronDown,
   ChevronRight
 } from 'lucide-react'
-import { User as UserType, ROLE_LABELS, UserRole, TeamType } from '@/types'
+import { User as UserType, ROLE_LABELS, UserRole, TeamType, hasRole, hasAnyRole } from '@/types'
 import { logger } from '@/lib/logger'
 import { extractNameFromEmail } from '@/lib/utils'
 
@@ -28,7 +28,7 @@ const TEAM_CONFIG: { key: TeamType | 'none'; label: string; icon: typeof Users; 
 ]
 
 export default function Members() {
-  const { user, getAllUsers, updateUserRole, updateUserTeam } = useAuth()
+  const { user, getAllUsers, updateUserRoles, updateUserTeam } = useAuth()
   const [members, setMembers] = useState<UserType[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -48,17 +48,27 @@ export default function Members() {
     loadMembers()
   }, [loadMembers])
 
-  const handleRoleChange = async (userId: string, newRole: UserRole) => {
-    // Only maestro can assign admin roles
-    if (user?.rol !== 'maestro') {
-      logger.warn('Non-maestro user attempted to assign role', { userId, newRole })
+  const handleRoleToggle = async (userId: string, role: UserRole, currentRoles: UserRole[]) => {
+    // Only maestro can assign roles
+    if (!hasRole(user, 'maestro')) {
+      logger.warn('Non-maestro user attempted to assign role', { userId, role })
       return
     }
+    let newRoles: UserRole[]
+    if (currentRoles.includes(role)) {
+      newRoles = currentRoles.filter(r => r !== role)
+    } else {
+      if (currentRoles.length >= 2) {
+        logger.warn('Max 2 roles allowed', { userId })
+        return
+      }
+      newRoles = [...currentRoles, role]
+    }
     try {
-      await updateUserRole(userId, newRole)
+      await updateUserRoles(userId, newRoles)
       await loadMembers()
     } catch (error) {
-      logger.error('Error updating role', { error: error instanceof Error ? error : undefined, userId, newRole })
+      logger.error('Error updating roles', { error: error instanceof Error ? error : undefined, userId, newRoles })
     }
   }
 
@@ -71,11 +81,10 @@ export default function Members() {
     }
   }
 
-  const getRoleIcon = (rol?: UserRole) => {
+  const getRoleIcon = (rol: UserRole) => {
     switch (rol) {
       case 'maestro': return Crown
       case 'admin': return Settings
-      default: return User
     }
   }
 
@@ -136,7 +145,7 @@ export default function Members() {
             Directorio de miembros y sus funciones en el equipo
           </p>
         </div>
-        {(user?.rol === 'maestro' || user?.rol === 'admin') && (
+        {hasAnyRole(user, 'maestro', 'admin') && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Shield className="w-4 h-4 text-orange-400" />
             <span>Gestión de roles habilitada</span>
@@ -188,9 +197,8 @@ export default function Members() {
             {!isCollapsed && (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {teamMembers.map((member) => {
-                  const RoleIcon = getRoleIcon(member.rol)
                   const isCurrentUser = user?.id === member.id
-                  const isMaster = user?.rol === 'maestro'
+                  const isMaster = hasRole(user, 'maestro')
 
                   return (
                     <Card key={member.id} className="bg-space-700/50 border-space-600">
@@ -202,14 +210,14 @@ export default function Members() {
                                 src={member.photoURL} 
                                 alt={`${member.nombre} ${member.apellido}`}
                                 className="w-12 h-12 rounded-full object-cover"
+                                onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden') }}
                               />
-                            ) : (
-                              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
+                            ) : null}
+                              <div className={`w-12 h-12 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center ${member.photoURL ? 'hidden' : ''}`}>
                                 <span className="text-white font-bold text-lg">
                                   {getMemberInitials(member)}
                                 </span>
                               </div>
-                            )}
                             <div>
                               <CardTitle className="text-lg text-white truncate">
                                 {getMemberDisplayName(member)}
@@ -228,54 +236,54 @@ export default function Members() {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        {/* Show admin/maestro badge only for those roles */}
-                        {member.rol === 'maestro' && (
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-orange-500/20">
-                              <RoleIcon className="w-4 h-4 text-orange-400" />
+                        {/* Show role badges */}
+                        {member.roles && member.roles.length > 0 && member.roles.map(role => {
+                          const RoleIcon = getRoleIcon(role)
+                          const colorMap = { maestro: 'orange', admin: 'red' } as const
+                          const bgMap = { maestro: 'bg-orange-500/20', admin: 'bg-red-500/20' }
+                          const textMap = { maestro: 'text-orange-400', admin: 'text-red-400' }
+                          return (
+                            <div key={role} className="flex items-center gap-3">
+                              <div className={`p-2 rounded-lg ${bgMap[role]}`}>
+                                <RoleIcon className={`w-4 h-4 ${textMap[role]}`} />
+                              </div>
+                              <div className="flex-1">
+                                <Badge variant={colorMap[role]}>
+                                  {ROLE_LABELS[role]}
+                                </Badge>
+                              </div>
                             </div>
-                            <div className="flex-1">
-                              <Badge variant="orange">
-                                {ROLE_LABELS[member.rol]}
-                              </Badge>
-                            </div>
-                          </div>
-                        )}
-                        {member.rol === 'admin' && (
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-red-500/20">
-                              <RoleIcon className="w-4 h-4 text-red-400" />
-                            </div>
-                            <div className="flex-1">
-                              <Badge variant="red">
-                                {ROLE_LABELS[member.rol]}
-                              </Badge>
-                            </div>
-                          </div>
-                        )}
+                          )
+                        })}
 
-                        {/* Role Change (Maestro can assign Admin) */}
+                        {/* Role Assignment (Maestro can assign roles via checkboxes, max 2) */}
                         {isMaster && !isCurrentUser && (
                           <div className="pt-3 border-t border-space-600">
-                            <label className="text-xs text-muted-foreground mb-2 block">Asignar rol:</label>
-                            <select
-                              value={member.rol || ''}
-                              onChange={(e) => {
-                                const val = e.target.value as UserRole
-                                if (val) handleRoleChange(member.id, val)
-                              }}
-                              title="Cambiar rol del miembro"
-                              className="w-full px-3 py-2 rounded-lg bg-space-600 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
-                            >
-                              <option value="">Sin rol</option>
-                              <option value="admin">Administrador</option>
-                              <option value="maestro">Usuario Maestro</option>
-                            </select>
+                            <label className="text-xs text-muted-foreground mb-2 block">Asignar roles (máx. 2):</label>
+                            <div className="space-y-2">
+                              {(['admin', 'maestro'] as UserRole[]).map(role => {
+                                const checked = member.roles?.includes(role) ?? false
+                                const disabled = !checked && (member.roles?.length ?? 0) >= 2
+                                return (
+                                  <label key={role} className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-space-600 border border-space-500 text-sm cursor-pointer ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-cyan-500'}`}>
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      disabled={disabled}
+                                      onChange={() => handleRoleToggle(member.id, role, member.roles || [])}
+                                      className="accent-cyan-500"
+                                      title={`Asignar rol ${ROLE_LABELS[role]}`}
+                                    />
+                                    <span className="text-white">{ROLE_LABELS[role]}</span>
+                                  </label>
+                                )
+                              })}
+                            </div>
                           </div>
                         )}
 
                         {/* Team Assignment (Maestro or Admin) */}
-                        {(isMaster || user?.rol === 'admin') && !isCurrentUser && (
+                        {(isMaster || hasRole(user, 'admin')) && !isCurrentUser && (
                           <div className="pt-3 border-t border-space-600">
                             <label className="text-xs text-muted-foreground mb-2 block">Asignar equipo:</label>
                             <select

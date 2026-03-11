@@ -24,6 +24,40 @@ export const sanitizeUserRole = (value: unknown): UserRole | undefined => {
   return isUserRole(value) ? value : undefined
 }
 
+/**
+ * Sanitize a roles array from Firestore. Handles:
+ * - Legacy single `rol` string field (backward compat)
+ * - New `roles` array field
+ * Returns an array with at most 2 unique valid roles.
+ */
+export const sanitizeUserRoles = (roles: unknown, legacyRol?: unknown): UserRole[] => {
+  const result: UserRole[] = []
+  if (Array.isArray(roles)) {
+    for (const r of roles) {
+      if (isUserRole(r) && !result.includes(r)) {
+        result.push(r)
+      }
+      if (result.length >= 2) break
+    }
+  }
+  // Fallback: if no roles array but legacy single rol exists
+  if (result.length === 0 && legacyRol !== undefined) {
+    const sanitized = sanitizeUserRole(legacyRol)
+    if (sanitized) result.push(sanitized)
+  }
+  return result
+}
+
+/** Check if a user has a specific role */
+export const hasRole = (user: { roles?: UserRole[] } | null | undefined, role: UserRole): boolean => {
+  return user?.roles?.includes(role) ?? false
+}
+
+/** Check if a user has any of the specified roles */
+export const hasAnyRole = (user: { roles?: UserRole[] } | null | undefined, ...roles: UserRole[]): boolean => {
+  return roles.some(r => hasRole(user, r))
+}
+
 export const sanitizeTeamType = (value: unknown): TeamType | undefined => {
   return isTeamType(value) ? value : undefined
 }
@@ -45,7 +79,7 @@ export interface User {
   email: string
   nombre: string
   apellido: string
-  rol?: UserRole
+  roles?: UserRole[]
   equipo?: TeamType
   genero?: Genero
   photoURL?: string

@@ -13,7 +13,7 @@ let currentMockUser: Partial<UserType> = {
   email: 'maestro@usm.cl',
   nombre: 'Test',
   apellido: 'Maestro',
-  rol: 'maestro',
+  roles: ['maestro'],
   createdAt: new Date(),
   isActive: true,
 }
@@ -63,7 +63,7 @@ describe('Projects', () => {
       email: 'maestro@usm.cl',
       nombre: 'Test',
       apellido: 'Maestro',
-      rol: 'maestro',
+      roles: ['maestro'],
       createdAt: new Date(),
       isActive: true,
     }
@@ -87,7 +87,7 @@ describe('Projects', () => {
   })
 
   it('shows "Nuevo Proyecto" button for admin', async () => {
-    currentMockUser = { ...currentMockUser, rol: 'admin' }
+    currentMockUser = { ...currentMockUser, roles: ['admin'] }
     renderProjects()
 
     await waitFor(() => {
@@ -96,7 +96,7 @@ describe('Projects', () => {
   })
 
   it('shows "Nuevo Proyecto" button for manager team member', async () => {
-    currentMockUser = { ...currentMockUser, rol: undefined, equipo: 'manager' }
+    currentMockUser = { ...currentMockUser, roles: [], equipo: 'manager' }
     renderProjects()
 
     await waitFor(() => {
@@ -105,7 +105,7 @@ describe('Projects', () => {
   })
 
   it('does not show "Nuevo Proyecto" button for regular member', async () => {
-    currentMockUser = { ...currentMockUser, rol: undefined, equipo: 'tecnico' }
+    currentMockUser = { ...currentMockUser, roles: [], equipo: 'tecnico' }
     renderProjects()
 
     await waitFor(() => {

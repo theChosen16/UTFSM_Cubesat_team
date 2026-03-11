@@ -131,13 +131,13 @@ export default function Dashboard() {
             ¡{greeting}, {displayName}!
           </h1>
           <p className="text-muted-foreground mt-1">
-            {user?.rol && (
-              <>Tu rol: <span className="text-cyan-400">{ROLE_LABELS[user.rol]}</span>{' '}</>  
+            {user?.roles && user.roles.length > 0 && (
+              <>Tu rol: <span className="text-cyan-400">{user.roles.map(r => ROLE_LABELS[r]).join(', ')}</span>{' '}</>  
             )}
             {user?.equipo && (
               <>Equipo: <span className="text-purple-400">{TEAM_LABELS[user.equipo]}</span></>  
             )}
-            {!user?.rol && !user?.equipo && (
+            {(!user?.roles || user.roles.length === 0) && !user?.equipo && (
               <span className="text-muted-foreground">Sin rol ni equipo asignado</span>
             )}
           </p>

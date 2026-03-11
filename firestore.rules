@@ -1,9 +1,14 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper function: check if user has a specific role (supports both legacy 'rol' and new 'roles' array)
+    function hasRole(role) {
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return userData.rol == role || (userData.roles is list && role in userData.roles);
+    }
+
     match /users/{userId} {
       // Allow creation if the user is authenticated and the ID matches
-      // This allows the first user (and others) to create their profile
       allow create: if request.auth != null && request.auth.uid == userId;
       
       // Allow read/update if the user is authenticated and:
@@ -12,12 +17,12 @@ service cloud.firestore {
       // - Has 'admin' role
       allow read, update: if request.auth != null && 
         (request.auth.uid == userId || 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'maestro' ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'admin');
+         hasRole('maestro') ||
+         hasRole('admin'));
       
       // Only maestro can delete
       allow delete: if request.auth != null && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'maestro';
+        hasRole('maestro');
     }
 
     match /notifications/{notificationId} {
@@ -37,20 +42,20 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null &&
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.equipo == 'manager' ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'maestro' ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'admin');
+         hasRole('maestro') ||
+         hasRole('admin'));
       allow delete: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'maestro';
+        hasRole('maestro');
     }
 
     match /tasks/{taskId} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null &&
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.equipo == 'manager' ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'maestro' ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'admin');
+         hasRole('maestro') ||
+         hasRole('admin'));
       allow delete: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rol == 'maestro';
+        hasRole('maestro');
     }
   }
 }

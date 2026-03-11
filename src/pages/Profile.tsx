@@ -24,7 +24,7 @@ import {
   Rocket,
   Camera
 } from 'lucide-react'
-import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS, Genero } from '@/types'
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS, Genero, hasRole, hasAnyRole } from '@/types'
 import { logger } from '@/lib/logger'
 import { extractNameFromEmail } from '@/lib/utils'
 
@@ -145,16 +145,16 @@ export default function Profile() {
     }
   }
 
-  const getRoleIcon = (rol?: UserRole) => {
+  const getRoleIcon = (rol: UserRole) => {
     switch (rol) {
       case 'maestro': return Crown
       case 'admin': return Settings
-      default: return User
     }
   }
 
-  const RoleIcon = getRoleIcon(user.rol)
-  const roleStyles = user.rol ? ROLE_STYLES[user.rol] : null
+  const primaryRole = user.roles?.[0]
+  const RoleIcon = primaryRole ? getRoleIcon(primaryRole) : User
+  const roleStyles = primaryRole ? ROLE_STYLES[primaryRole] : null
   const displayName = user.nombre || extractNameFromEmail(user.email)
   const firstInitial = displayName.trim().charAt(0).toUpperCase() || '?'
   const lastInitial = (user.apellido || '').trim().charAt(0).toUpperCase()
@@ -184,14 +184,14 @@ export default function Profile() {
                     src={user.photoURL} 
                     alt={`${user.nombre} ${user.apellido}`}
                     className="w-20 h-20 rounded-full object-cover"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden') }}
                   />
-                ) : (
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
+                ) : null}
+                  <div className={`w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center ${user.photoURL ? 'hidden' : ''}`}>
                     <span className="text-white font-bold text-2xl">
                       {firstInitial}{lastInitial}
                     </span>
                   </div>
-                )}
                 <label 
                   className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                   title="Subir foto de perfil"
@@ -248,26 +248,34 @@ export default function Profile() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Role Section */}
-          {roleStyles && user.rol ? (
-            <div className="p-4 rounded-lg bg-space-600/50">
-              <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-xl ${roleStyles.background}`}>
-                    <RoleIcon className={`w-6 h-6 ${roleStyles.icon}`} />
+          {user.roles && user.roles.length > 0 ? (
+            <div className="space-y-3">
+              {user.roles.map(role => {
+                const Icon = getRoleIcon(role)
+                const styles = ROLE_STYLES[role]
+                return (
+                  <div key={role} className="p-4 rounded-lg bg-space-600/50">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-xl ${styles.background}`}>
+                        <Icon className={`w-6 h-6 ${styles.icon}`} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant={styles.badge}>
+                            {ROLE_LABELS[role]}
+                          </Badge>
+                          {role === 'maestro' && (
+                            <Shield className="w-4 h-4 text-orange-400" />
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {ROLE_DESCRIPTIONS[role]}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant={roleStyles.badge}>
-                      {ROLE_LABELS[user.rol]}
-                    </Badge>
-                    {user.rol === 'maestro' && (
-                      <Shield className="w-4 h-4 text-orange-400" />
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {ROLE_DESCRIPTIONS[user.rol]}
-                  </p>
-                </div>
-              </div>
+                )
+              })}
             </div>
           ) : (
             <div className="p-4 rounded-lg bg-space-600/50">
@@ -513,7 +521,7 @@ export default function Profile() {
           <div className="space-y-3">
             <h3 className="text-lg font-semibold text-white">Permisos</h3>
             <div className="grid gap-2">
-              {user.rol === 'maestro' && (
+              {hasRole(user, 'maestro') && (
                 <>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Shield className="w-4 h-4 text-orange-400" />
@@ -525,7 +533,7 @@ export default function Profile() {
                   </div>
                 </>
               )}
-              {user.rol === 'admin' && (
+              {hasRole(user, 'admin') && (
                 <>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Shield className="w-4 h-4 text-red-400" />
@@ -537,7 +545,7 @@ export default function Profile() {
                   </div>
                 </>
               )}
-              {(user.rol === 'maestro' || user.rol === 'admin' || user.equipo === 'manager') && (
+              {(hasAnyRole(user, 'maestro', 'admin') || user.equipo === 'manager') && (
                 <>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Cpu className="w-4 h-4 text-cyan-400" />
@@ -549,7 +557,7 @@ export default function Profile() {
                   </div>
                 </>
               )}
-              {!user.rol && !user.equipo && (
+              {(!user.roles || user.roles.length === 0) && !user.equipo && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <User className="w-4 h-4 text-gray-400" />
                   <span>Ver proyectos del equipo</span>

@@ -36,7 +36,7 @@ const mockUser: Partial<UserType> = {
   email: 'maestro@usm.cl',
   nombre: 'Test',
   apellido: 'Maestro',
-  rol: 'maestro',
+  roles: ['maestro'],
   createdAt: new Date(),
   isActive: true,
 }
@@ -111,7 +111,7 @@ describe('TaskManagement', () => {
   })
 
   it('does not show "Nueva Tarea" button for regular members', async () => {
-    currentMockUser = { ...mockUser, rol: undefined, equipo: 'tecnico' }
+    currentMockUser = { ...mockUser, roles: [], equipo: 'tecnico' }
 
     renderTaskManagement()
 
@@ -122,7 +122,7 @@ describe('TaskManagement', () => {
   })
 
   it('shows admin users the "Nueva Tarea" button', async () => {
-    currentMockUser = { ...mockUser, rol: 'admin' }
+    currentMockUser = { ...mockUser, roles: ['admin'] }
 
     renderTaskManagement()
 

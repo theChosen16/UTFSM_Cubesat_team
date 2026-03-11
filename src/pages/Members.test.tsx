@@ -6,7 +6,7 @@ import Members from '@/pages/Members'
 import { User as UserType } from '@/types'
 
 const mockGetAllUsers = vi.fn()
-const mockUpdateUserRole = vi.fn()
+const mockUpdateUserRoles = vi.fn()
 const mockUpdateUserTeam = vi.fn()
 
 const mockCurrentUser: Partial<UserType> = {
@@ -14,7 +14,7 @@ const mockCurrentUser: Partial<UserType> = {
   email: 'maestro@usm.cl',
   nombre: 'Test',
   apellido: 'Maestro',
-  rol: 'maestro',
+  roles: ['maestro'],
   createdAt: new Date(),
   isActive: true,
 }
@@ -25,7 +25,7 @@ vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
     user: currentMockUser,
     getAllUsers: mockGetAllUsers,
-    updateUserRole: mockUpdateUserRole,
+    updateUserRoles: mockUpdateUserRoles,
     updateUserTeam: mockUpdateUserTeam,
   }),
 }))
@@ -46,7 +46,7 @@ const sampleMembers: UserType[] = [
     email: 'maestro@usm.cl',
     nombre: 'Test',
     apellido: 'Maestro',
-    rol: 'maestro',
+    roles: ['maestro'],
     equipo: 'tecnico',
     createdAt: new Date(),
     isActive: true,
@@ -56,7 +56,7 @@ const sampleMembers: UserType[] = [
     email: 'admin@usm.cl',
     nombre: 'Admin',
     apellido: 'User',
-    rol: 'admin',
+    roles: ['admin'],
     createdAt: new Date(),
     isActive: true,
   },
@@ -65,7 +65,7 @@ const sampleMembers: UserType[] = [
     email: 'tecnico@usm.cl',
     nombre: 'Tecnico',
     apellido: 'Dev',
-    rol: undefined,
+    roles: [],
     equipo: 'tecnico',
     createdAt: new Date(),
     isActive: true,
@@ -162,7 +162,7 @@ describe('Members', () => {
         email: undefined as unknown as string,
         nombre: undefined as unknown as string,
         apellido: undefined as unknown as string,
-        rol: undefined,
+        roles: [],
         createdAt: new Date(),
         isActive: true,
       },
@@ -184,7 +184,7 @@ describe('Members', () => {
         email: undefined as unknown as string,
         nombre: undefined as unknown as string,
         apellido: undefined as unknown as string,
-        rol: undefined,
+        roles: [],
         createdAt: new Date(),
         isActive: true,
       },
@@ -213,7 +213,7 @@ describe('Members', () => {
         email: 'test@usm.cl',
         nombre: 'Test',
         apellido: 'User',
-        rol: undefined,
+        roles: [],
         createdAt: new Date(),
         isActive: true,
       },
@@ -237,7 +237,7 @@ describe('Members', () => {
   })
 
   it('shows role management badge for admin', async () => {
-    currentMockUser = { ...mockCurrentUser, rol: 'admin' }
+    currentMockUser = { ...mockCurrentUser, roles: ['admin'] }
 
     renderMembers()
 
@@ -247,7 +247,7 @@ describe('Members', () => {
   })
 
   it('does not show role management badge for regular member', async () => {
-    currentMockUser = { ...mockCurrentUser, rol: undefined }
+    currentMockUser = { ...mockCurrentUser, roles: [] }
 
     renderMembers()
 
@@ -265,23 +265,23 @@ describe('Members', () => {
     })
   })
 
-  it('shows role change dropdown for other members when user is maestro', async () => {
+  it('shows role checkboxes for other members when user is maestro', async () => {
     renderMembers()
 
     await waitFor(() => {
-      const selects = screen.getAllByTitle('Cambiar rol del miembro')
-      expect(selects.length).toBeGreaterThan(0)
+      const checkboxes = screen.getAllByTitle(/Asignar rol/)
+      expect(checkboxes.length).toBeGreaterThan(0)
     })
   })
 
-  it('does not show role change for current user', async () => {
+  it('does not show role checkboxes for current user', async () => {
     mockGetAllUsers.mockResolvedValue([sampleMembers[0]]) // Only the current user
     renderMembers()
 
     await waitFor(() => {
       expect(screen.getByText('Test Maestro')).toBeInTheDocument()
     })
-    expect(screen.queryByTitle('Cambiar rol del miembro')).not.toBeInTheDocument()
+    expect(screen.queryByTitle(/Asignar rol/)).not.toBeInTheDocument()
   })
 
   it('shows team info when member has equipo', async () => {
@@ -304,22 +304,22 @@ describe('Members', () => {
     })
   })
 
-  it('calls updateUserRole when changing role', async () => {
+  it('calls updateUserRoles when toggling role checkbox', async () => {
     const user = userEvent.setup()
-    mockUpdateUserRole.mockResolvedValue(undefined)
+    mockUpdateUserRoles.mockResolvedValue(undefined)
     mockGetAllUsers.mockResolvedValue(sampleMembers)
 
     renderMembers()
 
     await waitFor(() => {
-      expect(screen.getAllByTitle('Cambiar rol del miembro').length).toBeGreaterThan(0)
+      expect(screen.getAllByTitle(/Asignar rol/).length).toBeGreaterThan(0)
     })
 
-    const selects = screen.getAllByTitle('Cambiar rol del miembro')
-    await user.selectOptions(selects[0], 'admin')
+    const checkboxes = screen.getAllByTitle(/Asignar rol/)
+    await user.click(checkboxes[0])
 
     await waitFor(() => {
-      expect(mockUpdateUserRole).toHaveBeenCalled()
+      expect(mockUpdateUserRoles).toHaveBeenCalled()
     })
   })
 

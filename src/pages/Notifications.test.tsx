@@ -14,7 +14,7 @@ let currentMockUser: Partial<UserType> = {
   email: 'maestro@usm.cl',
   nombre: 'Test',
   apellido: 'Maestro',
-  rol: 'maestro',
+  roles: ['maestro'],
   createdAt: new Date(),
   isActive: true,
 }
@@ -68,7 +68,7 @@ describe('Notifications', () => {
       email: 'maestro@usm.cl',
       nombre: 'Test',
       apellido: 'Maestro',
-      rol: 'maestro',
+      roles: ['maestro'],
       createdAt: new Date(),
       isActive: true,
     }
@@ -77,7 +77,7 @@ describe('Notifications', () => {
   })
 
   it('renders inbox header for all users', async () => {
-    currentMockUser = { ...currentMockUser, rol: undefined }
+    currentMockUser = { ...currentMockUser, roles: [] }
     renderNotifications()
 
     await waitFor(() => {
@@ -94,7 +94,7 @@ describe('Notifications', () => {
   })
 
   it('shows notifications tab for all users', async () => {
-    currentMockUser = { ...currentMockUser, rol: undefined }
+    currentMockUser = { ...currentMockUser, roles: [] }
     renderNotifications()
 
     await waitFor(() => {
@@ -103,7 +103,7 @@ describe('Notifications', () => {
   })
 
   it('shows messages tab for all users', async () => {
-    currentMockUser = { ...currentMockUser, rol: undefined }
+    currentMockUser = { ...currentMockUser, roles: [] }
     renderNotifications()
 
     await waitFor(() => {
@@ -149,7 +149,7 @@ describe('Notifications', () => {
 
   it('shows compose form when new message button is clicked', async () => {
     mockGetAllUsers.mockResolvedValue([
-      { id: 'user2', nombre: 'Carlos', apellido: 'Perez', email: 'carlos@usm.cl', rol: undefined, createdAt: new Date(), isActive: true },
+      { id: 'user2', nombre: 'Carlos', apellido: 'Perez', email: 'carlos@usm.cl', roles: [], createdAt: new Date(), isActive: true },
     ])
 
     renderNotifications()
