@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, ChangeEvent } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { 
   Plus, 
@@ -10,9 +11,11 @@ import {
   Rocket, 
   Calendar,
   MoreHorizontal,
-  Filter
+  Filter,
+  X,
+  AlertCircle
 } from 'lucide-react'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, addDoc, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
 
@@ -32,9 +35,22 @@ export default function Projects() {
   const [searchQuery, setSearchQuery] = useState('')
   const [projects, setProjects] = useState<ProjectData[]>([])
   const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  // Form state
+  const [nombre, setNombre] = useState('')
+  const [descripcion, setDescripcion] = useState('')
+  const [estado, setEstado] = useState<'planificacion' | 'en_progreso' | 'completado'>('planificacion')
+  const [prioridadForm, setPrioridadForm] = useState<'alta' | 'media' | 'baja'>('media')
+  const [fechaLimite, setFechaLimite] = useState('')
 
   useEffect(() => {
-    const loadProjects = async () => {
+    loadProjects()
+  }, [])
+
+  const loadProjects = async () => {
       try {
         const projectsSnapshot = await getDocs(collection(db, 'projects'))
         const loadedProjects = projectsSnapshot.docs.map(doc => ({
@@ -54,8 +70,6 @@ export default function Projects() {
         setLoading(false)
       }
     }
-    loadProjects()
-  }, [])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -86,6 +100,46 @@ export default function Projects() {
 
   const canCreateProject = user?.rol === 'maestro' || user?.rol === 'admin' || user?.equipo === 'manager'
 
+  const resetForm = () => {
+    setNombre('')
+    setDescripcion('')
+    setEstado('planificacion')
+    setPrioridadForm('media')
+    setFechaLimite('')
+    setShowForm(false)
+    setError('')
+  }
+
+  const handleCreateProject = async () => {
+    if (!nombre.trim() || !user) return
+    setSaving(true)
+    setError('')
+    try {
+      await addDoc(collection(db, 'projects'), {
+        nombre: nombre.trim(),
+        descripcion: descripcion.trim(),
+        estado,
+        prioridad: prioridadForm,
+        fechaLimite,
+        creadoPor: user.id,
+        asignadoA: [],
+        progress: 0,
+        createdAt: Timestamp.now(),
+      })
+      resetForm()
+      await loadProjects()
+    } catch (err) {
+      logger.error('Error creating project', { error: err })
+      setError('Error al crear el proyecto. Verifica tus permisos e intenta de nuevo.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleInputChange = (setter: (value: string) => void) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    setter(event.target.value)
+  }
+
   const filteredProjects = projects.filter(project =>
     (project.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (project.description || '').toLowerCase().includes(searchQuery.toLowerCase())
@@ -102,12 +156,118 @@ export default function Projects() {
           </p>
         </div>
         {canCreateProject && (
-          <Button className="bg-cyan-500 hover:bg-cyan-600 text-space-900">
+          <Button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
+          >
             <Plus className="w-4 h-4 mr-2" />
             Nuevo Proyecto
           </Button>
         )}
       </div>
+
+      {/* Create Project Form */}
+      {showForm && canCreateProject && (
+        <Card className="bg-space-700/50 border-space-600">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-white flex items-center gap-2">
+                <Rocket className="w-5 h-5 text-cyan-400" />
+                Nuevo Proyecto
+              </CardTitle>
+              <Button variant="ghost" size="icon" onClick={resetForm} className="text-muted-foreground hover:text-white">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <CardDescription>Completa los campos para crear un nuevo proyecto</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Nombre del proyecto *</label>
+              <Input
+                value={nombre}
+                onChange={handleInputChange(setNombre)}
+                placeholder="Ej: CubeSat Alpha"
+                className="bg-space-700 border-space-500 text-white"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white">Descripción</label>
+              <Textarea
+                value={descripcion}
+                onChange={handleInputChange(setDescripcion)}
+                placeholder="Describe el proyecto en detalle..."
+                className="bg-space-700 border-space-500 text-white min-h-[80px]"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white">Estado</label>
+                <select
+                  value={estado}
+                  onChange={(e) => setEstado(e.target.value as 'planificacion' | 'en_progreso' | 'completado')}
+                  title="Seleccionar estado"
+                  className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                >
+                  <option value="planificacion">Planificación</option>
+                  <option value="en_progreso">En Progreso</option>
+                  <option value="completado">Completado</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white">Prioridad</label>
+                <select
+                  value={prioridadForm}
+                  onChange={(e) => setPrioridadForm(e.target.value as 'alta' | 'media' | 'baja')}
+                  title="Seleccionar prioridad"
+                  className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                >
+                  <option value="alta">Alta</option>
+                  <option value="media">Media</option>
+                  <option value="baja">Baja</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white">Fecha límite</label>
+                <Input
+                  type="date"
+                  value={fechaLimite}
+                  onChange={handleInputChange(setFechaLimite)}
+                  className="bg-space-700 border-space-500 text-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={resetForm}
+                className="border-space-600 text-white hover:bg-space-600"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleCreateProject}
+                disabled={!nombre.trim() || saving}
+                className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
+              >
+                {saving ? 'Creando...' : 'Crear Proyecto'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4">

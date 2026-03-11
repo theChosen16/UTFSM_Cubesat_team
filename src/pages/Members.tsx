@@ -186,7 +186,7 @@ export default function Members() {
 
             {/* Team member cards */}
             {!isCollapsed && (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 pl-2">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {teamMembers.map((member) => {
                   const RoleIcon = getRoleIcon(member.rol)
                   const isCurrentUser = user?.id === member.id
@@ -211,7 +211,7 @@ export default function Members() {
                               </div>
                             )}
                             <div>
-                              <CardTitle className="text-lg text-white">
+                              <CardTitle className="text-lg text-white truncate">
                                 {getMemberDisplayName(member)}
                                 {isCurrentUser && (
                                   <span className="ml-2 text-xs text-cyan-400">(Tú)</span>

@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
+  AlertCircle,
   X
 } from 'lucide-react'
 import { collection, getDocs, addDoc, doc, updateDoc, Timestamp } from 'firebase/firestore'
@@ -31,6 +32,7 @@ export default function TaskManagement() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   // Form state
   const [titulo, setTitulo] = useState('')
@@ -107,11 +109,13 @@ export default function TaskManagement() {
     setAsignadoA([])
     setPrioridad('media')
     setShowForm(false)
+    setError('')
   }
 
   const handleCreateTask = async () => {
     if (!titulo.trim() || !user) return
     setSaving(true)
+    setError('')
     try {
       await addDoc(collection(db, 'tasks'), {
         titulo: titulo.trim(),
@@ -126,8 +130,9 @@ export default function TaskManagement() {
       })
       resetForm()
       await loadData()
-    } catch (error) {
-      logger.error('Error creating task', { error })
+    } catch (err) {
+      logger.error('Error creating task', { error: err })
+      setError('Error al crear la tarea. Verifica tus permisos e intenta de nuevo.')
     } finally {
       setSaving(false)
     }
@@ -137,8 +142,9 @@ export default function TaskManagement() {
     try {
       await updateDoc(doc(db, 'tasks', taskId), { estado: newStatus })
       await loadData()
-    } catch (error) {
-      logger.error('Error updating task status', { error })
+    } catch (err) {
+      logger.error('Error updating task status', { error: err })
+      setError('Error al actualizar el estado de la tarea.')
     }
   }
 
@@ -234,6 +240,13 @@ export default function TaskManagement() {
             <CardDescription>Completa los campos para crear una nueva tarea</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-sm font-medium text-white">Título *</label>
               <Input

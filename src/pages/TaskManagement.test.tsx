@@ -154,4 +154,102 @@ describe('TaskManagement', () => {
     const createButton = screen.getByRole('button', { name: /crear tarea/i })
     expect(createButton).toBeDisabled()
   })
+
+  it('enables "Crear Tarea" button when title has content', async () => {
+    const user = userEvent.setup()
+    renderTaskManagement()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /nueva tarea/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /nueva tarea/i }))
+    await user.type(screen.getByPlaceholderText('Nombre de la tarea'), 'Mi Tarea')
+
+    const createButton = screen.getByRole('button', { name: /crear tarea/i })
+    expect(createButton).not.toBeDisabled()
+  })
+
+  it('calls addDoc with correct data on task creation', async () => {
+    mockAddDoc.mockResolvedValue({ id: 'new-task-id' })
+    const user = userEvent.setup()
+    renderTaskManagement()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /nueva tarea/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /nueva tarea/i }))
+    await user.type(screen.getByPlaceholderText('Nombre de la tarea'), 'Diseñar PCB')
+    await user.type(screen.getByPlaceholderText('Describe la tarea en detalle...'), 'Diseño del circuito')
+    await user.click(screen.getByRole('button', { name: /crear tarea/i }))
+
+    await waitFor(() => {
+      expect(mockAddDoc).toHaveBeenCalledTimes(1)
+    })
+
+    const callArgs = mockAddDoc.mock.calls[0][1]
+    expect(callArgs.titulo).toBe('Diseñar PCB')
+    expect(callArgs.descripcion).toBe('Diseño del circuito')
+    expect(callArgs.estado).toBe('pendiente')
+    expect(callArgs.prioridad).toBe('media')
+    expect(callArgs.creadoPor).toBe('user1')
+  })
+
+  it('resets form after successful task creation', async () => {
+    mockAddDoc.mockResolvedValue({ id: 'new-task-id' })
+    const user = userEvent.setup()
+    renderTaskManagement()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /nueva tarea/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /nueva tarea/i }))
+    await user.type(screen.getByPlaceholderText('Nombre de la tarea'), 'Test Task')
+    await user.click(screen.getByRole('button', { name: /crear tarea/i }))
+
+    await waitFor(() => {
+      expect(mockAddDoc).toHaveBeenCalled()
+    })
+
+    // Form should be hidden after successful creation
+    await waitFor(() => {
+      expect(screen.queryByText('Título *')).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows error message on task creation failure', async () => {
+    mockAddDoc.mockRejectedValue(new Error('Permission denied'))
+    const user = userEvent.setup()
+    renderTaskManagement()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /nueva tarea/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /nueva tarea/i }))
+    await user.type(screen.getByPlaceholderText('Nombre de la tarea'), 'Failing Task')
+    await user.click(screen.getByRole('button', { name: /crear tarea/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Error al crear la tarea. Verifica tus permisos e intenta de nuevo.')).toBeInTheDocument()
+    })
+  })
+
+  it('closes form when clicking cancel', async () => {
+    const user = userEvent.setup()
+    renderTaskManagement()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /nueva tarea/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /nueva tarea/i }))
+    expect(screen.getByText('Título *')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /cancelar/i }))
+
+    expect(screen.queryByText('Título *')).not.toBeInTheDocument()
+  })
 })

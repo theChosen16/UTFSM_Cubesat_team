@@ -6,6 +6,7 @@ import Projects from '@/pages/Projects'
 import { User as UserType } from '@/types'
 
 const mockGetDocs = vi.fn()
+const mockAddDoc = vi.fn()
 
 let currentMockUser: Partial<UserType> = {
   id: 'user1',
@@ -33,7 +34,9 @@ vi.mock('firebase/firestore', () => ({
   getFirestore: vi.fn(() => ({})),
   collection: vi.fn(),
   getDocs: (...args: unknown[]) => mockGetDocs(...args),
+  addDoc: (...args: unknown[]) => mockAddDoc(...args),
   doc: vi.fn(),
+  Timestamp: { now: vi.fn(() => ({ toDate: () => new Date() })) },
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -240,5 +243,136 @@ describe('Projects', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /filtros/i })).toBeInTheDocument()
     })
+  })
+
+  it('shows project creation form when clicking "Nuevo Proyecto"', async () => {
+    const user = userEvent.setup()
+    renderProjects()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /nuevo proyecto/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /nuevo proyecto/i }))
+
+    expect(screen.getByText('Nombre del proyecto *')).toBeInTheDocument()
+    expect(screen.getByText('Descripción')).toBeInTheDocument()
+    expect(screen.getByText('Estado')).toBeInTheDocument()
+    expect(screen.getByText('Prioridad')).toBeInTheDocument()
+    expect(screen.getByText('Fecha límite')).toBeInTheDocument()
+  })
+
+  it('disables "Crear Proyecto" button when nombre is empty', async () => {
+    const user = userEvent.setup()
+    renderProjects()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /nuevo proyecto/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /nuevo proyecto/i }))
+
+    const createButton = screen.getByRole('button', { name: /crear proyecto/i })
+    expect(createButton).toBeDisabled()
+  })
+
+  it('enables "Crear Proyecto" button when nombre has content', async () => {
+    const user = userEvent.setup()
+    renderProjects()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /nuevo proyecto/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /nuevo proyecto/i }))
+    await user.type(screen.getByPlaceholderText('Ej: CubeSat Alpha'), 'Mi Proyecto')
+
+    const createButton = screen.getByRole('button', { name: /crear proyecto/i })
+    expect(createButton).not.toBeDisabled()
+  })
+
+  it('calls addDoc with correct data on project creation', async () => {
+    mockAddDoc.mockResolvedValue({ id: 'new-project-id' })
+    const user = userEvent.setup()
+    renderProjects()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /nuevo proyecto/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /nuevo proyecto/i }))
+    await user.type(screen.getByPlaceholderText('Ej: CubeSat Alpha'), 'CubeSat Beta')
+    await user.type(screen.getByPlaceholderText('Describe el proyecto en detalle...'), 'A new satellite')
+    await user.click(screen.getByRole('button', { name: /crear proyecto/i }))
+
+    await waitFor(() => {
+      expect(mockAddDoc).toHaveBeenCalledTimes(1)
+    })
+
+    const callArgs = mockAddDoc.mock.calls[0][1]
+    expect(callArgs.nombre).toBe('CubeSat Beta')
+    expect(callArgs.descripcion).toBe('A new satellite')
+    expect(callArgs.estado).toBe('planificacion')
+    expect(callArgs.prioridad).toBe('media')
+    expect(callArgs.creadoPor).toBe('user1')
+    expect(callArgs.asignadoA).toEqual([])
+    expect(callArgs.progress).toBe(0)
+  })
+
+  it('resets form after successful project creation', async () => {
+    mockAddDoc.mockResolvedValue({ id: 'new-project-id' })
+    const user = userEvent.setup()
+    renderProjects()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /nuevo proyecto/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /nuevo proyecto/i }))
+    await user.type(screen.getByPlaceholderText('Ej: CubeSat Alpha'), 'CubeSat Beta')
+    await user.click(screen.getByRole('button', { name: /crear proyecto/i }))
+
+    await waitFor(() => {
+      expect(mockAddDoc).toHaveBeenCalled()
+    })
+
+    // Form should be hidden after successful creation
+    await waitFor(() => {
+      expect(screen.queryByText('Nombre del proyecto *')).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows error message on project creation failure', async () => {
+    mockAddDoc.mockRejectedValue(new Error('Permission denied'))
+    const user = userEvent.setup()
+    renderProjects()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /nuevo proyecto/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /nuevo proyecto/i }))
+    await user.type(screen.getByPlaceholderText('Ej: CubeSat Alpha'), 'CubeSat Gamma')
+    await user.click(screen.getByRole('button', { name: /crear proyecto/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Error al crear el proyecto. Verifica tus permisos e intenta de nuevo.')).toBeInTheDocument()
+    })
+  })
+
+  it('closes form when clicking cancel', async () => {
+    const user = userEvent.setup()
+    renderProjects()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /nuevo proyecto/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /nuevo proyecto/i }))
+    expect(screen.getByText('Nombre del proyecto *')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /cancelar/i }))
+
+    expect(screen.queryByText('Nombre del proyecto *')).not.toBeInTheDocument()
   })
 })

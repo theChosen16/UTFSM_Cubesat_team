@@ -184,3 +184,20 @@
   30%      { opacity: 0.55; }
   60%      { opacity: 0.9; }
 }
+
+/* Reduce animation complexity on mobile for performance */
+@media (prefers-reduced-motion: reduce) {
+  .stars-bg,
+  .stars-bg::before,
+  .stars-bg::after {
+    animation: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .stars-bg::before,
+  .stars-bg::after {
+    animation: none !important;
+    opacity: 0.5;
+  }
+}
