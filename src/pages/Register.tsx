@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { logger } from '@/lib/logger'
+import { extractFullNameFromEmail } from '@/lib/utils'
 
 export default function Register() {
   const [nombre, setNombre] = useState('')
@@ -26,6 +27,15 @@ export default function Register() {
   const validateEmail = (email: string) => {
     const validDomains = ['@usm.cl', '@sansano.usm.cl']
     return validDomains.some(domain => email.toLowerCase().endsWith(domain))
+  }
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value)
+    if (!nombre && !apellido && value.includes('@')) {
+      const { nombre: n, apellido: a } = extractFullNameFromEmail(value)
+      if (n) setNombre(n)
+      if (a) setApellido(a)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -133,7 +143,7 @@ export default function Register() {
                   type="email"
                   placeholder="nombre@usm.cl"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => handleEmailChange(e.target.value)}
                   className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
                   required
                 />

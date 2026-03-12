@@ -1,4 +1,7 @@
 import { ChangeEvent, useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -22,7 +25,9 @@ import {
   Save,
   Settings,
   Rocket,
-  Camera
+  Camera,
+  MessageSquare,
+  ArrowLeft
 } from 'lucide-react'
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS, Genero, hasRole, hasAnyRole, hasTeam } from '@/types'
 import { logger } from '@/lib/logger'
@@ -42,10 +47,17 @@ const ROLE_STYLES: Record<UserRole, { badge: 'orange' | 'red'; icon: string; bac
 }
 
 export default function Profile() {
+  const { userId } = useParams<{ userId?: string }>()
+  const navigate = useNavigate()
   const { user, updateUserProfile } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(false)
   const [photoError, setPhotoError] = useState('')
+  const [viewedUser, setViewedUser] = useState<import('@/types').User | null>(null)
+  const [viewLoading, setViewLoading] = useState(false)
+
+  const isOwnProfile = !userId || userId === user?.id
+  const profileUser = isOwnProfile ? user : viewedUser
   
   // Profile fields
   const [career, setCareer] = useState(user?.career || '')
@@ -54,6 +66,8 @@ export default function Profile() {
   const [genero, setGenero] = useState<Genero | ''>(user?.genero || '')
   const [photoURL, setPhotoURL] = useState(user?.photoURL || '')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [nombre, setNombre] = useState(user?.nombre || '')
+  const [apellido, setApellido] = useState(user?.apellido || '')
   
   // Questionnaire fields
   const [intereses, setIntereses] = useState(user?.questionnaire?.intereses || '')
@@ -62,6 +76,41 @@ export default function Profile() {
   const [disponibilidad, setDisponibilidad] = useState(user?.questionnaire?.disponibilidad || '')
   const [proyectosPrevios, setProyectosPrevios] = useState(user?.questionnaire?.proyectosPrevios || '')
 
+  // Fetch other user's profile
+  useEffect(() => {
+    if (!isOwnProfile && userId) {
+      setViewLoading(true)
+      const fetchUser = async () => {
+        try {
+          const snap = await getDoc(doc(db, 'users', userId))
+          if (snap.exists()) {
+            const data = snap.data()
+            setViewedUser({
+              id: snap.id,
+              email: data.email || '',
+              nombre: data.nombre || '',
+              apellido: data.apellido || '',
+              rol: data.rol,
+              equipos: data.equipos || [],
+              genero: data.genero,
+              photoURL: data.photoURL,
+              career: data.career,
+              year: data.year,
+              createdAt: data.createdAt?.toDate?.() || new Date(),
+              isActive: data.isActive ?? true,
+              questionnaire: data.questionnaire,
+            })
+          }
+        } catch (error) {
+          logger.error('Error fetching user profile', { error: error instanceof Error ? error : undefined, userId })
+        } finally {
+          setViewLoading(false)
+        }
+      }
+      fetchUser()
+    }
+  }, [userId, isOwnProfile])
+
   useEffect(() => {
     if (user) {
       setCareer(user.career || '')
@@ -69,6 +118,8 @@ export default function Profile() {
       setEquipos(user.equipos || [])
       setGenero(user.genero || '')
       setPhotoURL(user.photoURL || '')
+      setNombre(user.nombre || '')
+      setApellido(user.apellido || '')
       setIntereses(user.questionnaire?.intereses || '')
       setHabilidades(user.questionnaire?.habilidades || '')
       setMotivacion(user.questionnaire?.motivacion || '')
@@ -78,6 +129,24 @@ export default function Profile() {
   }, [user])
 
   if (!user) return null
+  if (viewLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-500"></div>
+      </div>
+    )
+  }
+  if (!isOwnProfile && !viewedUser) {
+    return (
+      <div className="max-w-4xl mx-auto text-center py-20">
+        <p className="text-muted-foreground">Usuario no encontrado.</p>
+        <Button variant="ghost" className="mt-4 text-cyan-400" onClick={() => navigate('/members')}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Volver a Miembros
+        </Button>
+      </div>
+    )
+  }
 
   const handleSave = async () => {
     setLoading(true)
@@ -90,6 +159,8 @@ export default function Profile() {
         proyectosPrevios
       }
       await updateUserProfile({
+        nombre,
+        apellido,
         career,
         year,
         equipos,
@@ -152,9 +223,9 @@ export default function Profile() {
     }
   }
 
-  const displayName = user.nombre || extractNameFromEmail(user.email)
+  const displayName = (profileUser?.nombre) || extractNameFromEmail(profileUser?.email)
   const firstInitial = displayName.trim().charAt(0).toUpperCase() || '?'
-  const lastInitial = (user.apellido || '').trim().charAt(0).toUpperCase()
+  const lastInitial = (profileUser?.apellido || '').trim().charAt(0).toUpperCase()
   const handleInputChange = (setter: (value: string) => void) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setter(event.target.value)
   }
@@ -162,11 +233,18 @@ export default function Profile() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-white">Mi Perfil</h1>
-        <p className="text-muted-foreground mt-1">
-          Información personal y configuración de cuenta
-        </p>
+      <div className="flex items-center gap-4">
+        {!isOwnProfile && (
+          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white" onClick={() => navigate('/members')}>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+        )}
+        <div>
+          <h1 className="text-3xl font-bold text-white">{isOwnProfile ? 'Mi Perfil' : `Perfil de ${displayName}`}</h1>
+          <p className="text-muted-foreground mt-1">
+            {isOwnProfile ? 'Información personal y configuración de cuenta' : 'Información del miembro'}
+          </p>
+        </div>
       </div>
 
       {/* Profile Card */}
@@ -176,19 +254,20 @@ export default function Profile() {
             {/* Avatar */}
             <div className="flex items-center gap-4">
               <div className="relative group">
-                {user.photoURL ? (
+                {profileUser?.photoURL ? (
                   <img 
-                    src={user.photoURL} 
-                    alt={`${user.nombre} ${user.apellido}`}
+                    src={profileUser.photoURL} 
+                    alt={`${profileUser.nombre} ${profileUser.apellido}`}
                     className="w-20 h-20 rounded-full object-cover"
                     onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden') }}
                   />
                 ) : null}
-                  <div className={`w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center ${user.photoURL ? 'hidden' : ''}`}>
+                  <div className={`w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center ${profileUser?.photoURL ? 'hidden' : ''}`}>
                     <span className="text-white font-bold text-2xl">
                       {firstInitial}{lastInitial}
                     </span>
                   </div>
+                {isOwnProfile && (
                 <label 
                   className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                   title="Subir foto de perfil"
@@ -203,6 +282,7 @@ export default function Profile() {
                     title="Subir foto de perfil"
                   />
                 </label>
+                )}
                 {uploadingPhoto && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
                     <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
@@ -211,44 +291,80 @@ export default function Profile() {
               </div>
               <div className="min-w-0 flex-1">
                 <CardTitle className="text-2xl text-white truncate">
-                  {displayName} {user.apellido || ''}
+                  {displayName} {profileUser?.apellido || ''}
                 </CardTitle>
-                <CardDescription className="text-base truncate">{user.email}</CardDescription>
+                <CardDescription className="text-base truncate">{profileUser?.email}</CardDescription>
                 {photoError && (
                   <p className="text-sm text-red-400 mt-1">{photoError}</p>
                 )}
               </div>
             </div>
             
-            {/* Edit Button */}
-            <div className="md:ml-auto">
-              {!isEditing ? (
-                <Button 
-                  onClick={() => setIsEditing(true)}
-                  variant="outline" 
-                  className="border-space-600 text-white hover:bg-space-600"
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Completar Cuestionario
-                </Button>
+            {/* Action Buttons */}
+            <div className="md:ml-auto flex gap-2">
+              {isOwnProfile ? (
+                !isEditing ? (
+                  <Button 
+                    onClick={() => setIsEditing(true)}
+                    variant="outline" 
+                    className="border-space-600 text-white hover:bg-space-600"
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Completar Cuestionario
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={handleSave}
+                    disabled={loading}
+                    className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {loading ? 'Guardando...' : 'Guardar Cambios'}
+                  </Button>
+                )
               ) : (
-                <Button 
-                  onClick={handleSave}
-                  disabled={loading}
+                <Button
+                  onClick={() => navigate('/notifications', { state: { composeTo: profileUser?.id, composeToName: displayName } })}
                   className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
                 >
-                  <Save className="w-4 h-4 mr-2" />
-                  {loading ? 'Guardando...' : 'Guardar Cambios'}
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Enviar Mensaje
                 </Button>
               )}
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Nombre/Apellido Editing (own profile only) */}
+          {isOwnProfile && isEditing && (
+            <div className="p-4 rounded-lg bg-space-600/50">
+              <div className="flex items-center gap-4 mb-3">
+                <div className="p-3 rounded-xl bg-cyan-500/20">
+                  <User className="w-6 h-6 text-cyan-400" />
+                </div>
+                <p className="text-sm text-muted-foreground">Nombre y Apellido</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  value={nombre}
+                  onChange={handleInputChange(setNombre)}
+                  placeholder="Nombre"
+                  className="bg-space-700 border-space-500 text-white text-sm"
+                />
+                <Input
+                  value={apellido}
+                  onChange={handleInputChange(setApellido)}
+                  placeholder="Apellido"
+                  className="bg-space-700 border-space-500 text-white text-sm"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Role Section */}
-          {user.rol ? (() => {
-            const Icon = getRoleIcon(user.rol)
-            const styles = ROLE_STYLES[user.rol]
+          {profileUser?.rol ? (() => {
+            const Icon = getRoleIcon(profileUser.rol)
+            const styles = ROLE_STYLES[profileUser.rol]
             return (
               <div className="p-4 rounded-lg bg-space-600/50">
                 <div className="flex items-center gap-4">
@@ -258,14 +374,14 @@ export default function Profile() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <Badge variant={styles.badge}>
-                        {ROLE_LABELS[user.rol]}
+                        {ROLE_LABELS[profileUser.rol]}
                       </Badge>
-                      {user.rol === 'maestro' && (
+                      {profileUser.rol === 'maestro' && (
                         <Shield className="w-4 h-4 text-orange-400" />
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {ROLE_DESCRIPTIONS[user.rol]}
+                      {ROLE_DESCRIPTIONS[profileUser.rol]}
                     </p>
                   </div>
                 </div>
@@ -279,7 +395,7 @@ export default function Profile() {
                 </div>
                 <div className="flex-1">
                   <p className="text-sm text-muted-foreground">
-                    Sin rol asignado. El usuario maestro te asignará un rol.
+                    {isOwnProfile ? 'Sin rol asignado. El usuario maestro te asignará un rol.' : 'Sin rol asignado.'}
                   </p>
                 </div>
               </div>
@@ -323,9 +439,9 @@ export default function Profile() {
                   </div>
                 ) : (
                   <p className="text-white">
-                    {user.equipos && user.equipos.length > 0 
-                      ? user.equipos.map(t => TEAM_LABELS[t]).join(', ') 
-                      : 'No seleccionado — edita tu perfil para elegir equipo'}
+                    {profileUser?.equipos && profileUser.equipos.length > 0 
+                      ? profileUser.equipos.map(t => TEAM_LABELS[t]).join(', ') 
+                      : isOwnProfile ? 'No seleccionado — edita tu perfil para elegir equipo' : 'Sin equipo asignado'}
                   </p>
                 )}
               </div>
@@ -354,7 +470,7 @@ export default function Profile() {
                   </select>
                 ) : (
                   <p className="text-white">
-                    {user.genero ? { masculino: 'Masculino', femenino: 'Femenino', otro: 'Otro' }[user.genero] : 'No seleccionado — edita tu perfil para elegir género'}
+                    {profileUser?.genero ? { masculino: 'Masculino', femenino: 'Femenino', otro: 'Otro' }[profileUser.genero] : isOwnProfile ? 'No seleccionado — edita tu perfil para elegir género' : 'No especificado'}
                   </p>
                 )}
               </div>
@@ -367,7 +483,7 @@ export default function Profile() {
               <Mail className="w-5 h-5 text-cyan-400" />
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground">Correo electrónico</p>
-                <p className="text-white">{user.email}</p>
+                <p className="text-white">{profileUser?.email}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-4 rounded-lg bg-space-600/50">
@@ -382,7 +498,7 @@ export default function Profile() {
                     className="bg-space-700 border-space-500 text-white text-sm h-8 mt-1"
                   />
                 ) : (
-                  <p className="text-white">{user.career || 'No especificada'}</p>
+                  <p className="text-white">{profileUser?.career || 'No especificada'}</p>
                 )}
               </div>
             </div>
@@ -398,7 +514,7 @@ export default function Profile() {
                     className="bg-space-700 border-space-500 text-white text-sm h-8 mt-1"
                   />
                 ) : (
-                  <p className="text-white">{user.year || 'No especificado'}</p>
+                  <p className="text-white">{profileUser?.year || 'No especificado'}</p>
                 )}
               </div>
             </div>
@@ -407,8 +523,8 @@ export default function Profile() {
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground">Miembro desde</p>
                 <p className="text-white">
-                  {user.createdAt instanceof Date 
-                    ? user.createdAt.toLocaleDateString('es-CL', { 
+                  {profileUser?.createdAt instanceof Date 
+                    ? profileUser.createdAt.toLocaleDateString('es-CL', { 
                         year: 'numeric', 
                         month: 'long', 
                         day: 'numeric' 
@@ -445,7 +561,7 @@ export default function Profile() {
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground bg-space-800/50 p-3 rounded-lg border border-space-600">
-                    {user.questionnaire?.intereses || 'Aún no respondido.'}
+                    {profileUser?.questionnaire?.intereses || 'Aún no respondido.'}
                   </p>
                 )}
               </div>
@@ -464,7 +580,7 @@ export default function Profile() {
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground bg-space-800/50 p-3 rounded-lg border border-space-600">
-                    {user.questionnaire?.habilidades || 'Aún no respondido.'}
+                    {profileUser?.questionnaire?.habilidades || 'Aún no respondido.'}
                   </p>
                 )}
               </div>
@@ -483,7 +599,7 @@ export default function Profile() {
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground bg-space-800/50 p-3 rounded-lg border border-space-600">
-                    {user.questionnaire?.motivacion || 'Aún no respondido.'}
+                    {profileUser?.questionnaire?.motivacion || 'Aún no respondido.'}
                   </p>
                 )}
               </div>
@@ -502,7 +618,7 @@ export default function Profile() {
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground bg-space-800/50 p-3 rounded-lg border border-space-600">
-                    {user.questionnaire?.disponibilidad || 'Aún no respondido.'}
+                    {profileUser?.questionnaire?.disponibilidad || 'Aún no respondido.'}
                   </p>
                 )}
               </div>
@@ -521,14 +637,15 @@ export default function Profile() {
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground bg-space-800/50 p-3 rounded-lg border border-space-600">
-                    {user.questionnaire?.proyectosPrevios || 'Aún no respondido.'}
+                    {profileUser?.questionnaire?.proyectosPrevios || 'Aún no respondido.'}
                   </p>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Permissions */}
+          {/* Permissions (own profile only) */}
+          {isOwnProfile && (
           <div className="space-y-3">
             <h3 className="text-lg font-semibold text-white">Permisos</h3>
             <div className="grid gap-2">
@@ -568,7 +685,7 @@ export default function Profile() {
                   </div>
                 </>
               )}
-              {!user.rol && (!user.equipos || user.equipos.length === 0) && (
+              {!user?.rol && (!user?.equipos || user.equipos.length === 0) && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <User className="w-4 h-4 text-gray-400" />
                   <span>Ver proyectos del equipo</span>
@@ -576,6 +693,7 @@ export default function Profile() {
               )}
             </div>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -159,4 +159,17 @@ describe('Register', () => {
       expect(mockSignUp).toHaveBeenCalled()
     })
   })
+
+  it('auto-populates nombre and apellido from email when fields are empty', async () => {
+    const user = userEvent.setup()
+    renderRegister()
+
+    const emailInput = screen.getByPlaceholderText('nombre@usm.cl')
+    await user.type(emailInput, 'alejandro.hernandeza@sansano.usm.cl')
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Juan')).toHaveValue('Alejandro')
+      expect(screen.getByPlaceholderText('Pérez')).toHaveValue('Hernandeza')
+    })
+  })
 })

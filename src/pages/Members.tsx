@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { 
@@ -220,12 +221,13 @@ export default function Members() {
                               </div>
                             <div className="min-w-0 flex-1">
                               <CardTitle className="text-base text-white truncate">
-                                {getMemberDisplayName(member)}
+                                <Link to={`/profile/${member.id}`} className="hover:text-cyan-400 transition-colors">
+                                  {getMemberDisplayName(member)}
+                                </Link>
                                 {isCurrentUser && (
                                   <span className="ml-2 text-xs text-cyan-400">(Tú)</span>
                                 )}
                               </CardTitle>
-                              <CardDescription className="text-sm truncate">{member.email}</CardDescription>
                             </div>
                           </div>
                           {isMaster && !isCurrentUser && (

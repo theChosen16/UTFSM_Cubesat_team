@@ -5,8 +5,13 @@ import { Button } from '@/components/ui/button'
 export default function Landing() {
   return (
     <div className="min-h-screen bg-space-900 relative overflow-hidden">
-      {/* Stars background */}
-      <div className="absolute inset-0 stars-bg opacity-50" />
+      {/* Stars background with depth effect */}
+      <div className="absolute inset-0 stars-depth">
+        <div className="absolute inset-0 stars-bg opacity-50" />
+      </div>
+      
+      {/* Focal glow — wandering point of light */}
+      <div className="absolute inset-0 focal-glow pointer-events-none" />
       
       {/* Gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-space-900/50 to-space-900" />

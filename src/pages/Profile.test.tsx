@@ -41,6 +41,7 @@ vi.mock('firebase/firestore', () => ({
   getDocs: (...args: unknown[]) => mockGetDocs(...args),
   addDoc: (...args: unknown[]) => mockAddDoc(...args),
   doc: vi.fn(),
+  getDoc: vi.fn().mockResolvedValue({ exists: () => false }),
   query: vi.fn(),
   where: vi.fn(),
   Timestamp: { now: vi.fn(() => ({ toDate: () => new Date() })) },

@@ -42,6 +42,7 @@ function App() {
                 <Route path="/members" element={<Members />} />
                 <Route path="/notifications" element={<Notifications />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/profile/:userId" element={<Profile />} />
               </Routes>
             </Layout>
           </ProtectedRoute>

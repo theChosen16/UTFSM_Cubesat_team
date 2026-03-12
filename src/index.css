@@ -255,11 +255,58 @@
   70%      { opacity: 0.75; filter: brightness(1.0)  drop-shadow(0 0 1px rgba(180,220,255,0.15)); }
 }
 
+/* Depth breathing — subtle zoom to simulate motion through space */
+.stars-depth {
+  animation: depth-breathe 50s ease-in-out infinite;
+  transform-origin: var(--focal-x, 50%) var(--focal-y, 50%);
+}
+
+@keyframes depth-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.06); }
+}
+
+/* Focal glow — wandering point of light */
+.focal-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.focal-glow::before {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  inline-size: 200%;
+  block-size: 200%;
+  background: radial-gradient(
+    circle 220px at 50% 50%,
+    rgba(100, 200, 255, 0.07) 0%,
+    rgba(100, 200, 255, 0.03) 40%,
+    transparent 70%
+  );
+  animation: focal-wander 40s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes focal-wander {
+  0%   { transform: translate(  0%,   0%); }
+  12%  { transform: translate( 18%, -12%); }
+  25%  { transform: translate(-10%,  20%); }
+  37%  { transform: translate( 25%,  10%); }
+  50%  { transform: translate(-15%, -18%); }
+  62%  { transform: translate(  8%,  25%); }
+  75%  { transform: translate(-22%,  -5%); }
+  87%  { transform: translate( 12%, -20%); }
+  100% { transform: translate(  0%,   0%); }
+}
+
 /* Reduce animation complexity on mobile for performance */
 @media (prefers-reduced-motion: reduce) {
   .stars-bg,
   .stars-bg::before,
-  .stars-bg::after {
+  .stars-bg::after,
+  .stars-depth,
+  .focal-glow::before {
     animation: none !important;
   }
 }
@@ -272,5 +319,11 @@
   .stars-bg::after {
     animation: drift-chaotic-fast 45s linear infinite;
     opacity: 0.6;
+  }
+  .stars-depth {
+    animation: depth-breathe 70s ease-in-out infinite;
+  }
+  .focal-glow::before {
+    animation: focal-wander 55s ease-in-out infinite;
   }
 }
