@@ -11,6 +11,7 @@ import { doc, getDoc, setDoc, collection, getDocs, query, limit } from 'firebase
 import { auth, db } from '@/lib/firebase'
 import { User, UserRole, sanitizeGenero, sanitizeUserRole, sanitizeUserTeams, TeamType } from '@/types'
 import { logger } from '@/lib/logger'
+import { extractFullNameFromEmail } from '@/lib/utils'
 
 interface AuthContextType {
   user: User | null
@@ -55,11 +56,24 @@ const sanitizeCreatedAt = (value: unknown, fallback: Date): Date => {
 }
 
 const mapFirestoreUser = (id: string, rawData: Record<string, unknown>, fallbackUser: User): User => {
+  const email = typeof rawData.email === 'string' ? rawData.email : fallbackUser.email
+  let nombre = typeof rawData.nombre === 'string' ? rawData.nombre : fallbackUser.nombre
+  let apellido = typeof rawData.apellido === 'string' ? rawData.apellido : fallbackUser.apellido
+
+  // Backfill nombre/apellido from email for users who registered before auto-name feature
+  if (!nombre && email) {
+    const extracted = extractFullNameFromEmail(email)
+    nombre = extracted.nombre
+    if (!apellido) {
+      apellido = extracted.apellido
+    }
+  }
+
   return {
     id,
-    email: typeof rawData.email === 'string' ? rawData.email : fallbackUser.email,
-    nombre: typeof rawData.nombre === 'string' ? rawData.nombre : fallbackUser.nombre,
-    apellido: typeof rawData.apellido === 'string' ? rawData.apellido : fallbackUser.apellido,
+    email,
+    nombre,
+    apellido,
     rol: sanitizeUserRole(rawData.rol ?? (Array.isArray(rawData.roles) ? rawData.roles[0] : undefined)),
     equipos: sanitizeUserTeams(rawData.equipos, rawData.equipo),
     genero: sanitizeGenero(rawData.genero),

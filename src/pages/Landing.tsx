@@ -7,7 +7,7 @@ export default function Landing() {
     <div className="min-h-screen bg-space-900 relative overflow-hidden">
       {/* Stars background with depth effect */}
       <div className="absolute inset-0 stars-depth">
-        <div className="absolute inset-0 stars-bg opacity-50" />
+        <div className="absolute inset-0 stars-bg opacity-80" />
       </div>
       
       {/* Focal glow — wandering point of light */}

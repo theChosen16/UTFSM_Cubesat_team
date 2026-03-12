@@ -319,8 +319,8 @@ export default function Projects() {
                 </div>
                 <div className="h-2 bg-space-600 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full transition-all"
-                    style={{ inlineSize: `${project.progress}%` }}
+                    className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full transition-all progress-bar-fill"
+                    ref={(el) => { if (el) el.style.setProperty('--progress', `${project.progress}%`) }}
                   />
                 </div>
               </div>

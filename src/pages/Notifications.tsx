@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,7 @@ type TabType = 'notifications' | 'messages'
 
 export default function Notifications() {
   const { user, getAllUsers } = useAuth()
+  const location = useLocation()
   const [activeTab, setActiveTab] = useState<TabType>('notifications')
   const [notifications, setNotifications] = useState<NotificationType[]>([])
   const [loading, setLoading] = useState(true)
@@ -36,6 +38,16 @@ export default function Notifications() {
   const [sendingMessage, setSendingMessage] = useState(false)
   const [messageSent, setMessageSent] = useState(false)
   const [allUsers, setAllUsers] = useState<{ id: string; nombre: string; apellido: string; email: string }[]>([])
+
+  // Auto-open compose form when navigated from Profile with composeTo state
+  useEffect(() => {
+    const state = location.state as { composeTo?: string; composeToName?: string } | null
+    if (state?.composeTo) {
+      setActiveTab('messages')
+      setShowCompose(true)
+      setMessageRecipient(state.composeTo)
+    }
+  }, [location.state])
 
   const loadData = useCallback(async () => {
     setLoading(true)

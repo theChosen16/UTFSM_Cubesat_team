@@ -12,6 +12,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 - [Instalación](#instalación)
 - [Variables de entorno](#variables-de-entorno)
 - [Scripts disponibles](#scripts-disponibles)
+- [Tests E2E con Firebase Emulators](#tests-e2e-con-firebase-emulators)
 - [Despliegue](#despliegue)
 - [CI/CD](#cicd)
 - [Logging y diagnóstico](#logging-y-diagnóstico)
@@ -28,7 +29,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 | Backend / Auth | [Firebase](https://firebase.google.com/) (Authentication + Firestore) |
 | Routing | [React Router v6](https://reactrouter.com/) |
 | Iconos | [Lucide React](https://lucide.dev/) |
-| Testing | [Vitest](https://vitest.dev/) + [Testing Library](https://testing-library.com/) |
+| Testing | [Vitest](https://vitest.dev/) + [Testing Library](https://testing-library.com/) + Firebase Emulators (E2E) |
 | CI/CD | GitHub Actions + GitHub Pages |
 
 ## Funcionalidades
@@ -47,7 +48,10 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
   - **Selección de género**: permite al usuario indicar su género para personalizar el saludo en el dashboard
 - **Indicadores de permisos**: las opciones restringidas del menú lateral muestran un ícono de candado para distinguir acciones que requieren permisos especiales
 - **Diseño responsivo**: interfaz adaptativa optimizada para móvil y escritorio con prevención de solapamiento de texto/iconos en pantallas pequeñas (320px+). Navegación compacta en landing, textos truncados en tarjetas, badges y encabezados
-- **Animación de fondo estelar**: tres capas parallax de estrellas con movimiento caótico multi-waypoint, rotaciones sutiles y brillo dinámico con variaciones de `opacity` y `filter: brightness()` (94 estrellas en total). Compatible con `prefers-reduced-motion` y optimizada para móvil
+- **Animación de fondo estelar warp-speed**: tres capas parallax de 94 estrellas con colores variados (azules, dorados, rosas, verdes), movimiento caótico multi-waypoint, rotaciones sutiles y brillo dinámico. Incluye efecto *warp-pulse* que simula viaje a la velocidad de la luz con pulsos rápidos de `brightness` y `blur`. Punto focal con animación `focal-wander` acelerada (12 s) y `warp-pulse` (4 s). Compatible con `prefers-reduced-motion` y optimizada para móvil
+- **Notificaciones y mensajería**: sistema de notificaciones internas con bandeja de entrada, mensajes directos y composición con destinatario pre-seleccionado desde el perfil de otro miembro
+- **Perfiles clickeables**: en el directorio de miembros, hacer clic en un usuario navega a su perfil donde se puede ver su información y enviar un mensaje directo
+- **Auto-extracción de nombre desde email**: al registrarse con correo institucional, el sistema extrae automáticamente nombre y apellido. Usuarios registrados antes de esta funcionalidad recuperan su nombre al iniciar sesión
 - **Rutas protegidas** que redirigen a login cuando el usuario no está autenticado
 - **Redirección automática**: usuarios autenticados son redirigidos al dashboard si visitan login/registro
 - **Error Boundary** global que captura errores de React y muestra una pantalla de recuperación
@@ -148,8 +152,36 @@ VITE_FIREBASE_APP_ID=your-app-id
 | `npm run build` | Compila TypeScript y genera el build de producción |
 | `npm run preview` | Sirve el build de producción localmente |
 | `npm run lint` | Ejecuta ESLint sobre todo el proyecto |
-| `npm test` | Ejecuta los tests con Vitest (modo CI) |
+| `npm test` | Ejecuta los tests unitarios con Vitest (modo CI) |
 | `npm run test:watch` | Ejecuta los tests en modo observador |
+| `npm run emulators` | Inicia los emuladores de Firebase (Auth + Firestore) |
+| `npm run test:e2e` | Ejecuta los tests E2E con emuladores de Firebase |
+
+## Tests E2E con Firebase Emulators
+
+El proyecto incluye tests de integración (E2E) que se ejecutan contra emuladores locales de Firebase, sin afectar la base de datos de producción.
+
+### Configuración
+
+Los emuladores están configurados en `firebase.json`:
+
+| Servicio | Puerto |
+|----------|--------|
+| Auth | 9099 |
+| Firestore | 8080 |
+| Emulator UI | 4000 |
+
+### Ejecución
+
+```bash
+# Ejecutar E2E tests (inicia emuladores automáticamente)
+npm run test:e2e
+
+# O iniciar emuladores manualmente para desarrollo
+npm run emulators
+```
+
+Los tests E2E cubren: autenticación (registro, roles, sign in/out), proyectos, tareas, notificaciones, miembros y perfiles. Total: **33 tests** en 6 archivos.
 
 ## Despliegue
 
