@@ -320,7 +320,7 @@ export default function Projects() {
                 <div className="h-2 bg-space-600 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full transition-all"
-                    style={{ width: `${project.progress}%` }}
+                    style={{ inlineSize: `${project.progress}%` }}
                   />
                 </div>
               </div>

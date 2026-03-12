@@ -94,8 +94,9 @@ export default function Members() {
   )
 
   const getMemberDisplayName = (member: UserType) => {
-    if (member.nombre) return `${member.nombre} ${member.apellido || ''}`
-    return extractNameFromEmail(member.email)
+    if (member.nombre) return `${member.nombre} ${member.apellido || ''}`.trim()
+    const extracted = extractNameFromEmail(member.email)
+    return extracted && extracted !== '?' ? extracted : 'Miembro'
   }
 
   const getMemberInitials = (member: UserType) => {
@@ -105,7 +106,7 @@ export default function Members() {
       return last ? `${first}${last}` : first
     }
     const extracted = extractNameFromEmail(member.email)
-    return extracted.charAt(0).toUpperCase() || '?'
+    return (extracted && extracted !== '?') ? extracted.charAt(0).toUpperCase() : 'M'
   }
 
   const [collapsedTeams, setCollapsedTeams] = useState<Set<string>>(new Set())
@@ -217,14 +218,14 @@ export default function Members() {
                                   {getMemberInitials(member)}
                                 </span>
                               </div>
-                            <div>
-                              <CardTitle className="text-lg text-white truncate">
+                            <div className="min-w-0 flex-1">
+                              <CardTitle className="text-base text-white truncate">
                                 {getMemberDisplayName(member)}
                                 {isCurrentUser && (
                                   <span className="ml-2 text-xs text-cyan-400">(Tú)</span>
                                 )}
                               </CardTitle>
-                              <CardDescription className="text-sm">{member.email}</CardDescription>
+                              <CardDescription className="text-sm truncate">{member.email}</CardDescription>
                             </div>
                           </div>
                           {isMaster && !isCurrentUser && (
