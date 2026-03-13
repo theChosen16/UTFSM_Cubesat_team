@@ -1,4 +1,7 @@
 {
+  "projects": {
+    "default": "usmcubesateam-1e3f4"
+  },
   "emulators": {
     "auth": {
       "port": 9099

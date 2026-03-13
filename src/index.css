@@ -193,6 +193,185 @@
   animation: drift-chaotic-fast 30s linear infinite, glow-near 5.5s ease-in-out infinite;
 }
 
+/* ============================================
+   Fractal star layers — Fibonacci spiral placement
+   Stars positioned using golden angle (137.508°)
+   ============================================ */
+
+.stars-fractal-a,
+.stars-fractal-b {
+  position: relative;
+}
+
+.stars-fractal-a,
+.stars-fractal-a::before,
+.stars-fractal-a::after,
+.stars-fractal-b,
+.stars-fractal-b::before,
+.stars-fractal-b::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+}
+
+/* Fractal Layer A — 22 tiny distant spiral stars */
+.stars-fractal-a {
+  background-image:
+    radial-gradient(1.1px 1.1px at 181px 128px, rgba(255,220,140,0.57), transparent),
+    radial-gradient(1.1px 1.1px at 191px 103px, rgba(255,180,210,0.62), transparent),
+    radial-gradient(1.0px 1.0px at 203px 136px, rgba(140,255,200,0.60), transparent),
+    radial-gradient(1.2px 1.2px at 166px 116px, rgba(200,200,255,0.66), transparent),
+    radial-gradient(1.2px 1.2px at 213px 106px, rgba(255,200,140,0.68), transparent),
+    radial-gradient(1.2px 1.2px at 182px 148px, rgba(140,200,255,0.70), transparent),
+    radial-gradient(0.8px 0.8px at 175px 92px, rgba(255,255,200,0.61), transparent),
+    radial-gradient(1.2px 1.2px at 222px 132px, rgba(200,160,255,0.57), transparent),
+    radial-gradient(1.1px 1.1px at 157px 134px, rgba(160,240,220,0.65), transparent),
+    radial-gradient(0.9px 0.9px at 206px 86px, rgba(255,180,180,0.71), transparent),
+    radial-gradient(1.1px 1.1px at 202px 158px, rgba(180,220,255,0.66), transparent),
+    radial-gradient(0.9px 0.9px at 154px 99px, rgba(120,220,255,0.56), transparent),
+    radial-gradient(1.2px 1.2px at 232px 111px, rgba(255,200,100,0.69), transparent),
+    radial-gradient(1.2px 1.2px at 164px 157px, rgba(180,140,255,0.66), transparent),
+    radial-gradient(1.2px 1.2px at 184px 74px, rgba(100,255,218,0.64), transparent),
+    radial-gradient(1.0px 1.0px at 227px 151px, rgba(255,180,120,0.70), transparent),
+    radial-gradient(1.2px 1.2px at 141px 122px, rgba(140,180,255,0.61), transparent),
+    radial-gradient(0.9px 0.9px at 226px 84px, rgba(255,220,140,0.57), transparent),
+    radial-gradient(1.1px 1.1px at 188px 172px, rgba(120,200,255,0.69), transparent),
+    radial-gradient(0.8px 0.8px at 156px 79px, rgba(200,100,255,0.68), transparent),
+    radial-gradient(1.3px 1.3px at 244px 127px, rgba(100,255,200,0.71), transparent),
+    radial-gradient(0.9px 0.9px at 144px 152px, rgba(255,160,180,0.57), transparent);
+  background-size: 380px 240px;
+  animation: drift-spiral-slow 90s linear infinite, glow-fractal 8s ease-in-out infinite;
+}
+
+/* Fractal Layer A::before — 20 small-medium spiral stars */
+.stars-fractal-a::before {
+  background-image:
+    radial-gradient(1.7px 1.7px at 160px 114px, rgba(255,220,140,0.66), transparent),
+    radial-gradient(1.5px 1.5px at 172px 87px, rgba(255,180,210,0.73), transparent),
+    radial-gradient(1.8px 1.8px at 184px 123px, rgba(140,255,200,0.73), transparent),
+    radial-gradient(1.4px 1.4px at 144px 100px, rgba(200,200,255,0.79), transparent),
+    radial-gradient(1.6px 1.6px at 195px 89px, rgba(255,200,140,0.75), transparent),
+    radial-gradient(1.7px 1.7px at 162px 136px, rgba(140,200,255,0.78), transparent),
+    radial-gradient(1.5px 1.5px at 154px 74px, rgba(255,255,200,0.77), transparent),
+    radial-gradient(1.4px 1.4px at 205px 118px, rgba(200,160,255,0.80), transparent),
+    radial-gradient(1.8px 1.8px at 134px 120px, rgba(160,240,220,0.77), transparent),
+    radial-gradient(1.6px 1.6px at 187px 68px, rgba(255,180,180,0.69), transparent),
+    radial-gradient(1.5px 1.5px at 183px 146px, rgba(180,220,255,0.79), transparent),
+    radial-gradient(1.6px 1.6px at 131px 82px, rgba(120,220,255,0.69), transparent),
+    radial-gradient(1.5px 1.5px at 216px 95px, rgba(255,200,100,0.72), transparent),
+    radial-gradient(1.8px 1.8px at 142px 145px, rgba(180,140,255,0.74), transparent),
+    radial-gradient(1.4px 1.4px at 164px 55px, rgba(100,255,218,0.79), transparent),
+    radial-gradient(1.6px 1.6px at 210px 139px, rgba(255,180,120,0.68), transparent),
+    radial-gradient(1.8px 1.8px at 116px 107px, rgba(140,180,255,0.71), transparent),
+    radial-gradient(1.7px 1.7px at 209px 66px, rgba(255,220,140,0.82), transparent),
+    radial-gradient(1.7px 1.7px at 167px 162px, rgba(120,200,255,0.82), transparent),
+    radial-gradient(1.7px 1.7px at 133px 60px, rgba(200,100,255,0.72), transparent);
+  background-size: 340px 210px;
+  animation: drift-spiral-fast 40s linear infinite reverse, glow-mid 6s ease-in-out infinite alternate;
+}
+
+/* Fractal Layer A::after — 18 bright spiral accents */
+.stars-fractal-a::after {
+  background-image:
+    radial-gradient(2.0px 2.0px at 152px 107px, rgba(255,220,140,0.90), transparent),
+    radial-gradient(2.0px 2.0px at 161px 85px, rgba(255,180,210,0.92), transparent),
+    radial-gradient(1.9px 1.9px at 172px 115px, rgba(140,255,200,0.83), transparent),
+    radial-gradient(1.9px 1.9px at 138px 96px, rgba(200,200,255,0.83), transparent),
+    radial-gradient(2.4px 2.4px at 181px 87px, rgba(255,200,140,0.86), transparent),
+    radial-gradient(2.3px 2.3px at 153px 126px, rgba(140,200,255,0.91), transparent),
+    radial-gradient(2.2px 2.2px at 147px 74px, rgba(255,255,200,0.91), transparent),
+    radial-gradient(2.1px 2.1px at 189px 111px, rgba(200,160,255,0.91), transparent),
+    radial-gradient(2.3px 2.3px at 129px 113px, rgba(160,240,220,0.89), transparent),
+    radial-gradient(1.9px 1.9px at 175px 68px, rgba(255,180,180,0.93), transparent),
+    radial-gradient(2.3px 2.3px at 171px 135px, rgba(180,220,255,0.85), transparent),
+    radial-gradient(2.2px 2.2px at 127px 81px, rgba(120,220,255,0.87), transparent),
+    radial-gradient(2.0px 2.0px at 199px 91px, rgba(255,200,100,0.88), transparent),
+    radial-gradient(2.1px 2.1px at 136px 134px, rgba(180,140,255,0.90), transparent),
+    radial-gradient(2.3px 2.3px at 155px 58px, rgba(100,255,218,0.88), transparent),
+    radial-gradient(2.1px 2.1px at 194px 128px, rgba(255,180,120,0.93), transparent),
+    radial-gradient(2.1px 2.1px at 115px 102px, rgba(140,180,255,0.89), transparent),
+    radial-gradient(2.2px 2.2px at 193px 67px, rgba(255,220,140,0.82), transparent);
+  background-size: 320px 200px;
+  animation: drift-chaotic-fast 25s linear infinite, glow-near 4.5s ease-in-out infinite;
+}
+
+/* Fractal Layer B — 22 tiny deep spiral stars */
+.stars-fractal-b {
+  background-image:
+    radial-gradient(0.8px 0.8px at 190px 139px, rgba(255,220,140,0.60), transparent),
+    radial-gradient(0.9px 0.9px at 202px 110px, rgba(255,180,210,0.66), transparent),
+    radial-gradient(1.2px 1.2px at 215px 149px, rgba(140,255,200,0.57), transparent),
+    radial-gradient(1.1px 1.1px at 172px 125px, rgba(200,200,255,0.54), transparent),
+    radial-gradient(0.9px 0.9px at 226px 113px, rgba(255,200,140,0.63), transparent),
+    radial-gradient(0.9px 0.9px at 191px 163px, rgba(140,200,255,0.57), transparent),
+    radial-gradient(0.9px 0.9px at 183px 97px, rgba(255,255,200,0.67), transparent),
+    radial-gradient(1.0px 1.0px at 237px 144px, rgba(200,160,255,0.59), transparent),
+    radial-gradient(0.9px 0.9px at 161px 146px, rgba(160,240,220,0.61), transparent),
+    radial-gradient(0.8px 0.8px at 219px 90px, rgba(255,180,180,0.57), transparent),
+    radial-gradient(0.9px 0.9px at 214px 174px, rgba(180,220,255,0.54), transparent),
+    radial-gradient(1.0px 1.0px at 158px 106px, rgba(120,220,255,0.57), transparent),
+    radial-gradient(0.9px 0.9px at 249px 119px, rgba(255,200,100,0.59), transparent),
+    radial-gradient(1.0px 1.0px at 170px 173px, rgba(180,140,255,0.64), transparent),
+    radial-gradient(1.1px 1.1px at 193px 76px, rgba(100,255,218,0.55), transparent),
+    radial-gradient(1.1px 1.1px at 243px 166px, rgba(255,180,120,0.53), transparent),
+    radial-gradient(0.9px 0.9px at 142px 132px, rgba(140,180,255,0.58), transparent),
+    radial-gradient(0.8px 0.8px at 242px 88px, rgba(255,220,140,0.54), transparent),
+    radial-gradient(1.1px 1.1px at 197px 191px, rgba(120,200,255,0.55), transparent),
+    radial-gradient(1.1px 1.1px at 160px 82px, rgba(200,100,255,0.55), transparent),
+    radial-gradient(1.1px 1.1px at 264px 139px, rgba(100,255,200,0.64), transparent),
+    radial-gradient(0.8px 0.8px at 146px 167px, rgba(255,160,180,0.52), transparent);
+  background-size: 400px 260px;
+  animation: drift-spiral-slow 100s linear infinite reverse, glow-distant 10s ease-in-out infinite;
+}
+
+/* Fractal Layer B::before — 18 small-medium spiral stars */
+.stars-fractal-b::before {
+  background-image:
+    radial-gradient(1.7px 1.7px at 171px 123px, rgba(255,220,140,0.68), transparent),
+    radial-gradient(1.3px 1.3px at 181px 98px, rgba(255,180,210,0.71), transparent),
+    radial-gradient(1.5px 1.5px at 193px 131px, rgba(140,255,200,0.74), transparent),
+    radial-gradient(1.6px 1.6px at 156px 111px, rgba(200,200,255,0.65), transparent),
+    radial-gradient(1.3px 1.3px at 203px 101px, rgba(255,200,140,0.70), transparent),
+    radial-gradient(1.2px 1.2px at 172px 143px, rgba(140,200,255,0.65), transparent),
+    radial-gradient(1.6px 1.6px at 165px 87px, rgba(255,255,200,0.75), transparent),
+    radial-gradient(1.3px 1.3px at 212px 127px, rgba(200,160,255,0.77), transparent),
+    radial-gradient(1.2px 1.2px at 147px 129px, rgba(160,240,220,0.72), transparent),
+    radial-gradient(1.5px 1.5px at 196px 81px, rgba(255,180,180,0.71), transparent),
+    radial-gradient(1.3px 1.3px at 192px 153px, rgba(180,220,255,0.63), transparent),
+    radial-gradient(1.4px 1.4px at 144px 94px, rgba(120,220,255,0.69), transparent),
+    radial-gradient(1.2px 1.2px at 222px 106px, rgba(255,200,100,0.71), transparent),
+    radial-gradient(1.3px 1.3px at 154px 152px, rgba(180,140,255,0.78), transparent),
+    radial-gradient(1.6px 1.6px at 174px 69px, rgba(100,255,218,0.67), transparent),
+    radial-gradient(1.2px 1.2px at 217px 146px, rgba(255,180,120,0.63), transparent),
+    radial-gradient(1.4px 1.4px at 131px 117px, rgba(140,180,255,0.77), transparent),
+    radial-gradient(1.5px 1.5px at 216px 79px, rgba(255,220,140,0.66), transparent);
+  background-size: 360px 230px;
+  animation: drift-spiral-fast 50s linear infinite, glow-fractal 7s ease-in-out infinite alternate;
+}
+
+/* Fractal Layer B::after — 16 bright spiral accents */
+.stars-fractal-b::after {
+  background-image:
+    radial-gradient(2.3px 2.3px at 143px 102px, rgba(255,220,140,0.79), transparent),
+    radial-gradient(1.9px 1.9px at 151px 81px, rgba(255,180,210,0.79), transparent),
+    radial-gradient(2.1px 2.1px at 161px 109px, rgba(140,255,200,0.82), transparent),
+    radial-gradient(1.7px 1.7px at 130px 92px, rgba(200,200,255,0.87), transparent),
+    radial-gradient(2.0px 2.0px at 169px 83px, rgba(255,200,140,0.88), transparent),
+    radial-gradient(1.8px 1.8px at 144px 119px, rgba(140,200,255,0.90), transparent),
+    radial-gradient(1.9px 1.9px at 138px 72px, rgba(255,255,200,0.91), transparent),
+    radial-gradient(1.7px 1.7px at 177px 105px, rgba(200,160,255,0.93), transparent),
+    radial-gradient(2.0px 2.0px at 122px 106px, rgba(160,240,220,0.90), transparent),
+    radial-gradient(2.0px 2.0px at 163px 66px, rgba(255,180,180,0.86), transparent),
+    radial-gradient(2.1px 2.1px at 160px 127px, rgba(180,220,255,0.89), transparent),
+    radial-gradient(2.1px 2.1px at 120px 78px, rgba(120,220,255,0.82), transparent),
+    radial-gradient(1.7px 1.7px at 185px 87px, rgba(255,200,100,0.78), transparent),
+    radial-gradient(1.7px 1.7px at 128px 126px, rgba(180,140,255,0.82), transparent),
+    radial-gradient(1.7px 1.7px at 145px 57px, rgba(100,255,218,0.81), transparent),
+    radial-gradient(1.7px 1.7px at 181px 121px, rgba(255,180,120,0.84), transparent);
+  background-size: 300px 190px;
+  animation: drift-chaotic-mid 35s linear infinite, glow-near 5s ease-in-out infinite alternate;
+}
+
 /* Chaotic drift keyframes — erratic multi-waypoint paths with large displacements */
 @keyframes drift-chaotic-slow {
   0%   { transform: translate(0, 0) rotate(0deg); }
@@ -268,7 +447,7 @@
 
 @keyframes depth-breathe {
   0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.12); }
+  50%      { transform: scale(1.18); }
 }
 
 /* Focal glow — fast-wandering warp point of light */
@@ -313,14 +492,77 @@
   80%      { opacity: 0.9; filter: brightness(1.5) blur(0.5px); }
 }
 
+/* Spiral drift keyframes — curved orbital paths for fractal layers */
+@keyframes drift-spiral-slow {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  10%  { transform: translate(12px, -18px) rotate(2deg); }
+  20%  { transform: translate(-8px, -30px) rotate(-1deg); }
+  30%  { transform: translate(22px, -10px) rotate(3deg); }
+  40%  { transform: translate(30px, 12px) rotate(0deg); }
+  50%  { transform: translate(8px, 25px) rotate(-2deg); }
+  60%  { transform: translate(-20px, 18px) rotate(1.5deg); }
+  70%  { transform: translate(-28px, -8px) rotate(-0.5deg); }
+  80%  { transform: translate(-10px, -22px) rotate(2.5deg); }
+  90%  { transform: translate(15px, -12px) rotate(-1.5deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+@keyframes drift-spiral-fast {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  8%   { transform: translate(-18px, 22px) rotate(-2.5deg); }
+  16%  { transform: translate(10px, 35px) rotate(1.5deg); }
+  25%  { transform: translate(30px, 15px) rotate(-1deg); }
+  33%  { transform: translate(35px, -12px) rotate(3deg); }
+  42%  { transform: translate(15px, -30px) rotate(-2deg); }
+  50%  { transform: translate(-15px, -28px) rotate(0.5deg); }
+  58%  { transform: translate(-32px, -5px) rotate(-1.5deg); }
+  67%  { transform: translate(-25px, 20px) rotate(2deg); }
+  75%  { transform: translate(-8px, 32px) rotate(-0.5deg); }
+  83%  { transform: translate(12px, 22px) rotate(1deg); }
+  92%  { transform: translate(20px, 5px) rotate(-1.5deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+@keyframes glow-fractal {
+  0%, 100% { opacity: 0.60; filter: brightness(1.0); }
+  15%      { opacity: 0.72; filter: brightness(1.15); }
+  30%      { opacity: 0.55; filter: brightness(0.90); }
+  50%      { opacity: 0.80; filter: brightness(1.25); }
+  70%      { opacity: 0.62; filter: brightness(0.95); }
+  85%      { opacity: 0.75; filter: brightness(1.1); }
+}
+
 /* Reduce animation complexity on mobile for performance */
+/* Timeline scroll-reveal */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(2rem);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+[data-reveal].revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .stars-bg,
   .stars-bg::before,
   .stars-bg::after,
+  .stars-fractal-a,
+  .stars-fractal-a::before,
+  .stars-fractal-a::after,
+  .stars-fractal-b,
+  .stars-fractal-b::before,
+  .stars-fractal-b::after,
   .stars-depth,
   .focal-glow::before {
     animation: none !important;
+  }
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }
 
@@ -332,6 +574,24 @@
   .stars-bg::after {
     animation: drift-chaotic-fast 45s linear infinite;
     opacity: 0.6;
+  }
+  .stars-fractal-a {
+    animation: drift-spiral-slow 120s linear infinite;
+    opacity: 0.5;
+  }
+  .stars-fractal-a::before,
+  .stars-fractal-a::after {
+    animation: drift-spiral-fast 60s linear infinite;
+    opacity: 0.5;
+  }
+  .stars-fractal-b {
+    animation: drift-spiral-slow 130s linear infinite reverse;
+    opacity: 0.45;
+  }
+  .stars-fractal-b::before,
+  .stars-fractal-b::after {
+    animation: drift-chaotic-mid 55s linear infinite;
+    opacity: 0.45;
   }
   .stars-depth {
     animation: depth-breathe 70s ease-in-out infinite;

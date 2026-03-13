@@ -1,13 +1,97 @@
 import { Link } from 'react-router-dom'
-import { Rocket, Cpu, Users, Globe, ArrowRight } from 'lucide-react'
+import { Rocket, Cpu, Users, Globe, ArrowRight, Award, Flame, Building2, Trophy, Flag, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useEffect, useRef } from 'react'
+
+const TIMELINE_EVENTS = [
+  {
+    year: '2019',
+    title: 'Fundación del Equipo',
+    description: 'Nuestro equipo fue fundado bajo la dirección del Dr. Rodrigo Cassinelli, académico del Departamento de Ingeniería Mecánica de la USM. Desde el inicio, conformamos un grupo multidisciplinario integrando estudiantes de Ingeniería Civil Mecánica, Informática, Telemática y Física, con el objetivo de canalizar talento técnico hacia la Nueva Economía Espacial.',
+    icon: Flag,
+    color: 'cyan',
+  },
+  {
+    year: '2020',
+    title: '5° Lugar en CubeDesign — Brasil',
+    description: 'En nuestra primera participación internacional, alcanzamos el quinto lugar en el concurso CubeDesign organizado por el INPE de Brasil. A pesar de competir en modalidad virtual debido a la pandemia, validamos nuestros cálculos teóricos y algoritmos de control frente a equipos con mayor trayectoria.',
+    icon: Rocket,
+    color: 'purple',
+  },
+  {
+    year: '2022',
+    title: '3° Lugar en CubeDesign — Brasil',
+    description: 'Consolidamos nuestra presencia en el podio internacional con un tercer lugar. Perfeccionamos nuestros modelos CAD y simulaciones en MATLAB/Simulink, dominando la simulación de condiciones orbitales extremas como radiación solar, estrés térmico y dinámica de fluidos.',
+    icon: Trophy,
+    color: 'orange',
+  },
+  {
+    year: '2024',
+    title: 'Medalla de Oro — CubeDesign 2023',
+    description: 'Logramos el primer lugar general y la medalla de oro en la primera edición presencial post-pandemia en las instalaciones del INPE. Nuestro nanosatélite superó pruebas de certificación de grado espacial: apuntamiento solar autónomo, resistencia a vibración extrema, estabilización giroscópica y detección de rayos. Nos convertimos en el primer equipo universitario chileno en ganar el certamen.',
+    icon: Award,
+    color: 'yellow',
+  },
+  {
+    year: '2024',
+    title: 'Expositores en el IAC 2024 — Milán',
+    description: 'Fuimos seleccionados por la AIDAA para participar en el 75° Congreso Internacional de Astronáutica, el foro global más importante del sector espacial. Presentamos una adaptación de nuestro nanosatélite enfocada en la detección temprana de incendios forestales, siendo uno de los únicos cinco grupos estudiantiles de fuera de la Unión Europea admitidos.',
+    icon: Sparkles,
+    color: 'cyan',
+  },
+  {
+    year: '2025',
+    title: 'Centro Espacial Nacional',
+    description: 'Fuimos invitados a representar a la USM en la inauguración del Centro Espacial Nacional, donde presentamos nuestro nanosatélite al presidente Gabriel Boric. En CubeDesign 2025, competimos con un CubeSat de 3U y obtuvimos el reconocimiento al mejor sistema eléctrico de potencia (EPS).',
+    icon: Building2,
+    color: 'green',
+  },
+  {
+    year: '2026',
+    title: 'USM CubeSat Design Competition',
+    description: 'Transitamos hacia un rol formativo y organizador, preparándonos para albergar competencias de diseño de satélites en nuestra propia universidad. Simultáneamente, avanzamos en la búsqueda de financiamiento para la inserción orbital real de nuestro hardware, demostrando que la ingeniería de precisión y la manufactura local pueden competir al más alto nivel.',
+    icon: Flame,
+    color: 'purple',
+  },
+] as const
+
+function useScrollReveal() {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const container = ref.current
+    if (!container) return
+
+    const items = container.querySelectorAll('[data-reveal]')
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+    )
+
+    items.forEach((item) => observer.observe(item))
+    return () => observer.disconnect()
+  }, [])
+
+  return ref
+}
 
 export default function Landing() {
+  const timelineRef = useScrollReveal()
+
   return (
     <div className="min-h-screen bg-space-900 relative overflow-hidden">
       {/* Stars background with depth effect */}
       <div className="absolute inset-0 stars-depth">
         <div className="absolute inset-0 stars-bg opacity-80" />
+        <div className="absolute inset-0 stars-fractal-a" />
+        <div className="absolute inset-0 stars-fractal-b" />
       </div>
       
       {/* Focal glow — wandering point of light */}
@@ -136,6 +220,64 @@ export default function Landing() {
                 Redes sociales, FabLab, contactos universitarios y gestión de recursos y trámites.
               </p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* History Timeline */}
+      <section className="relative z-10 py-20 bg-space-900/80">
+        <div className="container mx-auto px-6">
+          <h2 className="text-3xl md:text-4xl font-bold text-white text-center mb-4">
+            Nuestra Trayectoria
+          </h2>
+          <p className="text-muted-foreground text-center mb-16 max-w-2xl mx-auto">
+            Desde nuestra fundación en 2019, hemos forjado un camino de excelencia en ingeniería aeroespacial estudiantil.
+          </p>
+
+          <div ref={timelineRef} className="relative max-w-4xl mx-auto">
+            {/* Timeline center line */}
+            <div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cyan-500/60 via-purple-500/60 to-cyan-500/60 md:-translate-x-px" />
+
+            {TIMELINE_EVENTS.map((event, index) => {
+              const isLeft = index % 2 === 0
+              const EventIcon = event.icon
+              const colorMap = {
+                cyan: { dot: 'bg-cyan-500', glow: 'shadow-cyan-500/50', text: 'text-cyan-400', border: 'border-cyan-500/30', bg: 'bg-cyan-500/10' },
+                purple: { dot: 'bg-purple-500', glow: 'shadow-purple-500/50', text: 'text-purple-400', border: 'border-purple-500/30', bg: 'bg-purple-500/10' },
+                orange: { dot: 'bg-orange-500', glow: 'shadow-orange-500/50', text: 'text-orange-400', border: 'border-orange-500/30', bg: 'bg-orange-500/10' },
+                yellow: { dot: 'bg-yellow-500', glow: 'shadow-yellow-500/50', text: 'text-yellow-400', border: 'border-yellow-500/30', bg: 'bg-yellow-500/10' },
+                green: { dot: 'bg-green-500', glow: 'shadow-green-500/50', text: 'text-green-400', border: 'border-green-500/30', bg: 'bg-green-500/10' },
+              }
+              const colors = colorMap[event.color]
+
+              return (
+                <div
+                  key={`${event.year}-${index}`}
+                  data-reveal
+                  className={`timeline-item relative flex items-start mb-12 last:mb-0 ${
+                    isLeft ? 'md:flex-row' : 'md:flex-row-reverse'
+                  }`}
+                >
+                  {/* Dot on timeline */}
+                  <div className="absolute left-4 md:left-1/2 -translate-x-1/2 z-10">
+                    <div className={`w-10 h-10 rounded-full ${colors.dot} ${colors.glow} shadow-lg flex items-center justify-center`}>
+                      <EventIcon className="w-5 h-5 text-white" />
+                    </div>
+                  </div>
+
+                  {/* Card */}
+                  <div className={`ml-14 md:ml-0 md:w-[calc(50%-2rem)] ${isLeft ? 'md:pr-8 md:text-right' : 'md:pl-8 md:ml-auto'}`}>
+                    <div className={`p-5 rounded-xl bg-space-700/60 border ${colors.border} backdrop-blur-sm hover:bg-space-700/80 transition-colors`}>
+                      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${colors.bg} mb-3`}>
+                        <span className={`text-sm font-bold ${colors.text}`}>{event.year}</span>
+                      </div>
+                      <h3 className="text-lg font-semibold text-white mb-2">{event.title}</h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{event.description}</p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       </section>
