@@ -17,6 +17,10 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 - [CI/CD](#cicd)
 - [Logging y diagnóstico](#logging-y-diagnóstico)
 - [Contribuir](#contribuir)
+  - [Feedback y sugerencias](#feedback-y-sugerencias)
+  - [Contribuir con código](#contribuir-con-código)
+  - [Proceso CI/CD y aprobación](#proceso-cicd-y-aprobación)
+  - [Reportar vulnerabilidades](#reportar-vulnerabilidades)
 - [Seguridad](#seguridad)
 
 ## Tecnologías
@@ -251,13 +255,67 @@ src/
 
 ## Contribuir
 
-1. Crea un fork del repositorio
-2. Crea una rama descriptiva: `git checkout -b feature/mi-funcionalidad`
-3. Realiza tus cambios y añade tests si aplica
-4. Asegúrate de que lint y tests pasan: `npm run lint && npm test`
-5. Abre un Pull Request hacia `main`
+¡Las contribuciones externas son bienvenidas! Puedes colaborar de varias formas: reportando bugs, sugiriendo funcionalidades, dejando feedback o enviando código.
 
-Todo PR debe pasar el pipeline de CI antes de ser fusionado.
+### Feedback y sugerencias
+
+Si tienes una idea, encontraste un bug o quieres proponer un cambio, abre un **Issue** en GitHub:
+
+1. Ve a la pestaña [**Issues**](https://github.com/theChosen16/UTFSM_Cubesat_team/issues) del repositorio.
+2. Haz clic en **New issue**.
+3. Selecciona un título descriptivo y explica tu propuesta o problema con el mayor detalle posible (capturas de pantalla, pasos para reproducir, comportamiento esperado, etc.).
+4. Etiqueta el issue si corresponde (por ejemplo: `bug`, `enhancement`, `question`).
+
+> **Tip:** Antes de abrir un issue, revisa los existentes para evitar duplicados.
+
+### Contribuir con código
+
+Para proponer cambios en el código fuente, sigue este flujo:
+
+```bash
+# 1. Haz fork del repositorio desde GitHub (botón "Fork")
+
+# 2. Clona tu fork localmente
+git clone https://github.com/<tu-usuario>/UTFSM_Cubesat_team.git
+cd UTFSM_Cubesat_team
+
+# 3. Instala las dependencias
+npm install
+
+# 4. Crea una rama descriptiva para tu cambio
+git checkout -b feature/mi-funcionalidad
+
+# 5. Realiza tus cambios y añade tests si aplica
+
+# 6. Verifica que lint y tests pasan localmente
+npm run lint
+npm test
+
+# 7. Haz commit de tus cambios con un mensaje claro
+git commit -m "feat: descripción breve del cambio"
+
+# 8. Sube tu rama al fork
+git push origin feature/mi-funcionalidad
+```
+
+Luego, abre un **Pull Request** desde tu fork hacia la rama `main` del repositorio original en GitHub.
+
+### Proceso CI/CD y aprobación
+
+Todo Pull Request debe cumplir **dos requisitos** antes de ser fusionado:
+
+1. **Pasar el pipeline de CI** — Al abrir o actualizar un PR, GitHub Actions ejecuta automáticamente:
+   - ✅ **Lint** (`npm run lint`) — verificación de estilo y calidad de código
+   - ✅ **Tests** (`npm test`) — tests unitarios con Vitest
+   - ✅ **Build** (`npm run build`) — compilación TypeScript + build de producción
+
+   Si alguno de estos pasos falla, el PR no podrá ser fusionado. Asegúrate de ejecutar `npm run lint && npm test && npm run build` localmente antes de abrir el PR.
+
+2. **Aprobación del mantenedor** — Una vez que el CI pasa exitosamente, el usuario **maestro** (administrador del proyecto) revisará el PR y decidirá si aprueba el merge. Los PR no se fusionan automáticamente; siempre requieren aprobación manual.
+
+### Reportar vulnerabilidades
+
+**No abras issues públicos** para reportar vulnerabilidades de seguridad. Consulta [SECURITY.md](./SECURITY.md) para conocer cómo reportar vulnerabilidades de forma responsable y privada.
 
 ## Seguridad
 
