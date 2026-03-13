@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/spinner'
 import { 
   Plus, 
   Search, 
@@ -18,6 +19,7 @@ import {
 import { collection, getDocs, addDoc, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
+import { COLLECTIONS } from '@/lib/constants'
 import { hasAnyRole, hasTeam } from '@/types'
 
 interface ProjectData {
@@ -53,7 +55,7 @@ export default function Projects() {
 
   const loadProjects = async () => {
       try {
-        const projectsSnapshot = await getDocs(collection(db, 'projects'))
+        const projectsSnapshot = await getDocs(collection(db, COLLECTIONS.PROJECTS))
         const loadedProjects = projectsSnapshot.docs.map(doc => ({
           id: doc.id,
           name: doc.data().nombre || doc.data().name || '',
@@ -116,7 +118,7 @@ export default function Projects() {
     setSaving(true)
     setError('')
     try {
-      await addDoc(collection(db, 'projects'), {
+      await addDoc(collection(db, COLLECTIONS.PROJECTS), {
         nombre: nombre.trim(),
         descripcion: descripcion.trim(),
         estado,
@@ -287,11 +289,7 @@ export default function Projects() {
         </Button>
       </div>
 
-      {loading && (
-        <div className="flex items-center justify-center min-h-[200px]">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-500"></div>
-        </div>
-      )}
+      {loading && <Spinner className="min-h-[200px]" />}
 
       {/* Projects Grid */}
       {!loading && (

@@ -11,6 +11,7 @@ import { doc, getDoc, setDoc, collection, getDocs, query, limit } from 'firebase
 import { auth, db } from '@/lib/firebase'
 import { User, UserRole, sanitizeGenero, sanitizeUserRole, sanitizeUserTeams, TeamType } from '@/types'
 import { logger } from '@/lib/logger'
+import { COLLECTIONS } from '@/lib/constants'
 import { extractFullNameFromEmail } from '@/lib/utils'
 
 interface AuthContextType {
@@ -105,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         try {
-          const userDoc = await getDoc(doc(db, 'users', fbUser.uid))
+          const userDoc = await getDoc(doc(db, COLLECTIONS.USERS, fbUser.uid))
           if (userDoc.exists()) {
             const userData = userDoc.data() as Record<string, unknown>
             // Auto-repair: if Firestore doc is missing email, backfill from Auth
@@ -117,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 const rest = fbUser.displayName.split(' ').slice(1).join(' ')
                 if (rest) repairData.apellido = rest
               }
-              await setDoc(doc(db, 'users', fbUser.uid), repairData, { merge: true })
+              await setDoc(doc(db, COLLECTIONS.USERS, fbUser.uid), repairData, { merge: true })
               Object.assign(userData, repairData)
             }
             setUser(mapFirestoreUser(fbUser.uid, userData, fallbackUser))
@@ -147,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // If the collection is empty, the first user is 'maestro'
     let isFirstUser = false
     try {
-      const usersSnapshot = await getDocs(query(collection(db, 'users'), limit(1)))
+      const usersSnapshot = await getDocs(query(collection(db, COLLECTIONS.USERS), limit(1)))
       isFirstUser = usersSnapshot.empty
     } catch (error) {
       logger.error('Error checking first user', { error: error instanceof Error ? error : undefined })
@@ -163,13 +164,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isActive: true,
     }
     
-    await setDoc(doc(db, 'users', newUser.uid), userData)
+    await setDoc(doc(db, COLLECTIONS.USERS, newUser.uid), userData)
     setUser({ ...userData, id: newUser.uid })
   }
 
   const updateUserProfile = async (data: Partial<User>) => {
     if (!firebaseUser) return
-    await setDoc(doc(db, 'users', firebaseUser.uid), data, { merge: true })
+    await setDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid), data, { merge: true })
     if (user) {
       setUser({ ...user, ...data })
     }
@@ -186,7 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const updateUserRole = async (userId: string, newRole: UserRole | undefined) => {
-    await setDoc(doc(db, 'users', userId), { rol: newRole || null }, { merge: true })
+    await setDoc(doc(db, COLLECTIONS.USERS, userId), { rol: newRole || null }, { merge: true })
     if (user && user.id === userId) {
       setUser({ ...user, rol: newRole })
     }
@@ -194,14 +195,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateUserTeams = async (userId: string, newTeams: TeamType[]) => {
     const limitedTeams = newTeams.slice(0, 2)
-    await setDoc(doc(db, 'users', userId), { equipos: limitedTeams }, { merge: true })
+    await setDoc(doc(db, COLLECTIONS.USERS, userId), { equipos: limitedTeams }, { merge: true })
     if (user && user.id === userId) {
       setUser({ ...user, equipos: limitedTeams })
     }
   }
 
   const getAllUsers = async (): Promise<User[]> => {
-    const usersSnapshot = await getDocs(collection(db, 'users'))
+    const usersSnapshot = await getDocs(collection(db, COLLECTIONS.USERS))
     return usersSnapshot.docs.map(doc => {
       const data = doc.data() as Record<string, unknown>
       const fallbackUser: User = {

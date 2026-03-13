@@ -14,6 +14,7 @@ import { ROLE_LABELS, TEAM_LABELS, TeamType } from '@/types'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
+import { COLLECTIONS } from '@/lib/constants'
 import { extractNameFromEmail } from '@/lib/utils'
 
 interface MemberCount {
@@ -38,9 +39,9 @@ export default function Dashboard() {
     const loadStats = async () => {
       try {
         const [usersSnapshot, projectsSnapshot, tasksSnapshot] = await Promise.all([
-          getDocs(collection(db, 'users')),
-          getDocs(collection(db, 'projects')),
-          getDocs(collection(db, 'tasks')),
+          getDocs(collection(db, COLLECTIONS.USERS)),
+          getDocs(collection(db, COLLECTIONS.PROJECTS)),
+          getDocs(collection(db, COLLECTIONS.TASKS)),
         ])
 
         const byRole: Record<string, number> = {}

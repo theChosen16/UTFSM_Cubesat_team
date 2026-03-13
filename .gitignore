@@ -8,6 +8,8 @@ dist-ssr
 .vscode
 .idea
 .DS_Store
+*.swp
+*.swo
 
 # Environment variables
 .env
@@ -24,3 +26,8 @@ tsconfig.tsbuildinfo
 
 # Playwright MCP session data
 .playwright-mcp
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

@@ -12,14 +12,15 @@ import Profile from './pages/Profile'
 import TaskManagement from './pages/TaskManagement'
 import Notifications from './pages/Notifications'
 import ProtectedRoute from './components/ProtectedRoute'
+import { Spinner } from './components/ui/spinner'
 
 function App() {
   const { user, loading } = useAuth()
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-space-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-500"></div>
+      <div className="min-h-screen bg-space-900">
+        <Spinner className="min-h-screen" />
       </div>
     )
   }

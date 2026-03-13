@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Bell,
@@ -19,6 +20,7 @@ import {
 import { collection, getDocs, doc, updateDoc, addDoc, query, where, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
+import { COLLECTIONS } from '@/lib/constants'
 import { Notification as NotificationType, NOTIFICATION_LABELS } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -67,7 +69,7 @@ export default function Notifications() {
     if (!user) return
     try {
       const snapshot = await getDocs(
-        query(collection(db, 'notifications'), where('recipientId', '==', user.id))
+        query(collection(db, COLLECTIONS.NOTIFICATIONS), where('recipientId', '==', user.id))
       )
       const loaded = snapshot.docs.map(d => {
         const data = d.data()
@@ -111,7 +113,7 @@ export default function Notifications() {
 
   const handleMarkAsRead = async (notificationId: string) => {
     try {
-      await updateDoc(doc(db, 'notifications', notificationId), { read: true })
+      await updateDoc(doc(db, COLLECTIONS.NOTIFICATIONS, notificationId), { read: true })
       setNotifications(prev =>
         prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
       )
@@ -124,7 +126,7 @@ export default function Notifications() {
     if (!user || !messageRecipient || !messageText.trim()) return
     setSendingMessage(true)
     try {
-      await addDoc(collection(db, 'notifications'), {
+      await addDoc(collection(db, COLLECTIONS.NOTIFICATIONS), {
         recipientId: messageRecipient,
         type: 'message',
         title: 'Nuevo Mensaje',
@@ -171,11 +173,7 @@ export default function Notifications() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-500"></div>
-      </div>
-    )
+    return <Spinner />
   }
 
   const { filteredNotifications, messageNotifications } = notifications.reduce<{

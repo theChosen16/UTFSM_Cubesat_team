@@ -34,7 +34,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 
 ## Funcionalidades
 
-- **Landing page** pública con información del equipo
+- **Landing page** pública con información del equipo y **línea de tiempo histórica** con scroll-reveal animado (IntersectionObserver) que narra la trayectoria del equipo desde 2019 hasta 2026
 - **Autenticación**: registro, inicio de sesión y recuperación de contraseña vía Firebase Auth
 - **Dashboard** privado con estadísticas en tiempo real desde Firestore (proyectos activos, tareas pendientes, completadas y miembros)
   - Saludo personalizado según género del usuario (Bienvenido/Bienvenida)
@@ -48,7 +48,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
   - **Selección de género**: permite al usuario indicar su género para personalizar el saludo en el dashboard
 - **Indicadores de permisos**: las opciones restringidas del menú lateral muestran un ícono de candado para distinguir acciones que requieren permisos especiales
 - **Diseño responsivo**: interfaz adaptativa optimizada para móvil y escritorio con prevención de solapamiento de texto/iconos en pantallas pequeñas (320px+). Navegación compacta en landing, textos truncados en tarjetas, badges y encabezados
-- **Animación de fondo estelar warp-speed**: tres capas parallax de 94 estrellas con colores variados (azules, dorados, rosas, verdes), movimiento caótico multi-waypoint, rotaciones sutiles y brillo dinámico. Incluye efecto *warp-pulse* que simula viaje a la velocidad de la luz con pulsos rápidos de `brightness` y `blur`. Punto focal con animación `focal-wander` acelerada (12 s) y `warp-pulse` (4 s). Compatible con `prefers-reduced-motion` y optimizada para móvil
+- **Animación de fondo estelar warp-speed**: múltiples capas parallax de ~210 estrellas con colores variados (azules, dorados, rosas, verdes), movimiento caótico multi-waypoint, rotaciones sutiles y brillo dinámico. Incluye **capas fractales Fibonacci** con distribución en espiral áurea, profundidad escalada y drift variable. Efecto *warp-pulse* que simula viaje a la velocidad de la luz. Punto focal con animaciones `focal-wander` y `warp-pulse`. Compatible con `prefers-reduced-motion` y optimizada para móvil
 - **Notificaciones y mensajería**: sistema de notificaciones internas con bandeja de entrada, mensajes directos y composición con destinatario pre-seleccionado desde el perfil de otro miembro
 - **Perfiles clickeables**: en el directorio de miembros, hacer clic en un usuario navega a su perfil donde se puede ver su información y enviar un mensaje directo
 - **Auto-extracción de nombre desde email**: al registrarse con correo institucional, el sistema extrae automáticamente nombre y apellido. Usuarios registrados antes de esta funcionalidad recuperan su nombre al iniciar sesión
@@ -106,7 +106,7 @@ Los usuarios pueden seleccionar los equipos a los que desean pertenecer desde su
 
 ## Requisitos previos
 
-- [Node.js](https://nodejs.org/) ≥ 20 (LTS recomendado)
+- [Node.js](https://nodejs.org/) ≥ 22 (LTS recomendado)
 - [npm](https://www.npmjs.com/) ≥ 10
 - Una cuenta y proyecto en [Firebase](https://console.firebase.google.com/)
 
@@ -195,7 +195,7 @@ La URL pública es: `https://thechosen16.github.io/UTFSM_Cubesat_team/`
 
 ## CI/CD
 
-El pipeline de CI/CD incluye:
+El pipeline de CI/CD utiliza GitHub Actions v5 con Node.js 22:
 
 - **CI** (`.github/workflows/ci.yml`): Lint → Tests → Build en cada PR y push a main
 - **Deploy** (`.github/workflows/deploy.yml`): Build + Deploy a GitHub Pages + smoke test post-despliegue
@@ -226,6 +226,27 @@ window.__cubesat_logger.getErrors()
 
 // Exportar logs como JSON
 window.__cubesat_logger.exportJSON()
+```
+
+## Estructura del proyecto
+
+```
+src/
+├── components/
+│   ├── layout/         # Layout principal con sidebar
+│   ├── ui/             # Componentes reutilizables (Button, Card, Badge, Spinner, etc.)
+│   ├── ErrorBoundary.tsx
+│   └── ProtectedRoute.tsx
+├── contexts/           # AuthContext (autenticación y gestión de usuarios)
+├── lib/
+│   ├── constants.ts    # Constantes centralizadas (colecciones Firestore, dominios válidos)
+│   ├── firebase.ts     # Configuración Firebase
+│   ├── logger.ts       # Sistema de logging estructurado
+│   └── utils.ts        # Utilidades compartidas (cn, extractNameFromEmail, getRoleIcon)
+├── pages/              # Páginas de la aplicación (con tests unitarios adyacentes)
+├── test/               # Setup de tests y mocks de Firebase
+├── types/              # Tipos TypeScript, interfaces y constantes de dominio
+└── docs/               # Documentación adicional (historia del equipo)
 ```
 
 ## Contribuir

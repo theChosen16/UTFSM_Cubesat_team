@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { logger } from '@/lib/logger'
+import { VALID_EMAIL_DOMAINS } from '@/lib/constants'
 import { extractFullNameFromEmail } from '@/lib/utils'
 
 export default function Register() {
@@ -25,8 +26,7 @@ export default function Register() {
   }
 
   const validateEmail = (email: string) => {
-    const validDomains = ['@usm.cl', '@sansano.usm.cl']
-    return validDomains.some(domain => email.toLowerCase().endsWith(domain))
+    return VALID_EMAIL_DOMAINS.some(domain => email.toLowerCase().endsWith(domain))
   }
 
   const handleEmailChange = (value: string) => {

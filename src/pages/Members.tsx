@@ -4,14 +4,13 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/spinner'
 import { 
   User, 
   Shield, 
   Users, 
   Search,
   MoreHorizontal,
-  Crown,
-  Settings,
   Cpu,
   Globe,
   ChevronDown,
@@ -19,7 +18,7 @@ import {
 } from 'lucide-react'
 import { User as UserType, ROLE_LABELS, UserRole, TeamType, TEAM_LABELS, hasRole, hasAnyRole } from '@/types'
 import { logger } from '@/lib/logger'
-import { extractNameFromEmail } from '@/lib/utils'
+import { extractNameFromEmail, getRoleIcon } from '@/lib/utils'
 
 const TEAM_CONFIG: { key: TeamType | 'none'; label: string; icon: typeof Users; color: string; bgColor: string; borderColor: string }[] = [
   { key: 'tecnico', label: 'Equipo Técnico', icon: Cpu, color: 'text-purple-400', bgColor: 'bg-purple-500/20', borderColor: 'border-purple-500/30' },
@@ -81,13 +80,6 @@ export default function Members() {
     }
   }
 
-  const getRoleIcon = (role: UserRole) => {
-    switch (role) {
-      case 'maestro': return Crown
-      case 'admin': return Settings
-    }
-  }
-
       const filteredMembers = members.filter(member =>
     (member.nombre || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (member.apellido || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -129,11 +121,7 @@ export default function Members() {
   }, {})
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-500"></div>
-      </div>
-    )
+    return <Spinner />
   }
 
   return (

@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -15,7 +16,6 @@ import {
   Shield, 
   Cpu, 
   Users, 
-  Crown,
   Edit,
   GraduationCap,
   BookOpen,
@@ -23,7 +23,6 @@ import {
   Clock,
   Briefcase,
   Save,
-  Settings,
   Rocket,
   Camera,
   MessageSquare,
@@ -31,7 +30,8 @@ import {
 } from 'lucide-react'
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS, Genero, hasRole, hasAnyRole, hasTeam } from '@/types'
 import { logger } from '@/lib/logger'
-import { extractNameFromEmail } from '@/lib/utils'
+import { COLLECTIONS } from '@/lib/constants'
+import { extractNameFromEmail, getRoleIcon } from '@/lib/utils'
 
 const ROLE_STYLES: Record<UserRole, { badge: 'orange' | 'red'; icon: string; background: string }> = {
   maestro: {
@@ -82,7 +82,7 @@ export default function Profile() {
       setViewLoading(true)
       const fetchUser = async () => {
         try {
-          const snap = await getDoc(doc(db, 'users', userId))
+          const snap = await getDoc(doc(db, COLLECTIONS.USERS, userId))
           if (snap.exists()) {
             const data = snap.data()
             setViewedUser({
@@ -130,11 +130,7 @@ export default function Profile() {
 
   if (!user) return null
   if (viewLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-500"></div>
-      </div>
-    )
+    return <Spinner />
   }
   if (!isOwnProfile && !viewedUser) {
     return (
@@ -213,13 +209,6 @@ export default function Profile() {
       setPhotoError('Error al subir la foto. Intenta nuevamente.')
       logger.error('Error uploading photo', { error: error instanceof Error ? error : undefined })
       setUploadingPhoto(false)
-    }
-  }
-
-  const getRoleIcon = (role: UserRole) => {
-    switch (role) {
-      case 'maestro': return Crown
-      case 'admin': return Settings
     }
   }
 

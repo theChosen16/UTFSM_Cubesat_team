@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/spinner'
 import {
   Plus,
   ListTodo,
@@ -17,6 +18,7 @@ import {
 import { collection, getDocs, addDoc, doc, updateDoc, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
+import { COLLECTIONS } from '@/lib/constants'
 import { Task, User as UserType, TeamType, TEAM_LABELS, hasAnyRole, hasTeam } from '@/types'
 
 interface ProjectOption {
@@ -51,9 +53,9 @@ export default function TaskManagement() {
   const loadData = async () => {
     try {
       const [tasksSnap, projectsSnap, membersSnap] = await Promise.all([
-        getDocs(collection(db, 'tasks')),
-        getDocs(collection(db, 'projects')),
-        getDocs(collection(db, 'users')),
+        getDocs(collection(db, COLLECTIONS.TASKS)),
+        getDocs(collection(db, COLLECTIONS.PROJECTS)),
+        getDocs(collection(db, COLLECTIONS.USERS)),
       ])
 
       setTasks(tasksSnap.docs.map(d => {
@@ -117,7 +119,7 @@ export default function TaskManagement() {
     setSaving(true)
     setError('')
     try {
-      await addDoc(collection(db, 'tasks'), {
+      await addDoc(collection(db, COLLECTIONS.TASKS), {
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
         projectId,
@@ -140,7 +142,7 @@ export default function TaskManagement() {
 
   const handleStatusChange = async (taskId: string, newStatus: Task['estado']) => {
     try {
-      await updateDoc(doc(db, 'tasks', taskId), { estado: newStatus })
+      await updateDoc(doc(db, COLLECTIONS.TASKS, taskId), { estado: newStatus })
       await loadData()
     } catch (err) {
       logger.error('Error updating task status', { error: err })
@@ -196,11 +198,7 @@ export default function TaskManagement() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-500"></div>
-      </div>
-    )
+    return <Spinner />
   }
 
   return (

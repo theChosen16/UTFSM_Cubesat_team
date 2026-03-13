@@ -1,8 +1,18 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { Crown, Settings } from 'lucide-react'
+import type { UserRole } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+/** Returns the Lucide icon component for a given user role */
+export function getRoleIcon(role: UserRole) {
+  switch (role) {
+    case 'maestro': return Crown
+    case 'admin': return Settings
+  }
 }
 
 /**
