@@ -92,7 +92,7 @@ describe('Dashboard', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Proyectos Activos')).toBeInTheDocument()
-      expect(screen.getByText('Tareas Activas')).toBeInTheDocument()
+      expect(screen.getAllByText('Tareas Activas').length).toBeGreaterThanOrEqual(1)
       expect(screen.getByText('Completadas')).toBeInTheDocument()
       expect(screen.getByText('Miembros')).toBeInTheDocument()
     })
@@ -132,14 +132,14 @@ describe('Dashboard', () => {
     }
     const projectsSnapshot = {
       docs: [
-        { data: () => ({ estado: 'en_progreso' }) },
+        { id: 'p1', data: () => ({ estado: 'en_progreso', nombre: 'Proyecto 1' }) },
       ],
       size: 1,
     }
     const tasksSnapshot = {
       docs: [
-        { data: () => ({ estado: 'pendiente' }) },
-        { data: () => ({ estado: 'completado' }) },
+        { id: 't1', data: () => ({ estado: 'pendiente', titulo: 'Tarea 1' }) },
+        { id: 't2', data: () => ({ estado: 'completado', titulo: 'Tarea 2' }) },
       ],
       size: 2,
     }
