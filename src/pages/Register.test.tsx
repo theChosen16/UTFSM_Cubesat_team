@@ -40,27 +40,34 @@ function renderRegister() {
   )
 }
 
+/** Fill step 1 with valid data and advance to step 2 */
+async function advanceToNameStep(user: ReturnType<typeof userEvent.setup>, email = 'alejandro.hernandeza@sansano.usm.cl') {
+  await user.type(screen.getByPlaceholderText('nombre@usm.cl'), email)
+  await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'Falopa123')
+  await user.type(screen.getAllByPlaceholderText('••••••••')[1], 'Falopa123')
+  await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
+}
+
 describe('Register', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('renders the registration form', () => {
+  it('renders the registration form (step 1)', () => {
     renderRegister()
 
     expect(screen.getByText('Únete al equipo')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Juan')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Pérez')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('nombre@usm.cl')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /crear cuenta/i })).toBeInTheDocument()
+    // nombre/apellido fields should NOT be visible in step 1
+    expect(screen.queryByPlaceholderText('Juan')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Pérez')).not.toBeInTheDocument()
   })
 
   it('shows error for non-institutional email', async () => {
     const user = userEvent.setup()
     renderRegister()
 
-    await user.type(screen.getByPlaceholderText('Juan'), 'Alejandro')
-    await user.type(screen.getByPlaceholderText('Pérez'), 'Hernandez')
     await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test@gmail.com')
     await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'Falopa123')
     await user.type(screen.getAllByPlaceholderText('••••••••')[1], 'Falopa123')
@@ -74,8 +81,6 @@ describe('Register', () => {
     const user = userEvent.setup()
     renderRegister()
 
-    await user.type(screen.getByPlaceholderText('Juan'), 'Alejandro')
-    await user.type(screen.getByPlaceholderText('Pérez'), 'Hernandez')
     await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
     await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'Falopa123')
     await user.type(screen.getAllByPlaceholderText('••••••••')[1], 'DifferentPass')
@@ -89,8 +94,6 @@ describe('Register', () => {
     const user = userEvent.setup()
     renderRegister()
 
-    await user.type(screen.getByPlaceholderText('Juan'), 'Alejandro')
-    await user.type(screen.getByPlaceholderText('Pérez'), 'Hernandez')
     await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
     await user.type(screen.getAllByPlaceholderText('••••••••')[0], '123')
     await user.type(screen.getAllByPlaceholderText('••••••••')[1], '123')
@@ -100,17 +103,33 @@ describe('Register', () => {
     expect(mockSignUp).not.toHaveBeenCalled()
   })
 
+  it('shows name step modal after valid step 1', async () => {
+    const user = userEvent.setup()
+    renderRegister()
+
+    await advanceToNameStep(user)
+
+    expect(screen.getByText('¿Cómo te llamas?')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Juan')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Pérez')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /continuar/i })).toBeInTheDocument()
+  })
+
   it('navigates to dashboard on successful registration', async () => {
     mockSignUp.mockResolvedValueOnce(undefined)
     const user = userEvent.setup()
     renderRegister()
 
-    await user.type(screen.getByPlaceholderText('Juan'), 'Alejandro')
-    await user.type(screen.getByPlaceholderText('Pérez'), 'Hernandez')
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
-    await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'Falopa123')
-    await user.type(screen.getAllByPlaceholderText('••••••••')[1], 'Falopa123')
-    await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
+    await advanceToNameStep(user)
+
+    // Clear pre-filled values and type new ones
+    const nombreInput = screen.getByPlaceholderText('Juan')
+    const apellidoInput = screen.getByPlaceholderText('Pérez')
+    await user.clear(nombreInput)
+    await user.clear(apellidoInput)
+    await user.type(nombreInput, 'Alejandro')
+    await user.type(apellidoInput, 'Hernandez')
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
 
     await waitFor(() => {
       expect(mockSignUp).toHaveBeenCalledWith(
@@ -130,12 +149,15 @@ describe('Register', () => {
     const user = userEvent.setup()
     renderRegister()
 
-    await user.type(screen.getByPlaceholderText('Juan'), 'Alejandro')
-    await user.type(screen.getByPlaceholderText('Pérez'), 'Hernandez')
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
-    await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'Falopa123')
-    await user.type(screen.getAllByPlaceholderText('••••••••')[1], 'Falopa123')
-    await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
+    await advanceToNameStep(user)
+
+    const nombreInput = screen.getByPlaceholderText('Juan')
+    const apellidoInput = screen.getByPlaceholderText('Pérez')
+    await user.clear(nombreInput)
+    await user.clear(apellidoInput)
+    await user.type(nombreInput, 'Alejandro')
+    await user.type(apellidoInput, 'Hernandez')
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
 
     await waitFor(() => {
       expect(screen.getByText('Este correo ya está registrado. Inicia sesión desde la página de login.')).toBeInTheDocument()
@@ -148,28 +170,60 @@ describe('Register', () => {
     const user = userEvent.setup()
     renderRegister()
 
-    await user.type(screen.getByPlaceholderText('Juan'), 'Alejandro')
-    await user.type(screen.getByPlaceholderText('Pérez'), 'Hernandez')
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
-    await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'Falopa123')
-    await user.type(screen.getAllByPlaceholderText('••••••••')[1], 'Falopa123')
-    await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
+    await advanceToNameStep(user)
+
+    const nombreInput = screen.getByPlaceholderText('Juan')
+    const apellidoInput = screen.getByPlaceholderText('Pérez')
+    await user.clear(nombreInput)
+    await user.clear(apellidoInput)
+    await user.type(nombreInput, 'Alejandro')
+    await user.type(apellidoInput, 'Hernandez')
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
 
     await waitFor(() => {
       expect(mockSignUp).toHaveBeenCalled()
     })
   })
 
-  it('auto-populates nombre and apellido from email when fields are empty', async () => {
+  it('auto-populates nombre and apellido from email in step 2', async () => {
     const user = userEvent.setup()
     renderRegister()
 
-    const emailInput = screen.getByPlaceholderText('nombre@usm.cl')
-    await user.type(emailInput, 'alejandro.hernandeza@sansano.usm.cl')
+    await advanceToNameStep(user, 'alejandro.hernandeza@sansano.usm.cl')
 
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Juan')).toHaveValue('Alejandro')
       expect(screen.getByPlaceholderText('Pérez')).toHaveValue('Hernandeza')
     })
+  })
+
+  it('shows error when name fields are empty in step 2', async () => {
+    const user = userEvent.setup()
+    renderRegister()
+
+    await advanceToNameStep(user)
+
+    // Clear any pre-filled values
+    const nombreInput = screen.getByPlaceholderText('Juan')
+    const apellidoInput = screen.getByPlaceholderText('Pérez')
+    await user.clear(nombreInput)
+    await user.clear(apellidoInput)
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
+
+    expect(screen.getByText('Debes ingresar tu nombre y apellido para continuar')).toBeInTheDocument()
+    expect(mockSignUp).not.toHaveBeenCalled()
+  })
+
+  it('allows going back from name step to email step', async () => {
+    const user = userEvent.setup()
+    renderRegister()
+
+    await advanceToNameStep(user)
+    expect(screen.getByText('¿Cómo te llamas?')).toBeInTheDocument()
+
+    await user.click(screen.getByText('Volver'))
+
+    expect(screen.queryByText('¿Cómo te llamas?')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /crear cuenta/i })).toBeInTheDocument()
   })
 })

@@ -7,6 +7,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 - [Tecnologías](#tecnologías)
 - [Funcionalidades](#funcionalidades)
 - [Optimizaciones UI/UX](#optimizaciones-uiux)
+  - [Optimización de rendimiento móvil](#optimización-de-rendimiento-móvil)
 - [Roles y permisos](#roles-y-permisos)
 - [Equipos](#equipos)
 - [Requisitos previos](#requisitos-previos)
@@ -40,7 +41,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 ## Funcionalidades
 
 - **Landing page** pública con información del equipo y **línea de tiempo histórica** con scroll-reveal animado (IntersectionObserver) que narra la trayectoria del equipo desde 2019 hasta 2026
-- **Autenticación**: registro, inicio de sesión y recuperación de contraseña vía Firebase Auth
+- **Autenticación**: registro en dos pasos (email/contraseña → nombre y apellido), inicio de sesión y recuperación de contraseña vía Firebase Auth. Los usuarios existentes sin nombre registrado son interceptados por un overlay obligatorio al iniciar sesión
 - **Dashboard** privado con estadísticas en tiempo real desde Firestore (proyectos activos, tareas pendientes, completadas y miembros)
   - Saludo personalizado según género del usuario (Bienvenido/Bienvenida)
   - Estructura del equipo muestra distribución de miembros por equipo (`equipo`), no por rol
@@ -53,7 +54,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
   - **Selección de género**: permite al usuario indicar su género para personalizar el saludo en el dashboard
 - **Indicadores de permisos**: las opciones restringidas del menú lateral muestran un ícono de candado para distinguir acciones que requieren permisos especiales
 - **Diseño responsivo**: interfaz adaptativa optimizada para móvil y escritorio con prevención de solapamiento de texto/iconos en pantallas pequeñas (320px+). Navegación compacta en landing, textos truncados en tarjetas, badges y encabezados
-- **Animación de fondo estelar warp-speed**: múltiples capas parallax de ~210 estrellas con colores variados (azules, dorados, rosas, verdes), movimiento caótico multi-waypoint, rotaciones sutiles y brillo dinámico. Incluye **capas fractales Fibonacci** con distribución en espiral áurea, profundidad escalada y drift variable. Efecto *warp-pulse* que simula viaje a la velocidad de la luz. Punto focal con animaciones `focal-wander` y `warp-pulse`. Compatible con `prefers-reduced-motion` y optimizada para móvil
+- **Animación de fondo estelar warp-speed**: múltiples capas parallax de ~210 estrellas con colores variados (azules, dorados, rosas, verdes), movimiento caótico multi-waypoint, rotaciones sutiles y brillo dinámico. Incluye **capas fractales Fibonacci** con distribución en espiral áurea, profundidad escalada y drift variable. Efecto *warp-pulse* que simula viaje a la velocidad de la luz. Punto focal con animaciones `focal-wander` y `warp-pulse`. Compatible con `prefers-reduced-motion` y **optimizada para móvil** (ver [Optimización de rendimiento móvil](#optimización-de-rendimiento-móvil))
 - **Notificaciones y mensajería**: sistema de notificaciones internas con bandeja de entrada, mensajes directos y composición con destinatario pre-seleccionado desde el perfil de otro miembro
 - **Perfiles clickeables**: en el directorio de miembros, hacer clic en un usuario navega a su perfil donde se puede ver su información y enviar un mensaje directo
 - **Auto-extracción de nombre desde email**: al registrarse con correo institucional, el sistema extrae automáticamente nombre y apellido. Usuarios registrados antes de esta funcionalidad recuperan su nombre al iniciar sesión
@@ -90,7 +91,7 @@ La plataforma implementa un conjunto de mejores prácticas modernas de UI/UX:
 
 ### Diseño moderno
 
-- **Glass-morphism**: tarjetas con `bg-card/80` y `backdrop-blur-sm` para efecto de transparencia con desenfoque
+- **Glass-morphism**: tarjetas con fondos semi-transparentes para efecto de transparencia. En escritorio se utiliza `backdrop-blur-sm`; eliminado en móvil para rendimiento
 - **Micro-interacciones**: `active:scale-[0.97]` en botones, `hover:shadow-lg` con sombras coloreadas, escalado de iconos al hover (`group-hover:scale-110`), indicador activo en la navegación
 - **Badges pill**: forma `rounded-full` para badges, con transiciones suaves
 - **Tarjetas interactivas**: hover con border highlight (`hover:border-cyan-500/30`), sombra expandida y transiciones `duration-200`
@@ -102,6 +103,19 @@ La plataforma implementa un conjunto de mejores prácticas modernas de UI/UX:
 - **`text-wrap: pretty`** en texto de cuerpo para evitar viudas/huérfanas
 - **`::selection`** con colores del tema (cyan sobre fondo oscuro)
 - **Suavizado de fuentes**: `-webkit-font-smoothing: antialiased` y `text-rendering: optimizeLegibility`
+
+### Optimización de rendimiento móvil
+
+La plataforma incluye optimizaciones específicas para dispositivos móviles y tablets (≤1024px):
+
+- **Reducción de capas animadas**: de 12+ capas CSS simultáneas a 3 en móvil, eliminando capas fractales Fibonacci, `depth-breathe` y `focal-glow`
+- **Eliminación de `backdrop-blur`**: retirado de componentes Card, Layout (sidebar, overlay), Landing, Login, Register y ForgotPassword para reducir carga GPU en scroll
+- **GPU compositing hints**: `will-change: transform`, `backface-visibility: hidden` y `contain: strict` en capas animadas para promover composición GPU
+- **CSS containment**: `contain: content` en el contenedor principal de contenido para aislar repaints durante scroll
+- **Scroll nativo**: `scroll-behavior: smooth` deshabilitado en móvil para no interferir con la inercia nativa de Android/iOS
+- **Transiciones simplificadas**: `transition-all` reemplazado por `transition-colors` en componentes Card para reducir cálculos durante interacciones
+
+Estas optimizaciones fueron validadas para Samsung Galaxy S21 FE y dispositivos similares de gama media.
 
 ### Compatibilidad
 

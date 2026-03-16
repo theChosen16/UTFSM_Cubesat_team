@@ -33,9 +33,15 @@
   }
 
   html {
-    scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+  }
+
+  /* smooth scroll only on desktop — avoids jank on mobile touch scroll */
+  @media (min-width: 641px) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
 
   body {
@@ -183,6 +189,7 @@
 
 .stars-bg {
   position: relative;
+  backface-visibility: hidden;
 }
 
 .stars-bg,
@@ -191,6 +198,8 @@
   position: absolute;
   inset: 0;
   content: '';
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 /* Layer 1 — distant small stars, slow drift (40 stars) */
@@ -327,6 +336,8 @@
   position: absolute;
   inset: 0;
   content: '';
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 /* Fractal Layer A — 22 tiny distant spiral stars */
@@ -681,37 +692,50 @@
   }
 }
 
-@media (max-width: 640px) {
-  .stars-bg::before {
-    animation: drift-chaotic-mid 65s linear infinite reverse;
-    opacity: 0.7;
-  }
-  .stars-bg::after {
-    animation: drift-chaotic-fast 45s linear infinite;
-    opacity: 0.6;
-  }
-  .stars-fractal-a {
-    animation: drift-spiral-slow 120s linear infinite;
-    opacity: 0.5;
-  }
+@media (max-width: 1024px) {
+  /* --- Mobile/tablet performance: eliminate expensive layers --- */
+
+  /* Completely remove fractal layers (6 animated pseudo-elements) */
+  .stars-fractal-a,
   .stars-fractal-a::before,
-  .stars-fractal-a::after {
-    animation: drift-spiral-fast 60s linear infinite;
-    opacity: 0.5;
-  }
-  .stars-fractal-b {
-    animation: drift-spiral-slow 130s linear infinite reverse;
-    opacity: 0.45;
-  }
+  .stars-fractal-a::after,
+  .stars-fractal-b,
   .stars-fractal-b::before,
   .stars-fractal-b::after {
-    animation: drift-chaotic-mid 55s linear infinite;
-    opacity: 0.45;
+    display: none !important;
   }
+
+  /* Disable depth-breathe scale (forces recomposite of ALL children) */
   .stars-depth {
-    animation: depth-breathe 70s ease-in-out infinite;
+    animation: none !important;
   }
+
+  /* Disable focal glow filter animations (blur + brightness = constant repaint) */
+  .focal-glow,
   .focal-glow::before {
-    animation: focal-wander 20s ease-in-out infinite, warp-pulse 6s ease-in-out infinite;
+    display: none !important;
+  }
+
+  /* Keep only base star layer with a single slow simple animation */
+  .stars-bg {
+    animation: drift-chaotic-slow 120s linear infinite;
+    will-change: transform;
+    contain: strict;
+  }
+
+  /* Simplify medium star layer — slower, no glow filter */
+  .stars-bg::before {
+    animation: drift-chaotic-mid 100s linear infinite reverse;
+    opacity: 0.5;
+    will-change: transform;
+    contain: strict;
+  }
+
+  /* Simplify bright star layer — slower, no glow filter */
+  .stars-bg::after {
+    animation: drift-chaotic-fast 80s linear infinite;
+    opacity: 0.4;
+    will-change: transform;
+    contain: strict;
   }
 }

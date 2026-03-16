@@ -142,7 +142,7 @@ export default function Landing() {
           <div className="max-w-4xl mx-auto text-center">
             <div className="flex justify-center mb-8">
               <div className="relative">
-                <div className="absolute inset-0 rounded-full bg-cyan-500/20 blur-xl animate-pulse" />
+                <div className="absolute inset-0 rounded-full bg-cyan-500/20 blur-xl" />
                 <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="relative w-28 h-28 drop-shadow-[0_0_25px_rgba(6,182,212,0.4)]" loading="eager" fetchPriority="high" />
               </div>
             </div>
@@ -267,7 +267,7 @@ export default function Landing() {
 
                   {/* Card */}
                   <div className={`ml-14 md:ml-0 md:w-[calc(50%-2rem)] ${isLeft ? 'md:pr-8 md:text-right' : 'md:pl-8 md:ml-auto'}`}>
-                    <div className={`p-5 rounded-xl bg-space-700/60 border ${colors.border} backdrop-blur-sm hover:bg-space-700/80 transition-colors`}>
+                    <div className={`p-5 rounded-xl bg-space-700/80 border ${colors.border} hover:bg-space-700 transition-colors`}>
                       <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${colors.bg} mb-3`}>
                         <span className={`text-sm font-bold ${colors.text}`}>{event.year}</span>
                       </div>

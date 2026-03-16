@@ -56,7 +56,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* Mobile menu button */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-lg bg-space-700/90 backdrop-blur-sm text-white hover:bg-space-600 transition-colors"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-lg bg-space-700 text-white hover:bg-space-600 transition-colors"
         aria-label={sidebarOpen ? "Cerrar menú" : "Abrir menú"}
         aria-expanded={sidebarOpen}
         aria-controls="sidebar-nav"
@@ -70,7 +70,7 @@ export default function Layout({ children }: LayoutProps) {
         role="navigation"
         aria-label="Navegación principal"
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 bg-space-800/95 backdrop-blur-md border-r border-space-600/50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 will-change-transform",
+          "fixed inset-y-0 left-0 z-40 w-64 bg-space-800 border-r border-space-600/50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 will-change-transform",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -187,7 +187,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden transition-opacity duration-300"
+          className="fixed inset-0 bg-black/70 z-30 lg:hidden transition-opacity duration-200"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
@@ -195,7 +195,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Main content */}
       <main id="main-content" className="lg:ml-64 min-h-screen" role="main">
-        <div className="p-4 lg:p-8 animate-fade-in">
+        <div className="p-4 lg:p-8 animate-fade-in" style={{ contain: 'content' }}>
           {children}
         </div>
       </main>

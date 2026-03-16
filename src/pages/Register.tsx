@@ -16,7 +16,9 @@ export default function Register() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
+  const [nameError, setNameError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showNameStep, setShowNameStep] = useState(false)
   const { signUp, user } = useAuth()
   const navigate = useNavigate()
 
@@ -25,20 +27,11 @@ export default function Register() {
     return <Navigate to="/dashboard" replace />
   }
 
-  const validateEmail = (email: string) => {
-    return VALID_EMAIL_DOMAINS.some(domain => email.toLowerCase().endsWith(domain))
+  const validateEmail = (emailValue: string) => {
+    return VALID_EMAIL_DOMAINS.some(domain => emailValue.toLowerCase().endsWith(domain))
   }
 
-  const handleEmailChange = (value: string) => {
-    setEmail(value)
-    if (!nombre && !apellido && value.includes('@')) {
-      const { nombre: n, apellido: a } = extractFullNameFromEmail(value)
-      if (n) setNombre(n)
-      if (a) setApellido(a)
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFirstStep = (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
@@ -57,14 +50,36 @@ export default function Register() {
       return
     }
 
+    // Pre-fill nombre/apellido from email as suggestion
+    const { nombre: n, apellido: a } = extractFullNameFromEmail(email)
+    if (n && !nombre) setNombre(n)
+    if (a && !apellido) setApellido(a)
+
+    setShowNameStep(true)
+  }
+
+  const handleNameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setNameError('')
+
+    const trimmedNombre = nombre.trim()
+    const trimmedApellido = apellido.trim()
+
+    if (!trimmedNombre || !trimmedApellido) {
+      setNameError('Debes ingresar tu nombre y apellido para continuar')
+      return
+    }
+
     setLoading(true)
 
     try {
-      await signUp(email, password, nombre, apellido)
+      await signUp(email, password, trimmedNombre, trimmedApellido)
       navigate('/dashboard')
     } catch (err: unknown) {
       const firebaseError = err as { code?: string; message?: string }
       logger.error('Registration failed', { code: firebaseError.code, email })
+      // Go back to step 1 on auth errors so user can fix email/password
+      setShowNameStep(false)
       if (firebaseError.code === 'auth/invalid-email') {
         setError('El correo electrónico no es válido.')
       } else if (firebaseError.code === 'auth/email-already-in-use') {
@@ -85,8 +100,89 @@ export default function Register() {
     <div className="min-h-screen bg-space-900 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Stars background */}
       <div className="absolute inset-0 stars-bg opacity-30" />
+
+      {/* Name step modal overlay */}
+      {showNameStep && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <Card className="w-full max-w-sm bg-space-800 border-space-600 animate-fade-in">
+            <CardHeader className="text-center">
+              <div className="flex justify-center mb-3">
+                <div className="p-3 rounded-full bg-cyan-500/20">
+                  <User className="w-6 h-6 text-cyan-400" />
+                </div>
+              </div>
+              <CardTitle className="text-xl text-white">¿Cómo te llamas?</CardTitle>
+              <CardDescription className="text-muted-foreground">
+                Ingresa tu nombre y apellido para completar tu registro
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleNameSubmit} className="space-y-4" noValidate>
+                {nameError && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm animate-fade-in" role="alert">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{nameError}</span>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <label htmlFor="reg-nombre" className="text-sm text-muted-foreground">Nombre</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    <Input
+                      id="reg-nombre"
+                      type="text"
+                      placeholder="Juan"
+                      value={nombre}
+                      onChange={(e) => setNombre(e.target.value)}
+                      className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
+                      autoComplete="given-name"
+                      autoFocus
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="reg-apellido" className="text-sm text-muted-foreground">Apellido</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    <Input
+                      id="reg-apellido"
+                      type="text"
+                      placeholder="Pérez"
+                      value={apellido}
+                      onChange={(e) => setApellido(e.target.value)}
+                      className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
+                      autoComplete="family-name"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full bg-cyan-500 hover:bg-cyan-600 text-space-900 font-semibold"
+                  disabled={loading}
+                >
+                  {loading ? 'Creando cuenta...' : 'Continuar'}
+                </Button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowNameStep(false)}
+                  className="w-full text-sm text-muted-foreground hover:text-white transition-colors"
+                  disabled={loading}
+                >
+                  Volver
+                </button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       
-      <Card className="w-full max-w-md bg-space-800/80 border-space-600 backdrop-blur-sm">
+      <Card className="w-full max-w-md bg-space-800 border-space-600">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 rounded-xl bg-cyan-500/20">
@@ -99,45 +195,13 @@ export default function Register() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          <form onSubmit={handleFirstStep} className="space-y-4" noValidate>
             {error && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm animate-fade-in" role="alert" id="register-error">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{error}</span>
               </div>
             )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label htmlFor="reg-nombre" className="text-sm text-muted-foreground">Nombre</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                  <Input
-                    id="reg-nombre"
-                    type="text"
-                    placeholder="Juan"
-                    value={nombre}
-                    onChange={(e) => setNombre(e.target.value)}
-                    className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
-                    autoComplete="given-name"
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="reg-apellido" className="text-sm text-muted-foreground">Apellido</label>
-                <Input
-                  id="reg-apellido"
-                  type="text"
-                  placeholder="Pérez"
-                  value={apellido}
-                  onChange={(e) => setApellido(e.target.value)}
-                  className="bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
-                  autoComplete="family-name"
-                  required
-                />
-              </div>
-            </div>
 
             <div className="space-y-2">
               <label htmlFor="reg-email" className="text-sm text-muted-foreground">Correo institucional</label>
@@ -148,7 +212,7 @@ export default function Register() {
                   type="email"
                   placeholder="nombre@usm.cl"
                   value={email}
-                  onChange={(e) => handleEmailChange(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
                   autoComplete="email"
                   required
@@ -202,7 +266,7 @@ export default function Register() {
               className="w-full bg-cyan-500 hover:bg-cyan-600 text-space-900 font-semibold"
               disabled={loading}
             >
-              {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
+              Crear Cuenta
             </Button>
           </form>
 

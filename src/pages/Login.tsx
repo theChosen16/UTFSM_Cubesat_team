@@ -87,7 +87,7 @@ export default function Login() {
       {/* Stars background */}
       <div className="absolute inset-0 stars-bg opacity-30" />
       
-      <Card className="w-full max-w-md bg-space-800/80 border-space-600 backdrop-blur-sm">
+      <Card className="w-full max-w-md bg-space-800 border-space-600">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 rounded-xl bg-cyan-500/20">
