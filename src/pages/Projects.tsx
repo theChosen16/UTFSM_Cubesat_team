@@ -151,7 +151,7 @@ export default function Projects() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in-up">
         <div>
           <h1 className="text-3xl font-bold text-white">Proyectos</h1>
           <p className="text-muted-foreground mt-1">
@@ -186,15 +186,16 @@ export default function Projects() {
           </CardHeader>
           <CardContent className="space-y-4">
             {error && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm" role="alert">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{error}</span>
               </div>
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-white">Nombre del proyecto *</label>
+              <label htmlFor="project-name" className="text-sm font-medium text-white">Nombre del proyecto *</label>
               <Input
+                id="project-name"
                 value={nombre}
                 onChange={handleInputChange(setNombre)}
                 placeholder="Ej: CubeSat Alpha"
@@ -203,8 +204,9 @@ export default function Projects() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-white">Descripción</label>
+              <label htmlFor="project-description" className="text-sm font-medium text-white">Descripción</label>
               <Textarea
+                id="project-description"
                 value={descripcion}
                 onChange={handleInputChange(setDescripcion)}
                 placeholder="Describe el proyecto en detalle..."
@@ -214,8 +216,9 @@ export default function Projects() {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-white">Estado</label>
+                <label htmlFor="project-status" className="text-sm font-medium text-white">Estado</label>
                 <select
+                  id="project-status"
                   value={estado}
                   onChange={(e) => setEstado(e.target.value as 'planificacion' | 'en_progreso' | 'completado')}
                   title="Seleccionar estado"
@@ -228,8 +231,9 @@ export default function Projects() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-white">Prioridad</label>
+                <label htmlFor="project-priority" className="text-sm font-medium text-white">Prioridad</label>
                 <select
+                  id="project-priority"
                   value={prioridadForm}
                   onChange={(e) => setPrioridadForm(e.target.value as 'alta' | 'media' | 'baja')}
                   title="Seleccionar prioridad"
@@ -242,8 +246,9 @@ export default function Projects() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-white">Fecha límite</label>
+                <label htmlFor="project-deadline" className="text-sm font-medium text-white">Fecha límite</label>
                 <Input
+                  id="project-deadline"
                   type="date"
                   value={fechaLimite}
                   onChange={handleInputChange(setFechaLimite)}
@@ -293,9 +298,9 @@ export default function Projects() {
 
       {/* Projects Grid */}
       {!loading && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" role="list" aria-label="Lista de proyectos">
         {filteredProjects.map((project) => (
-          <Card key={project.id} className="bg-space-700/50 border-space-600 hover:border-cyan-500/50 transition-colors">
+          <Card key={project.id} className="bg-space-700/50 border-space-600 hover:border-cyan-500/50 transition-all duration-200 hover:shadow-lg hover:shadow-cyan-500/5">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">

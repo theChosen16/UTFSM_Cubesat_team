@@ -48,18 +48,29 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="min-h-screen bg-space-900">
+      {/* Skip to content — accessibility */}
+      <a href="#main-content" className="skip-to-content">
+        Saltar al contenido principal
+      </a>
+
       {/* Mobile menu button */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-space-700 text-white"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-lg bg-space-700/90 backdrop-blur-sm text-white hover:bg-space-600 transition-colors"
+        aria-label={sidebarOpen ? "Cerrar menú" : "Abrir menú"}
+        aria-expanded={sidebarOpen}
+        aria-controls="sidebar-nav"
       >
         {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
       {/* Sidebar */}
       <aside
+        id="sidebar-nav"
+        role="navigation"
+        aria-label="Navegación principal"
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 bg-space-800 border-r border-space-600 transform transition-transform duration-200 ease-in-out lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 w-64 bg-space-800/95 backdrop-blur-md border-r border-space-600/50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 will-change-transform",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -130,7 +141,7 @@ export default function Layout({ children }: LayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2">
+          <nav className="flex-1 p-4 space-y-1" aria-label="Menú principal">
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = location.pathname === item.path
@@ -139,17 +150,21 @@ export default function Layout({ children }: LayoutProps) {
                   key={item.path}
                   to={item.path}
                   onClick={() => setSidebarOpen(false)}
+                  aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
+                    "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group relative",
                     isActive
-                      ? "bg-cyan-500/20 text-cyan-400"
-                      : "text-muted-foreground hover:bg-space-700 hover:text-white"
+                      ? "bg-cyan-500/15 text-cyan-400 shadow-sm shadow-cyan-500/10"
+                      : "text-muted-foreground hover:bg-space-700/80 hover:text-white"
                   )}
                 >
-                  <Icon size={20} />
+                  {isActive && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-cyan-400 rounded-r" />
+                  )}
+                  <Icon size={20} className={cn("transition-transform duration-200", !isActive && "group-hover:scale-110")} />
                   <span className="flex-1">{item.label}</span>
                   {item.restricted && (
-                    <Lock size={14} className="text-orange-400" />
+                    <Lock size={14} className="text-orange-400 opacity-75" />
                   )}
                 </Link>
               )
@@ -157,12 +172,12 @@ export default function Layout({ children }: LayoutProps) {
           </nav>
 
           {/* Sign out */}
-          <div className="p-4 border-t border-space-600">
+          <div className="p-4 border-t border-space-600/50">
             <button
               onClick={handleSignOut}
-              className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-muted-foreground hover:bg-red-500/20 hover:text-red-400 transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-muted-foreground hover:bg-red-500/15 hover:text-red-400 transition-all duration-200 group"
             >
-              <LogOut size={20} />
+              <LogOut size={20} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
               <span>Cerrar Sesión</span>
             </button>
           </div>
@@ -172,14 +187,15 @@ export default function Layout({ children }: LayoutProps) {
       {/* Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden transition-opacity duration-300"
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* Main content */}
-      <main className="lg:ml-64 min-h-screen">
-        <div className="p-4 lg:p-8">
+      <main id="main-content" className="lg:ml-64 min-h-screen" role="main">
+        <div className="p-4 lg:p-8 animate-fade-in">
           {children}
         </div>
       </main>

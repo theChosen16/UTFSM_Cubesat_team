@@ -6,6 +6,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 
 - [Tecnologías](#tecnologías)
 - [Funcionalidades](#funcionalidades)
+- [Optimizaciones UI/UX](#optimizaciones-uiux)
 - [Roles y permisos](#roles-y-permisos)
 - [Equipos](#equipos)
 - [Requisitos previos](#requisitos-previos)
@@ -64,6 +65,49 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 ## Roles y permisos
 
 El sistema define **roles** (permisos de administración) y **equipos** (área de trabajo) de forma independiente. Cada usuario tiene **un único rol** y puede pertenecer a **hasta 2 equipos** simultáneamente.
+
+## Optimizaciones UI/UX
+
+La plataforma implementa un conjunto de mejores prácticas modernas de UI/UX:
+
+### Accesibilidad (WCAG 2.2)
+
+- **Skip-to-content**: enlace oculto que aparece al enfocar con teclado, permitiendo saltar al contenido principal
+- **Landmarks ARIA**: `role="banner"`, `role="navigation"`, `role="main"`, `role="contentinfo"` en la landing; `aria-label`, `aria-expanded`, `aria-current="page"` en la navegación del sidebar
+- **Touch targets mínimos de 44px**: botones (`h-11`), inputs (`h-11`) y controles interactivos siguen las directrices WCAG 2.2
+- **Focus visible mejorado**: anillo de foco de 2px con offset para todos los elementos interactivos, compatible con teclado
+- **Formularios accesibles**: todos los inputs llevan `id`, `htmlFor` en sus labels, `autoComplete` semántico (`email`, `new-password`, `given-name`, etc.) y `aria-describedby` para mensajes de error
+- **Roles semánticos en alertas**: mensajes de error con `role="alert"`, mensajes de éxito con `role="status"`, regiones dinámicas con `aria-live="polite"`
+- **Tabs accesibles**: pestañas con `role="tablist"`, `role="tab"`, `aria-selected` y `aria-controls` en el buzón de notificaciones
+- **Imágenes**: `alt` descriptivo, `aria-hidden="true"` en imágenes decorativas, `loading="lazy"` para carga diferida y `fetchPriority="high"` para el logo principal
+
+### Rendimiento percibido
+
+- **Skeleton loading**: estados de carga con shimmer animation en las tarjetas de estadísticas del dashboard, reemplazando texto estático `'…'`
+- **Animaciones de entrada**: `animate-fade-in`, `animate-fade-in-up`, `animate-slide-in-right` con delays escalonados para una carga progresiva
+- **View Transitions API**: soporte nativo para transiciones entre vistas con `@view-transition` y pseudo-elementos `::view-transition-old` / `::view-transition-new`
+- **Lazy loading de imágenes**: `loading="lazy"` en avatares del directorio de miembros y perfiles
+
+### Diseño moderno
+
+- **Glass-morphism**: tarjetas con `bg-card/80` y `backdrop-blur-sm` para efecto de transparencia con desenfoque
+- **Micro-interacciones**: `active:scale-[0.97]` en botones, `hover:shadow-lg` con sombras coloreadas, escalado de iconos al hover (`group-hover:scale-110`), indicador activo en la navegación
+- **Badges pill**: forma `rounded-full` para badges, con transiciones suaves
+- **Tarjetas interactivas**: hover con border highlight (`hover:border-cyan-500/30`), sombra expandida y transiciones `duration-200`
+- **Formularios mejorados**: estilos de autofill para tema oscuro, iconos decorativos con `pointer-events-none`, errores animados con `animate-fade-in`
+
+### Tipografía y legibilidad
+
+- **`text-wrap: balance`** en headings para distribución uniforme de líneas
+- **`text-wrap: pretty`** en texto de cuerpo para evitar viudas/huérfanas
+- **`::selection`** con colores del tema (cyan sobre fondo oscuro)
+- **Suavizado de fuentes**: `-webkit-font-smoothing: antialiased` y `text-rendering: optimizeLegibility`
+
+### Compatibilidad
+
+- **`prefers-reduced-motion`**: las animaciones de fondo estelar respetan esta preferencia
+- **Firefox**: soporte de scrollbar personalizado con `scrollbar-width: thin`
+- **Autofill**: estilos personalizados para `:-webkit-autofill` en tema oscuro
 
 | Rol | Descripción | Permisos clave |
 |-----|-------------|----------------|

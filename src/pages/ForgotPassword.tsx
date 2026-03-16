@@ -53,31 +53,33 @@ export default function ForgotPassword() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             {error && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm animate-fade-in" role="alert">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{error}</span>
               </div>
             )}
             
             {message && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/20 text-green-400 text-sm">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/20 text-green-400 text-sm animate-fade-in" role="status">
                 <CheckCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{message}</span>
               </div>
             )}
 
             <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">Correo institucional</label>
+              <label htmlFor="forgot-email" className="text-sm text-muted-foreground">Correo institucional</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <Input
+                  id="forgot-email"
                   type="email"
                   placeholder="nombre@usm.cl"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
+                  autoComplete="email"
                   required
                 />
               </div>

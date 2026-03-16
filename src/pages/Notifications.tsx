@@ -196,7 +196,7 @@ export default function Notifications() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in-up">
         <div>
           <h1 className="text-3xl font-bold text-white">Buzón</h1>
           <p className="text-muted-foreground mt-1">
@@ -211,13 +211,16 @@ export default function Notifications() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-space-600 pb-0">
+      <div className="flex gap-2 border-b border-space-600 pb-0" role="tablist" aria-label="Secciones del buzón">
         {tabs.map(tab => {
           const TabIcon = tab.icon
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-controls={`tabpanel-${tab.id}`}
               className={cn(
                 "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors",
                 activeTab === tab.id
@@ -239,7 +242,7 @@ export default function Notifications() {
 
       {/* Tab Content: Notifications */}
       {activeTab === 'notifications' && (
-        <div>
+        <div id="tabpanel-notifications" role="tabpanel" aria-label="Notificaciones">
           {filteredNotifications.length === 0 ? (
             <Card className="bg-space-700/50 border-space-600">
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -312,7 +315,7 @@ export default function Notifications() {
 
       {/* Tab Content: Messages */}
       {activeTab === 'messages' && (
-        <div className="space-y-4">
+        <div className="space-y-4" id="tabpanel-messages" role="tabpanel" aria-label="Mensajes">
           {/* Compose Button */}
           {!showCompose ? (
             <Button
@@ -332,15 +335,16 @@ export default function Notifications() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {messageSent ? (
-                  <div className="p-4 rounded-lg bg-green-500/20 text-green-300 text-sm flex items-center gap-2">
+                  <div className="p-4 rounded-lg bg-green-500/20 text-green-300 text-sm flex items-center gap-2 animate-fade-in" role="status">
                     <Check className="w-4 h-4" />
                     Mensaje enviado exitosamente.
                   </div>
                 ) : (
                   <>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-white">Destinatario</label>
+                      <label htmlFor="msg-recipient" className="text-sm font-medium text-white">Destinatario</label>
                       <select
+                        id="msg-recipient"
                         value={messageRecipient}
                         onChange={(e) => setMessageRecipient(e.target.value)}
                         title="Seleccionar destinatario"
@@ -355,8 +359,9 @@ export default function Notifications() {
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-white">Mensaje</label>
+                      <label htmlFor="msg-text" className="text-sm font-medium text-white">Mensaje</label>
                       <Textarea
+                        id="msg-text"
                         value={messageText}
                         onChange={(e) => setMessageText(e.target.value)}
                         placeholder="Escribe tu mensaje..."

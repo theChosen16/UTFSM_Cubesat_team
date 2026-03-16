@@ -19,7 +19,7 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-space-900">
+      <div className="min-h-screen bg-space-900" role="status" aria-label="Cargando aplicación">
         <Spinner className="min-h-screen" />
       </div>
     )

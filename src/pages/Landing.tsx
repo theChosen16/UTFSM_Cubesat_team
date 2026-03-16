@@ -101,8 +101,8 @@ export default function Landing() {
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-space-900/50 to-space-900" />
 
       {/* Hero Section */}
-      <header className="relative z-10">
-        <nav className="container mx-auto px-6 py-6">
+      <header className="relative z-10" role="banner">
+        <nav className="container mx-auto px-6 py-6" aria-label="Navegación principal">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-xl bg-cyan-500/20">
@@ -143,7 +143,7 @@ export default function Landing() {
             <div className="flex justify-center mb-8">
               <div className="relative">
                 <div className="absolute inset-0 rounded-full bg-cyan-500/20 blur-xl animate-pulse" />
-                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="relative w-28 h-28 drop-shadow-[0_0_25px_rgba(6,182,212,0.4)]" />
+                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="relative w-28 h-28 drop-shadow-[0_0_25px_rgba(6,182,212,0.4)]" loading="eager" fetchPriority="high" />
               </div>
             </div>
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-space-700 border border-space-600 mb-8">
@@ -181,9 +181,9 @@ export default function Landing() {
       </header>
 
       {/* Features Section */}
-      <section className="relative z-10 py-20 bg-space-800/50">
+      <section className="relative z-10 py-20 bg-space-800/50" aria-labelledby="teams-heading">
         <div className="container mx-auto px-6">
-          <h2 className="text-3xl md:text-4xl font-bold text-white text-center mb-16">
+          <h2 id="teams-heading" className="text-3xl md:text-4xl font-bold text-white text-center mb-16">
             Nuestros Equipos
           </h2>
           
@@ -225,9 +225,9 @@ export default function Landing() {
       </section>
 
       {/* History Timeline */}
-      <section className="relative z-10 py-20 bg-space-900/80">
+      <section className="relative z-10 py-20 bg-space-900/80" aria-labelledby="timeline-heading">
         <div className="container mx-auto px-6">
-          <h2 className="text-3xl md:text-4xl font-bold text-white text-center mb-4">
+          <h2 id="timeline-heading" className="text-3xl md:text-4xl font-bold text-white text-center mb-4">
             Nuestra Trayectoria
           </h2>
           <p className="text-muted-foreground text-center mb-16 max-w-2xl mx-auto">
@@ -283,18 +283,18 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="relative z-10 py-8 border-t border-space-700">
+      <footer className="relative z-10 py-8 border-t border-space-700" role="contentinfo">
         <div className="container mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="w-8 h-8" />
+              <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" className="w-8 h-8" aria-hidden="true" loading="lazy" />
               <span className="text-muted-foreground">USM Cubesat Team © {new Date().getFullYear()}</span>
             </div>
             <div className="flex items-center gap-6">
-              <a href="https://github.com/theChosen16/UTFSM_Cubesat_team" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-cyan-400 transition-colors">
+              <a href="https://github.com/theChosen16/UTFSM_Cubesat_team" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-cyan-400 transition-colors" aria-label="Repositorio en GitHub">
                 GitHub
               </a>
-              <a href="https://www.instagram.com/usm.cubesat.team/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-cyan-400 transition-colors">
+              <a href="https://www.instagram.com/usm.cubesat.team/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-cyan-400 transition-colors" aria-label="Perfil de Instagram">
                 Instagram
               </a>
             </div>

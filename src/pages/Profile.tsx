@@ -222,7 +222,7 @@ export default function Profile() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 animate-fade-in-up">
         {!isOwnProfile && (
           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white" onClick={() => navigate('/members')}>
             <ArrowLeft className="w-5 h-5" />
@@ -247,6 +247,7 @@ export default function Profile() {
                   <img 
                     src={profileUser.photoURL} 
                     alt={`${profileUser.nombre} ${profileUser.apellido}`}
+                    loading="lazy"
                     className="w-20 h-20 rounded-full object-cover"
                     onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden') }}
                   />
@@ -284,7 +285,7 @@ export default function Profile() {
                 </CardTitle>
                 <CardDescription className="text-base truncate">{profileUser?.email}</CardDescription>
                 {photoError && (
-                  <p className="text-sm text-red-400 mt-1">{photoError}</p>
+                  <p className="text-sm text-red-400 mt-1" role="alert">{photoError}</p>
                 )}
               </div>
             </div>
@@ -467,7 +468,7 @@ export default function Profile() {
           </div>
 
           {/* Info Grid */}
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid md:grid-cols-2 gap-4" role="region" aria-label="Información del perfil">
             <div className="flex items-center gap-3 p-4 rounded-lg bg-space-600/50">
               <Mail className="w-5 h-5 text-cyan-400" />
               <div className="flex-1">

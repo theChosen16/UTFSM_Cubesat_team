@@ -204,7 +204,7 @@ export default function TaskManagement() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in-up">
         <div>
           <h1 className="text-3xl font-bold text-white">Gestión de Tareas</h1>
           <p className="text-muted-foreground mt-1">
@@ -239,15 +239,16 @@ export default function TaskManagement() {
           </CardHeader>
           <CardContent className="space-y-4">
             {error && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm" role="alert">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{error}</span>
               </div>
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-white">Título *</label>
+              <label htmlFor="task-title" className="text-sm font-medium text-white">Título *</label>
               <Input
+                id="task-title"
                 value={titulo}
                 onChange={handleInputChange(setTitulo)}
                 placeholder="Nombre de la tarea"
@@ -256,8 +257,9 @@ export default function TaskManagement() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-white">Descripción</label>
+              <label htmlFor="task-description" className="text-sm font-medium text-white">Descripción</label>
               <Textarea
+                id="task-description"
                 value={descripcion}
                 onChange={handleInputChange(setDescripcion)}
                 placeholder="Describe la tarea en detalle..."
@@ -267,8 +269,9 @@ export default function TaskManagement() {
 
             <div className="grid md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-white">Proyecto</label>
+                <label htmlFor="task-project" className="text-sm font-medium text-white">Proyecto</label>
                 <select
+                  id="task-project"
                   value={projectId}
                   onChange={handleInputChange(setProjectId)}
                   title="Seleccionar proyecto"
@@ -282,8 +285,9 @@ export default function TaskManagement() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-white">Equipo encargado</label>
+                <label htmlFor="task-team" className="text-sm font-medium text-white">Equipo encargado</label>
                 <select
+                  id="task-team"
                   value={equipo}
                   onChange={(e) => setEquipo(e.target.value as TeamType | '')}
                   title="Seleccionar equipo"
@@ -297,8 +301,9 @@ export default function TaskManagement() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-white">Prioridad</label>
+                <label htmlFor="task-priority" className="text-sm font-medium text-white">Prioridad</label>
                 <select
+                  id="task-priority"
                   value={prioridad}
                   onChange={(e) => setPrioridad(e.target.value as 'alta' | 'media' | 'baja')}
                   title="Seleccionar prioridad"
@@ -373,7 +378,7 @@ export default function TaskManagement() {
           </Card>
         ) : (
           tasks.map(task => (
-            <Card key={task.id} className="bg-space-700/50 border-space-600">
+            <Card key={task.id} className="bg-space-700/50 border-space-600 hover:border-space-500 transition-all duration-200">
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row md:items-start gap-4">
                   <div className="flex-1 space-y-2">

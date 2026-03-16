@@ -225,7 +225,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in-up">
         <div>
           <h1 className="text-3xl font-bold text-white">
             ¡{greeting}, {displayName}!
@@ -250,18 +250,22 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((stat) => {
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" role="region" aria-label="Estadísticas del equipo" aria-live="polite">
+        {statCards.map((stat, index) => {
           const Icon = stat.icon
           return (
-            <Card key={stat.title} className="bg-space-700/50 border-space-600">
+            <Card key={stat.title} className="bg-space-700/50 border-space-600 hover:bg-space-700/70 transition-all duration-300" style={{ animationDelay: `${index * 75}ms` }}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-muted-foreground truncate">{stat.title}</p>
-                    <p className="text-3xl font-bold text-white mt-1">{stat.value}</p>
+                    {loadingStats ? (
+                      <div className="skeleton h-9 w-16 mt-1" aria-hidden="true" />
+                    ) : (
+                      <p className="text-3xl font-bold text-white mt-1 animate-fade-in">{stat.value}</p>
+                    )}
                   </div>
-                  <div className={`p-3 rounded-xl flex-shrink-0 ${stat.bg}`}>
+                  <div className={`p-3 rounded-xl flex-shrink-0 ${stat.bg} transition-transform duration-200 hover:scale-110`}>
                     <Icon className={`w-6 h-6 ${stat.color}`} />
                   </div>
                 </div>
@@ -292,7 +296,7 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {recentProjects.map(project => (
-                  <div key={project.id} className="p-4 rounded-lg bg-space-600/50 space-y-2">
+                  <div key={project.id} className="p-4 rounded-lg bg-space-600/50 space-y-2 hover:bg-space-600/70 transition-colors duration-200">
                     <div className="flex items-center justify-between gap-2">
                       <h3 className="text-sm font-semibold text-white truncate">{project.nombre}</h3>
                       <Badge variant={getStatusVariant(project.estado)}>{getStatusLabel(project.estado)}</Badge>
@@ -376,7 +380,7 @@ export default function Dashboard() {
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {recentTasks.map(task => (
-                <div key={task.id} className="p-4 rounded-lg bg-space-600/50 space-y-2">
+                <div key={task.id} className="p-4 rounded-lg bg-space-600/50 space-y-2 hover:bg-space-600/70 transition-colors duration-200">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold text-white truncate">{task.titulo}</h3>
                     <Badge variant={getStatusVariant(task.estado)}>{getStatusLabel(task.estado)}</Badge>

@@ -75,6 +75,9 @@ export default {
         'float': 'float 6s ease-in-out infinite',
         'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'twinkle': 'twinkle 3s ease-in-out infinite',
+        'fade-in': 'fade-in 0.3s ease-out',
+        'fade-in-up': 'fade-in-up 0.4s ease-out',
+        'slide-in-right': 'slide-in-right 0.3s ease-out',
       },
       keyframes: {
         float: {
@@ -84,6 +87,18 @@ export default {
         twinkle: {
           '0%, 100%': { opacity: 1 },
           '50%': { opacity: 0.5 },
+        },
+        'fade-in': {
+          from: { opacity: 0 },
+          to: { opacity: 1 },
+        },
+        'fade-in-up': {
+          from: { opacity: 0, transform: 'translateY(8px)' },
+          to: { opacity: 1, transform: 'translateY(0)' },
+        },
+        'slide-in-right': {
+          from: { opacity: 0, transform: 'translateX(-8px)' },
+          to: { opacity: 1, transform: 'translateX(0)' },
         },
       },
     },

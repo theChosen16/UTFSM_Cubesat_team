@@ -100,11 +100,12 @@ export default function Login() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             {error && (
               <div
                 role="alert"
-                className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
+                id="login-error"
+                className={`flex items-start gap-2 p-3 rounded-lg text-sm animate-fade-in ${
                   blockerWarning
                     ? 'bg-yellow-500/20 text-yellow-300'
                     : 'bg-red-500/20 text-red-400'
@@ -120,35 +121,40 @@ export default function Login() {
             )}
             
             <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">Correo electrónico</label>
+              <label htmlFor="login-email" className="text-sm text-muted-foreground">Correo electrónico</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <Input
+                  id="login-email"
                   type="email"
                   placeholder="nombre@usm.cl"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
+                  autoComplete="email"
                   required
+                  aria-describedby={error ? 'login-error' : undefined}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm text-muted-foreground">Contraseña</label>
+                <label htmlFor="login-password" className="text-sm text-muted-foreground">Contraseña</label>
                 <Link to="/forgot-password" title="sm" className="text-xs text-cyan-400 hover:underline">
                   ¿Olvidaste tu contraseña?
                 </Link>
               </div>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <Input
+                  id="login-password"
                   type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
+                  autoComplete="current-password"
                   required
                 />
               </div>

@@ -99,9 +99,9 @@ export default function Register() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             {error && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm animate-fade-in" role="alert" id="register-error">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{error}</span>
               </div>
@@ -109,43 +109,50 @@ export default function Register() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Nombre</label>
+                <label htmlFor="reg-nombre" className="text-sm text-muted-foreground">Nombre</label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <Input
+                    id="reg-nombre"
                     type="text"
                     placeholder="Juan"
                     value={nombre}
                     onChange={(e) => setNombre(e.target.value)}
                     className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
+                    autoComplete="given-name"
                     required
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Apellido</label>
+                <label htmlFor="reg-apellido" className="text-sm text-muted-foreground">Apellido</label>
                 <Input
+                  id="reg-apellido"
                   type="text"
                   placeholder="Pérez"
                   value={apellido}
                   onChange={(e) => setApellido(e.target.value)}
                   className="bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
+                  autoComplete="family-name"
                   required
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">Correo institucional</label>
+              <label htmlFor="reg-email" className="text-sm text-muted-foreground">Correo institucional</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <Input
+                  id="reg-email"
                   type="email"
                   placeholder="nombre@usm.cl"
                   value={email}
                   onChange={(e) => handleEmailChange(e.target.value)}
                   className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
+                  autoComplete="email"
                   required
+                  aria-describedby={error ? 'register-error' : undefined}
                 />
               </div>
               {validateEmail(email) && (
@@ -157,30 +164,34 @@ export default function Register() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">Contraseña</label>
+              <label htmlFor="reg-password" className="text-sm text-muted-foreground">Contraseña</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <Input
+                  id="reg-password"
                   type="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
+                  autoComplete="new-password"
                   required
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">Confirmar contraseña</label>
+              <label htmlFor="reg-confirm-password" className="text-sm text-muted-foreground">Confirmar contraseña</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <Input
+                  id="reg-confirm-password"
                   type="password"
                   placeholder="••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
+                  autoComplete="new-password"
                   required
                 />
               </div>

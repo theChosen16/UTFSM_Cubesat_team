@@ -127,7 +127,7 @@ export default function Members() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in-up">
         <div>
           <h1 className="text-3xl font-bold text-white">Miembros del Equipo</h1>
           <p className="text-muted-foreground mt-1">
@@ -144,13 +144,14 @@ export default function Members() {
 
       {/* Search */}
       <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
         <input
-          type="text"
+          type="search"
           placeholder="Buscar miembros..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 rounded-lg bg-space-700 border border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500 focus:outline-none"
+          aria-label="Buscar miembros por nombre o correo"
+          className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-space-700 border border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500 focus:outline-none transition-all duration-200 focus:ring-2 focus:ring-cyan-500/20"
         />
       </div>
 
@@ -167,7 +168,8 @@ export default function Members() {
             {/* Team section header */}
             <button
               onClick={() => toggleTeam(team.key)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${team.bgColor} border ${team.borderColor} hover:brightness-110 transition-all`}
+              aria-expanded={!isCollapsed}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${team.bgColor} border ${team.borderColor} hover:brightness-110 transition-all duration-200`}
             >
               <div className={`p-2 rounded-lg ${team.bgColor}`}>
                 <TeamIcon className={`w-5 h-5 ${team.color}`} />
@@ -184,13 +186,13 @@ export default function Members() {
 
             {/* Team member cards */}
             {!isCollapsed && (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" role="list" aria-label={`Miembros de ${team.label}`}>
                 {teamMembers.map((member) => {
                   const isCurrentUser = user?.id === member.id
                   const isMaster = hasRole(user, 'maestro')
 
                   return (
-                    <Card key={member.id} className="bg-space-700/50 border-space-600">
+                    <Card key={member.id} className="bg-space-700/50 border-space-600 hover:border-cyan-500/30 transition-all duration-200">
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-4">
@@ -198,6 +200,7 @@ export default function Members() {
                               <img 
                                 src={member.photoURL} 
                                 alt={`${member.nombre} ${member.apellido}`}
+                                loading="lazy"
                                 className="w-12 h-12 rounded-full object-cover"
                                 onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden') }}
                               />
