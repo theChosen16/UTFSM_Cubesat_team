@@ -11,7 +11,6 @@ import {
   Search, 
   Rocket, 
   Calendar,
-  MoreHorizontal,
   Filter,
   X,
   AlertCircle
