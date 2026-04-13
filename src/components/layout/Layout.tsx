@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn, extractNameFromEmail } from '@/lib/utils'
-import { ROLE_LABELS, TEAM_LABELS, hasAnyRole, hasRole, hasTeam } from '@/types'
+import { ROLE_LABELS, TEAM_LABELS, hasRole } from '@/types'
 import { Badge } from '@/components/ui/badge'
 
 interface LayoutProps {
@@ -38,9 +38,7 @@ export default function Layout({ children }: LayoutProps) {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, restricted: false },
     { path: '/projects', label: 'Proyectos', icon: FolderKanban, restricted: false },
-    ...(hasAnyRole(user, 'maestro', 'admin') || hasTeam(user, 'manager') ? [
-      { path: '/tasks', label: 'Gestión de Tareas', icon: ListTodo, restricted: true },
-    ] : []),
+    { path: '/tasks', label: 'Gestión de Tareas', icon: ListTodo, restricted: false },
     { path: '/members', label: 'Miembros', icon: Users, restricted: false },
     { path: '/notifications', label: 'Buzón', icon: Bell, restricted: false },
     { path: '/profile', label: 'Mi Perfil', icon: User, restricted: false },

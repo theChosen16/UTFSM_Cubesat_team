@@ -201,6 +201,63 @@ export default function TaskManagement() {
     return <Spinner />
   }
 
+  const teamTasks = tasks.filter(t => !t.projectId)
+  const projectTasks = tasks.filter(t => t.projectId)
+
+  const renderTaskCard = (task: Task) => {
+    const isAssigned = user && task.asignadoA.includes(user.id)
+    const canChangeStatus = canManageTasks || isAssigned
+
+    return (
+      <Card key={task.id} className="bg-space-700/50 border-space-600 hover:border-space-500 transition-all duration-200">
+        <CardContent className="p-6">
+          <div className="flex flex-col md:flex-row md:items-start gap-4">
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-3 flex-wrap min-w-0">
+                <h3 className="text-lg font-semibold text-white truncate max-w-full sm:max-w-none">{task.titulo}</h3>
+                <Badge variant={getStatusBadge(task.estado) as 'orange' | 'cyan' | 'green'}>
+                  {getStatusLabel(task.estado)}
+                </Badge>
+                <div className="flex items-center gap-1">
+                  {getPriorityIcon(task.prioridad)}
+                  <span className="text-xs text-muted-foreground capitalize">{task.prioridad}</span>
+                </div>
+              </div>
+              {task.descripcion && (
+                <p className="text-sm text-muted-foreground">{task.descripcion}</p>
+              )}
+              <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                {task.projectId && (
+                  <span>Proyecto: <span className="text-white">{getProjectName(task.projectId)}</span></span>
+                )}
+                {task.equipo && (
+                  <span>Equipo: <span className="text-white">{TEAM_LABELS[task.equipo] || task.equipo}</span></span>
+                )}
+                {task.asignadoA.length > 0 && (
+                  <span>Responsable(s): <span className="text-white">{task.asignadoA.map(getMemberName).join(', ')}</span></span>
+                )}
+              </div>
+            </div>
+            {canChangeStatus && (
+              <div className="flex-shrink-0">
+                <select
+                  value={task.estado}
+                  onChange={(e) => handleStatusChange(task.id, e.target.value as Task['estado'])}
+                  title="Cambiar estado de la tarea"
+                  className="px-3 py-2 rounded-lg bg-space-600 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                >
+                  <option value="pendiente">Pendiente</option>
+                  <option value="en_progreso">En Progreso</option>
+                  <option value="completado">Completado</option>
+                </select>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -363,7 +420,7 @@ export default function TaskManagement() {
       )}
 
       {/* Tasks List */}
-      <div className="grid gap-4">
+      <div className="space-y-8">
         {tasks.length === 0 ? (
           <Card className="bg-space-700/50 border-space-600">
             <CardContent className="flex flex-col items-center justify-center py-12 text-center">
@@ -377,54 +434,31 @@ export default function TaskManagement() {
             </CardContent>
           </Card>
         ) : (
-          tasks.map(task => (
-            <Card key={task.id} className="bg-space-700/50 border-space-600 hover:border-space-500 transition-all duration-200">
-              <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row md:items-start gap-4">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-3 flex-wrap min-w-0">
-                      <h3 className="text-lg font-semibold text-white truncate max-w-full sm:max-w-none">{task.titulo}</h3>
-                      <Badge variant={getStatusBadge(task.estado) as 'orange' | 'cyan' | 'green'}>
-                        {getStatusLabel(task.estado)}
-                      </Badge>
-                      <div className="flex items-center gap-1">
-                        {getPriorityIcon(task.prioridad)}
-                        <span className="text-xs text-muted-foreground capitalize">{task.prioridad}</span>
-                      </div>
-                    </div>
-                    {task.descripcion && (
-                      <p className="text-sm text-muted-foreground">{task.descripcion}</p>
-                    )}
-                    <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                      {task.projectId && (
-                        <span>Proyecto: <span className="text-white">{getProjectName(task.projectId)}</span></span>
-                      )}
-                      {task.equipo && (
-                        <span>Equipo: <span className="text-white">{TEAM_LABELS[task.equipo] || task.equipo}</span></span>
-                      )}
-                      {task.asignadoA.length > 0 && (
-                        <span>Responsable(s): <span className="text-white">{task.asignadoA.map(getMemberName).join(', ')}</span></span>
-                      )}
-                    </div>
-                  </div>
-                  {canManageTasks && (
-                    <div className="flex-shrink-0">
-                      <select
-                        value={task.estado}
-                        onChange={(e) => handleStatusChange(task.id, e.target.value as Task['estado'])}
-                        title="Cambiar estado de la tarea"
-                        className="px-3 py-2 rounded-lg bg-space-600 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
-                      >
-                        <option value="pendiente">Pendiente</option>
-                        <option value="en_progreso">En Progreso</option>
-                        <option value="completado">Completado</option>
-                      </select>
-                    </div>
-                  )}
+          <>
+            {teamTasks.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-cyan-400" />
+                  Actividades Puntuales del Equipo
+                </h2>
+                <div className="grid gap-4">
+                  {teamTasks.map(renderTaskCard)}
                 </div>
-              </CardContent>
-            </Card>
-          ))
+              </div>
+            )}
+
+            {projectTasks.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <ListTodo className="w-5 h-5 text-purple-400" />
+                  Tareas de Proyectos
+                </h2>
+                <div className="grid gap-4">
+                  {projectTasks.map(renderTaskCard)}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

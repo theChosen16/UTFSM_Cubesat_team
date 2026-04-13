@@ -13,13 +13,14 @@ import {
   Calendar,
   Filter,
   X,
-  AlertCircle
+  AlertCircle,
+  ListTodo
 } from 'lucide-react'
 import { collection, getDocs, addDoc, Timestamp, doc, setDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
 import { COLLECTIONS } from '@/lib/constants'
-import { hasAnyRole, hasTeam } from '@/types'
+import { hasAnyRole, hasTeam, Task } from '@/types'
 
 interface ProjectData {
   id: string
@@ -30,6 +31,7 @@ interface ProjectData {
   team: string
   deadline: string
   progress: number
+  tasks: Task[]
 }
 
 export default function Projects() {
@@ -56,7 +58,17 @@ export default function Projects() {
 
   const loadProjects = async () => {
       try {
-        const projectsSnapshot = await getDocs(collection(db, COLLECTIONS.PROJECTS))
+        const [projectsSnapshot, tasksSnapshot] = await Promise.all([
+          getDocs(collection(db, COLLECTIONS.PROJECTS)),
+          getDocs(collection(db, COLLECTIONS.TASKS))
+        ])
+
+        const allTasks = tasksSnapshot.docs.map(tDoc => ({
+          id: tDoc.id,
+          ...tDoc.data(),
+          createdAt: tDoc.data().createdAt?.toDate?.() || new Date(),
+        } as Task))
+
         const loadedProjects = projectsSnapshot.docs.map(doc => ({
           id: doc.id,
           name: doc.data().nombre || doc.data().name || '',
@@ -66,6 +78,7 @@ export default function Projects() {
           team: doc.data().team || 'tecnico',
           deadline: doc.data().fechaLimite || doc.data().deadline || '',
           progress: doc.data().progress || 0,
+          tasks: allTasks.filter(t => t.projectId === doc.id)
         }))
         setProjects(loadedProjects)
       } catch (error) {
@@ -395,6 +408,26 @@ export default function Projects() {
                 <Calendar className="w-4 h-4" />
                 <span>Fecha límite: {project.deadline}</span>
               </div>
+
+              {/* Associated Tasks */}
+              {project.tasks && project.tasks.length > 0 && (
+                <div className="pt-4 border-t border-space-600/50 mt-4">
+                  <h4 className="text-sm font-medium text-white mb-2 flex items-center gap-2">
+                    <ListTodo className="w-4 h-4 text-purple-400" />
+                    Tareas {project.tasks.filter(t => t.estado === 'completado').length}/{project.tasks.length}
+                  </h4>
+                  <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                    {project.tasks.map(t => (
+                      <div key={t.id} className="flex items-center justify-between text-xs p-2 rounded bg-space-800/50 border border-space-600/30">
+                        <span className="text-white truncate flex-1 mr-2" title={t.titulo}>{t.titulo}</span>
+                        <span className={`capitalize flex-shrink-0 ${t.estado === 'completado' ? 'text-green-400' : t.estado === 'en_progreso' ? 'text-cyan-400' : 'text-orange-400'}`}>
+                          {t.estado.replace('_', ' ')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
