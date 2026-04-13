@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent } from 'react'
+import { useState, useEffect, ChangeEvent, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -39,8 +39,9 @@ export default function Projects() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
+   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const descriptionRef = useRef<HTMLTextAreaElement>(null)
 
   // Form state
   const [nombre, setNombre] = useState('')
@@ -127,6 +128,21 @@ export default function Projects() {
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
+  const adjustTextareaHeight = () => {
+    if (descriptionRef.current) {
+      descriptionRef.current.style.height = 'auto'
+      descriptionRef.current.style.height = `${descriptionRef.current.scrollHeight}px`
+    }
+  }
+
+  useEffect(() => {
+    if (showForm) {
+      // Small timeout to ensure the DOM is ready if it just appeared
+      const timer = setTimeout(adjustTextareaHeight, 10)
+      return () => clearTimeout(timer)
+    }
+  }, [showForm, descripcion])
 
   const handleSaveProject = async () => {
     if (!nombre.trim() || !user) return
@@ -233,12 +249,13 @@ export default function Projects() {
 
             <div className="space-y-2">
               <label htmlFor="project-description" className="text-sm font-medium text-white">Descripción</label>
-              <Textarea
+               <Textarea
                 id="project-description"
+                ref={descriptionRef}
                 value={descripcion}
                 onChange={handleInputChange(setDescripcion)}
                 placeholder="Describe el proyecto en detalle..."
-                className="bg-space-700 border-space-500 text-white min-h-[80px]"
+                className="bg-space-700 border-space-500 text-white min-h-[120px] overflow-hidden transition-all duration-200 focus:border-cyan-500/50"
               />
             </div>
 
