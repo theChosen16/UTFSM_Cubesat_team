@@ -16,9 +16,13 @@ import {
   ChevronDown,
   ChevronRight
 } from 'lucide-react'
-import { User as UserType, ROLE_LABELS, UserRole, TeamType, TEAM_LABELS, hasRole, hasAnyRole } from '@/types'
+import { User as UserType, ROLE_LABELS, UserRole, TeamType, TEAM_LABELS, hasRole, hasAnyRole, Task } from '@/types'
 import { logger } from '@/lib/logger'
 import { extractNameFromEmail, getRoleIcon } from '@/lib/utils'
+import { collection, getDocs } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
+import { COLLECTIONS } from '@/lib/constants'
+import { Trophy } from 'lucide-react'
 
 const TEAM_CONFIG: { key: TeamType | 'none'; label: string; icon: typeof Users; color: string; bgColor: string; borderColor: string }[] = [
   { key: 'tecnico', label: 'Equipo Técnico', icon: Cpu, color: 'text-purple-400', bgColor: 'bg-purple-500/20', borderColor: 'border-purple-500/30' },
@@ -30,15 +34,26 @@ const TEAM_CONFIG: { key: TeamType | 'none'; label: string; icon: typeof Users; 
 export default function Members() {
   const { user, getAllUsers, updateUserRole, updateUserTeams } = useAuth()
   const [members, setMembers] = useState<UserType[]>([])
+  const [allTasks, setAllTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
   const loadMembers = useCallback(async () => {
     try {
-      const users = await getAllUsers()
+      const [users, tasksSnapshot] = await Promise.all([
+        getAllUsers(),
+        getDocs(collection(db, COLLECTIONS.TASKS))
+      ])
+
+      const loadedTasks = tasksSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Task[]
+
       setMembers(users)
+      setAllTasks(loadedTasks)
     } catch (error) {
-      logger.error('Error loading members', { error: error instanceof Error ? error : undefined })
+      logger.error('Error loading members or tasks', { error: error instanceof Error ? error : undefined })
     } finally {
       setLoading(false)
     }
@@ -111,6 +126,13 @@ export default function Members() {
       else next.add(teamKey)
       return next
     })
+  }
+
+  const getMemberRankInfo = (completedCount: number) => {
+    if (completedCount === 0) return { label: 'Recluta', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30' }
+    if (completedCount <= 4) return { label: 'Agente', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' }
+    if (completedCount <= 9) return { label: 'Veterano', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' }
+    return { label: 'Élite', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' }
   }
 
   const groupedMembers = TEAM_CONFIG.reduce<Record<string, UserType[]>>((acc, team) => {
@@ -229,6 +251,32 @@ export default function Members() {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-4">
+                        {/* Member Stats and Rank */}
+                        {(() => {
+                          const completedCount = allTasks.filter(t => t.estado === 'completado' && t.asignadoA?.includes(member.id)).length
+                          const pendingCount = allTasks.filter(t => t.estado !== 'completado' && t.asignadoA?.includes(member.id)).length
+                          const rank = getMemberRankInfo(completedCount)
+
+                          return (
+                            <div className="flex flex-col gap-2">
+                              <div className={`w-fit px-3 py-1 rounded-full border flex items-center gap-2 text-xs font-semibold ${rank.color}`}>
+                                <Trophy className="w-3.5 h-3.5" />
+                                <span>Rango: {rank.label}</span>
+                              </div>
+                              <div className="flex gap-4 text-xs">
+                                <div className="text-muted-foreground flex items-center gap-1">
+                                  <span>✅</span>
+                                  <span className="text-white font-medium">{completedCount}</span> términadas
+                                </div>
+                                <div className="text-muted-foreground flex items-center gap-1">
+                                  <span>⏳</span>
+                                  <span className="text-white font-medium">{pendingCount}</span> pendientes
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })()}
+
                         {/* Show role badge */}
                         {member.rol && (() => {
                           const RoleIcon = getRoleIcon(member.rol)

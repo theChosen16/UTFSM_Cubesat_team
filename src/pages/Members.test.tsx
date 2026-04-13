@@ -8,6 +8,7 @@ import { User as UserType } from '@/types'
 const mockGetAllUsers = vi.fn()
 const mockUpdateUserRole = vi.fn()
 const mockUpdateUserTeams = vi.fn()
+const mockGetDocs = vi.fn()
 
 const mockCurrentUser: Partial<UserType> = {
   id: 'user1',
@@ -35,6 +36,16 @@ vi.mock('@/lib/firebase', () => ({
   db: {},
   analytics: null,
 }))
+
+vi.mock('firebase/firestore', () => ({
+  getFirestore: vi.fn(() => ({})),
+  collection: vi.fn(),
+  getDocs: (...args: unknown[]) => mockGetDocs(...args),
+}))
+
+function emptySnapshot() {
+  return { docs: [] }
+}
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -84,6 +95,7 @@ describe('Members', () => {
     vi.clearAllMocks()
     currentMockUser = mockCurrentUser
     mockGetAllUsers.mockResolvedValue(sampleMembers)
+    mockGetDocs.mockResolvedValue(emptySnapshot())
   })
 
   it('renders the members page header', async () => {
@@ -321,6 +333,7 @@ describe('Members', () => {
 
   it('shows loading spinner initially', () => {
     mockGetAllUsers.mockReturnValue(new Promise(() => {})) // never resolves
+    mockGetDocs.mockReturnValue(new Promise(() => {}))
     renderMembers()
 
     expect(document.querySelector('.animate-spin')).toBeInTheDocument()
