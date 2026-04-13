@@ -16,7 +16,7 @@ import {
   X,
   AlertCircle
 } from 'lucide-react'
-import { collection, getDocs, addDoc, Timestamp } from 'firebase/firestore'
+import { collection, getDocs, addDoc, Timestamp, doc, setDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
 import { COLLECTIONS } from '@/lib/constants'
@@ -40,6 +40,7 @@ export default function Projects() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   // Form state
@@ -102,6 +103,7 @@ export default function Projects() {
   }
 
   const canCreateProject = hasAnyRole(user, 'maestro', 'admin') || hasTeam(user, 'manager')
+  const canEditProject = canCreateProject // Both roles can edit
 
   const resetForm = () => {
     setNombre('')
@@ -110,30 +112,57 @@ export default function Projects() {
     setPrioridadForm('media')
     setFechaLimite('')
     setShowForm(false)
+    setEditingProjectId(null)
     setError('')
   }
 
-  const handleCreateProject = async () => {
+  const openEditForm = (project: ProjectData) => {
+    setNombre(project.name)
+    setDescripcion(project.description)
+    setEstado(project.status as any)
+    setPrioridadForm(project.priority as any)
+    setFechaLimite(project.deadline)
+    setEditingProjectId(project.id)
+    setShowForm(true)
+    setError('')
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleSaveProject = async () => {
     if (!nombre.trim() || !user) return
     setSaving(true)
     setError('')
     try {
-      await addDoc(collection(db, COLLECTIONS.PROJECTS), {
-        nombre: nombre.trim(),
-        descripcion: descripcion.trim(),
-        estado,
-        prioridad: prioridadForm,
-        fechaLimite,
-        creadoPor: user.id,
-        asignadoA: [],
-        progress: 0,
-        createdAt: Timestamp.now(),
-      })
+      if (editingProjectId) {
+        // Edit existing logic
+        await setDoc(doc(db, COLLECTIONS.PROJECTS, editingProjectId), {
+          nombre: nombre.trim(),
+          descripcion: descripcion.trim(),
+          estado,
+          prioridad: prioridadForm,
+          fechaLimite,
+          updatedAt: Timestamp.now(),
+        }, { merge: true })
+      } else {
+        // Create new logic
+        await addDoc(collection(db, COLLECTIONS.PROJECTS), {
+          nombre: nombre.trim(),
+          descripcion: descripcion.trim(),
+          estado,
+          prioridad: prioridadForm,
+          fechaLimite,
+          creadoPor: user.id,
+          asignadoA: [],
+          progress: 0,
+          createdAt: Timestamp.now(),
+        })
+      }
       resetForm()
       await loadProjects()
     } catch (err) {
-      logger.error('Error creating project', { error: err })
-      setError('Error al crear el proyecto. Verifica tus permisos e intenta de nuevo.')
+      logger.error('Error saving project', { error: err })
+      setError('Error al guardar el proyecto. Verifica tus permisos e intenta de nuevo.')
     } finally {
       setSaving(false)
     }
@@ -169,20 +198,20 @@ export default function Projects() {
         )}
       </div>
 
-      {/* Create Project Form */}
-      {showForm && canCreateProject && (
+      {/* Create / Edit Project Form */}
+      {showForm && (canCreateProject || canEditProject) && (
         <Card className="bg-space-700/50 border-space-600">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-white flex items-center gap-2">
                 <Rocket className="w-5 h-5 text-cyan-400" />
-                Nuevo Proyecto
+                {editingProjectId ? 'Editar Proyecto' : 'Nuevo Proyecto'}
               </CardTitle>
               <Button variant="ghost" size="icon" onClick={resetForm} className="text-muted-foreground hover:text-white">
                 <X className="w-4 h-4" />
               </Button>
             </div>
-            <CardDescription>Completa los campos para crear un nuevo proyecto</CardDescription>
+            <CardDescription>{editingProjectId ? 'Modifica los detalles del proyecto' : 'Completa los campos para crear un nuevo proyecto'}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {error && (
@@ -266,11 +295,11 @@ export default function Projects() {
                 Cancelar
               </Button>
               <Button
-                onClick={handleCreateProject}
+                onClick={handleSaveProject}
                 disabled={!nombre.trim() || saving}
                 className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
               >
-                {saving ? 'Creando...' : 'Crear Proyecto'}
+                {saving ? 'Guardando...' : (editingProjectId ? 'Guardar Cambios' : 'Crear Proyecto')}
               </Button>
             </div>
           </CardContent>
@@ -306,9 +335,16 @@ export default function Projects() {
                 <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
                   <Rocket className="w-5 h-5 text-cyan-400" />
                 </div>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-white">
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
+                {canEditProject && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => openEditForm(project)}
+                    className="text-muted-foreground hover:text-cyan-400"
+                  >
+                    Editar
+                  </Button>
+                )}
               </div>
               <CardTitle className="text-lg text-white mt-3">{project.name}</CardTitle>
               <CardDescription className="line-clamp-2">{project.description}</CardDescription>
