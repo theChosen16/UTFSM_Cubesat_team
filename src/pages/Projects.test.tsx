@@ -356,7 +356,7 @@ describe('Projects', () => {
     await user.click(screen.getByRole('button', { name: /crear proyecto/i }))
 
     await waitFor(() => {
-      expect(screen.getByText('Error al crear el proyecto. Verifica tus permisos e intenta de nuevo.')).toBeInTheDocument()
+      expect(screen.getByText('Error al guardar el proyecto. Verifica tus permisos e intenta de nuevo.')).toBeInTheDocument()
     })
   })
 
