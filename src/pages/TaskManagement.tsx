@@ -43,6 +43,11 @@ export default function TaskManagement() {
   const [equipo, setEquipo] = useState<TeamType | ''>('')
   const [asignadoA, setAsignadoA] = useState<string[]>([])
   const [prioridad, setPrioridad] = useState<'alta' | 'media' | 'baja'>('media')
+  const [puntajeImportancia, setPuntajeImportancia] = useState<number>(5)
+
+  const [editingTimeTaskId, setEditingTimeTaskId] = useState<string | null>(null)
+  const [fechaInicioForm, setFechaInicioForm] = useState('')
+  const [fechaFinForm, setFechaFinForm] = useState('')
 
   const canManageTasks = hasAnyRole(user, 'maestro', 'admin') || hasTeam(user, 'manager')
 
@@ -74,6 +79,10 @@ export default function TaskManagement() {
           equipo: data.equipo || 'software',
           prioridad: data.prioridad || 'media',
           creadoPor: data.creadoPor || '',
+          puntajeImportancia: data.puntajeImportancia || 0,
+          fechaInicioReal: data.fechaInicioReal || undefined,
+          fechaFinReal: data.fechaFinReal || undefined,
+          tiempoInvertido: data.tiempoInvertido || undefined,
           createdAt: data.createdAt?.toDate?.() || new Date(),
         } as Task
       }))
@@ -110,6 +119,7 @@ export default function TaskManagement() {
     setEquipo('')
     setAsignadoA([])
     setPrioridad('media')
+    setPuntajeImportancia(5)
     setShowForm(false)
     setError('')
   }
@@ -126,6 +136,7 @@ export default function TaskManagement() {
         equipo,
         asignadoA,
         prioridad,
+        puntajeImportancia,
         estado: 'pendiente',
         creadoPor: user.id,
         createdAt: Timestamp.now(),
@@ -148,6 +159,39 @@ export default function TaskManagement() {
       logger.error('Error updating task status', { error: err })
       setError('Error al actualizar el estado de la tarea.')
     }
+  }
+
+  const calculateDaysInvertidos = (inicio: string, fin: string) => {
+    if (!inicio || !fin) return ''
+    const dateInicio = new Date(inicio)
+    const dateFin = new Date(fin)
+    const diff = dateFin.getTime() - dateInicio.getTime()
+    if (diff < 0) return 'Fechas inválidas'
+    const diffDays = Math.ceil(diff / (1000 * 3600 * 24))
+    if (diffDays === 0) return 'Menos de 1 día'
+    return `${diffDays} día${diffDays > 1 ? 's' : ''}`
+  }
+
+  const handleSaveTime = async (taskId: string) => {
+    try {
+      const dbTiempo = calculateDaysInvertidos(fechaInicioForm, fechaFinForm)
+      await updateDoc(doc(db, COLLECTIONS.TASKS, taskId), { 
+        fechaInicioReal: fechaInicioForm, 
+        fechaFinReal: fechaFinForm,
+        tiempoInvertido: dbTiempo
+      })
+      setEditingTimeTaskId(null)
+      await loadData()
+    } catch (err) {
+      logger.error('Error saving time', { error: err })
+      setError('Error al registrar tiempos.')
+    }
+  }
+
+  const openTimeTracker = (task: Task) => {
+    setEditingTimeTaskId(task.id)
+    setFechaInicioForm(task.fechaInicioReal || '')
+    setFechaFinForm(task.fechaFinReal || '')
   }
 
   const toggleMember = (memberId: string) => {
@@ -236,10 +280,16 @@ export default function TaskManagement() {
                 {task.asignadoA.length > 0 && (
                   <span>Responsable(s): <span className="text-white">{task.asignadoA.map(getMemberName).join(', ')}</span></span>
                 )}
+                {task.puntajeImportancia !== undefined && task.puntajeImportancia > 0 && (
+                  <span className="flex items-center gap-1 text-orange-400">★ Pto: <span className="text-white">{task.puntajeImportancia}/10</span></span>
+                )}
+                {task.tiempoInvertido && (
+                  <span className="flex items-center gap-1 text-cyan-400 whitespace-nowrap"><Clock className="w-3 h-3" /> Tiempo: <span className="text-white">{task.tiempoInvertido}</span></span>
+                )}
               </div>
             </div>
             {canChangeStatus && (
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 flex flex-col items-end gap-2">
                 <select
                   value={task.estado}
                   onChange={(e) => handleStatusChange(task.id, e.target.value as Task['estado'])}
@@ -250,9 +300,35 @@ export default function TaskManagement() {
                   <option value="en_progreso">En Progreso</option>
                   <option value="completado">Completado</option>
                 </select>
+                {isAssigned && editingTimeTaskId !== task.id && (
+                  <Button variant="ghost" size="sm" onClick={() => openTimeTracker(task)} className="text-xs text-cyan-400 hover:text-cyan-300 p-0 h-auto">
+                    + Reg. Tiempos
+                  </Button>
+                )}
               </div>
             )}
           </div>
+
+          {/* Time Tracking Inline Form */}
+          {editingTimeTaskId === task.id && (
+            <div className="mt-4 p-4 rounded-lg bg-space-800/80 border border-space-600 space-y-3 animate-fade-in-up">
+              <h4 className="text-sm font-medium text-white flex items-center gap-2"><Clock className="w-4 h-4 text-cyan-400" /> Registrar Calendario Real</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-slate-300">Inicio Real</label>
+                  <Input type="datetime-local" value={fechaInicioForm} onChange={handleInputChange(setFechaInicioForm)} className="bg-space-700 text-xs h-9 border-space-500 text-white" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs text-slate-300">Término Real</label>
+                  <Input type="datetime-local" value={fechaFinForm} onChange={handleInputChange(setFechaFinForm)} className="bg-space-700 text-xs h-9 border-space-500 text-white" />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end pt-1">
+                <Button variant="ghost" size="sm" onClick={() => setEditingTimeTaskId(null)} className="h-8 text-xs text-slate-300 hover:text-white hover:bg-space-600">Cancelar</Button>
+                <Button size="sm" onClick={() => handleSaveTime(task.id)} className="h-8 text-xs bg-cyan-500 hover:bg-cyan-600 text-space-900 font-medium">Guardar Tiempos</Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     )
@@ -371,6 +447,25 @@ export default function TaskManagement() {
                   <option value="baja">Baja</option>
                 </select>
               </div>
+
+              {canManageTasks && (
+                <div className="space-y-2 md:col-span-3">
+                  <label htmlFor="task-points" className="text-sm font-medium text-white flex justify-between items-center mb-1">
+                    <span>Puntaje de Importancia</span>
+                    <span className="text-cyan-400 font-bold bg-cyan-500/10 px-2 py-0.5 rounded text-xs">{puntajeImportancia}/10</span>
+                  </label>
+                  <input
+                    id="task-points"
+                    type="range"
+                    min="1"
+                    max="10"
+                    value={puntajeImportancia}
+                    onChange={(e) => setPuntajeImportancia(parseInt(e.target.value))}
+                    className="w-full accent-cyan-500 hover:accent-cyan-400 cursor-pointer"
+                  />
+                  <p className="text-xs text-slate-400">Escala de valor de esta tarea (Asignable solo por Administradores/Managers)</p>
+                </div>
+              )}
             </div>
 
             {/* Member Assignment */}

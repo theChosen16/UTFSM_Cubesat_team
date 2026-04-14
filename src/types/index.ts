@@ -120,6 +120,10 @@ export interface Task {
   equipo: TeamType
   prioridad: 'alta' | 'media' | 'baja'
   creadoPor: string
+  puntajeImportancia?: number
+  fechaInicioReal?: string  // ISO date string
+  fechaFinReal?: string     // ISO date string
+  tiempoInvertido?: string  // Human readable string like '4 días'
   createdAt: Date
 }
 

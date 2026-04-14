@@ -14,7 +14,8 @@ import {
   Cpu,
   Globe,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Info
 } from 'lucide-react'
 import { User as UserType, ROLE_LABELS, UserRole, TeamType, TEAM_LABELS, hasRole, hasAnyRole, Task } from '@/types'
 import { logger } from '@/lib/logger'
@@ -129,10 +130,10 @@ export default function Members() {
   }
 
   const getMemberRankInfo = (completedCount: number) => {
-    if (completedCount === 0) return { label: 'Recluta', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30' }
-    if (completedCount <= 4) return { label: 'Agente', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' }
-    if (completedCount <= 9) return { label: 'Veterano', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' }
-    return { label: 'Élite', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' }
+    if (completedCount === 0) return { label: 'Aportador Inicial', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30' }
+    if (completedCount <= 4) return { label: 'Miembro Activo', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' }
+    if (completedCount <= 9) return { label: 'Especialista de Equipo', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' }
+    return { label: 'Líder de Iniciativas', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' }
   }
 
   const groupedMembers = TEAM_CONFIG.reduce<Record<string, UserType[]>>((acc, team) => {
@@ -162,6 +163,13 @@ export default function Members() {
             <span>Gestión de roles habilitada</span>
           </div>
         )}
+      </div>
+
+      <div className="bg-space-800/80 border border-space-600/50 rounded-xl p-4 flex items-start gap-3 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+        <Info className="w-5 h-5 text-cyan-400 flex-shrink-0 mt-0.5" />
+        <p className="text-sm text-slate-300">
+          <strong className="text-white">Nota Histórica:</strong> Este historial de participación y el sistema de ranking están presentes meramente para capturar y dejar una huella temporal del desarrollo colaborativo en la historia del equipo.
+        </p>
       </div>
 
       {/* Search */}
