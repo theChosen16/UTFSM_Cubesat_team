@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls:*)",
+      "Bash(ls -lah .env*)",
+      "Bash(wc -l .env*)",
+      "Bash(ls -lah tsconfig*)",
+      "Bash(find . -not -path '*/node_modules/*' -not -path '*/.git/*' -type f -exec ls -lh {} \\\\;)",
+      "Bash(awk '{print $5, $9}')",
+      "Bash(xargs wc:*)",
+      "Bash(gh run:*)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(gh pr:*)"
+    ]
+  }
+}

@@ -21,7 +21,8 @@ import { collection, getDocs, doc, updateDoc, addDoc, query, where, Timestamp } 
 import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
 import { COLLECTIONS } from '@/lib/constants'
-import { Notification as NotificationType, NOTIFICATION_LABELS } from '@/types'
+import { Notification as NotificationType } from '@/types'
+import { NOTIFICATION_LABELS } from '@/lib/ui-constants'
 import { cn } from '@/lib/utils'
 
 type TabType = 'notifications' | 'messages'

@@ -28,7 +28,8 @@ import {
   MessageSquare,
   ArrowLeft
 } from 'lucide-react'
-import { ROLE_LABELS, ROLE_DESCRIPTIONS, UserRole, Questionnaire, TeamType, TEAM_LABELS, Genero, hasRole, hasAnyRole, hasTeam } from '@/types'
+import { UserRole, Questionnaire, TeamType, Genero, hasRole, hasAnyRole, hasTeam } from '@/types'
+import { ROLE_LABELS, ROLE_DESCRIPTIONS, TEAM_LABELS } from '@/lib/ui-constants'
 import { logger } from '@/lib/logger'
 import { COLLECTIONS } from '@/lib/constants'
 import { extractNameFromEmail, getRoleIcon } from '@/lib/utils'

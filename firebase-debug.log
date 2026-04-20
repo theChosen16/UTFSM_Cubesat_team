@@ -1,0 +1,84 @@
+[debug] [2026-04-20T20:12:33.004Z] ----------------------------------------------------------------------
+[debug] [2026-04-20T20:12:33.008Z] Command:       C:\nvm4w\nodejs\node.exe C:\Users\alean\Desktop\Cubesat team page\node_modules\firebase-tools\lib\bin\firebase.js emulators:exec vitest run --config vitest.e2e.config.ts
+[debug] [2026-04-20T20:12:33.009Z] CLI Version:   15.10.0
+[debug] [2026-04-20T20:12:33.009Z] Platform:      win32
+[debug] [2026-04-20T20:12:33.009Z] Node Version:  v22.13.1
+[debug] [2026-04-20T20:12:33.009Z] Time:          Mon Apr 20 2026 16:12:33 GMT-0400 (hora estándar de Chile)
+[debug] [2026-04-20T20:12:33.010Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-04-20T20:12:33.013Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-04-20T20:13:08.996Z] Object "" in "firebase.json" has unknown property: {"additionalProperty":"projects"}
+[debug] [2026-04-20T20:13:09.002Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-20T20:13:09.002Z] > authorizing via signed-in user (aleandreslive.cl@gmail.com)
+[debug] [2026-04-20T20:13:09.140Z] openjdk version "21.0.4" 2024-07-16 LTS
+
+[debug] [2026-04-20T20:13:09.141Z] OpenJDK Runtime Environment Temurin-21.0.4+7 (build 21.0.4+7-LTS)
+OpenJDK 64-Bit Server VM Temurin-21.0.4+7 (build 21.0.4+7-LTS, mixed mode, sharing)
+
+[debug] [2026-04-20T20:13:09.156Z] Parsed Java major version: 21
+[info] i  emulators: Starting emulators: auth, firestore {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: auth, firestore"}}
+[warn] !  firestore: Port 8080 is not open on localhost (127.0.0.1), could not start Firestore Emulator. {"metadata":{"emulator":{"name":"firestore"},"message":"Port 8080 is not open on localhost (127.0.0.1), could not start Firestore Emulator."}}
+[warn] !  firestore: To select a different host/port, specify that host/port in a firebase.json config file:
+      {
+        // ...
+        "emulators": {
+          "firestore": {
+            "host": "HOST",
+            "port": "PORT"
+          }
+        }
+      } {"metadata":{"emulator":{"name":"firestore"},"message":"To select a different host/port, specify that host/port in a firebase.json config file:\n      {\n        // ...\n        \"emulators\": {\n          \"firestore\": {\n            \"host\": \"\u001b[33mHOST\u001b[39m\",\n            \"port\": \"\u001b[33mPORT\u001b[39m\"\n          }\n        }\n      }"}}
+[debug] [2026-04-20T20:13:09.175Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-04-20T20:13:09.175Z] [auth] Authentication Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-04-20T20:13:09.175Z] [firestore.websocket] websocket server for firestore only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-04-20T20:13:09.180Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] i  emulators: Shutting down emulators. {"metadata":{"emulator":{"name":"hub"},"message":"Shutting down emulators."}}
+[debug] [2026-04-20T20:13:09.183Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[debug] [2026-04-20T20:13:14.188Z] Error: Timed out.
+    at Timeout._onTimeout (C:\Users\alean\Desktop\Cubesat team page\node_modules\firebase-tools\lib\utils.js:308:49)
+    at listOnTimeout (node:internal/timers:594:17)
+    at process.processTimers (node:internal/timers:529:7)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2026-04-20T20:14:07.144Z] ----------------------------------------------------------------------
+[debug] [2026-04-20T20:14:07.147Z] Command:       C:\nvm4w\nodejs\node.exe C:\Users\alean\Desktop\Cubesat team page\node_modules\firebase-tools\lib\bin\firebase.js emulators:exec vitest run --config vitest.e2e.config.ts
+[debug] [2026-04-20T20:14:07.147Z] CLI Version:   15.10.0
+[debug] [2026-04-20T20:14:07.147Z] Platform:      win32
+[debug] [2026-04-20T20:14:07.147Z] Node Version:  v22.13.1
+[debug] [2026-04-20T20:14:07.148Z] Time:          Mon Apr 20 2026 16:14:07 GMT-0400 (hora estándar de Chile)
+[debug] [2026-04-20T20:14:07.148Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-04-20T20:14:07.150Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-04-20T20:14:09.214Z] Object "" in "firebase.json" has unknown property: {"additionalProperty":"projects"}
+[debug] [2026-04-20T20:14:09.221Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-20T20:14:09.222Z] > authorizing via signed-in user (aleandreslive.cl@gmail.com)
+[debug] [2026-04-20T20:14:09.297Z] openjdk version "21.0.4" 2024-07-16 LTS
+
+[debug] [2026-04-20T20:14:09.297Z] OpenJDK Runtime Environment Temurin-21.0.4+7 (build 21.0.4+7-LTS)
+OpenJDK 64-Bit Server VM Temurin-21.0.4+7 (build 21.0.4+7-LTS, mixed mode, sharing)
+
+[debug] [2026-04-20T20:14:09.342Z] Parsed Java major version: 21
+[info] i  emulators: Starting emulators: auth, firestore {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: auth, firestore"}}
+[warn] !  firestore: Port 8081 is not open on localhost (127.0.0.1,::1), could not start Firestore Emulator. {"metadata":{"emulator":{"name":"firestore"},"message":"Port 8081 is not open on localhost (127.0.0.1,::1), could not start Firestore Emulator."}}
+[warn] !  firestore: To select a different host/port, specify that host/port in a firebase.json config file:
+      {
+        // ...
+        "emulators": {
+          "firestore": {
+            "host": "HOST",
+            "port": "PORT"
+          }
+        }
+      } {"metadata":{"emulator":{"name":"firestore"},"message":"To select a different host/port, specify that host/port in a firebase.json config file:\n      {\n        // ...\n        \"emulators\": {\n          \"firestore\": {\n            \"host\": \"\u001b[33mHOST\u001b[39m\",\n            \"port\": \"\u001b[33mPORT\u001b[39m\"\n          }\n        }\n      }"}}
+[debug] [2026-04-20T20:14:09.356Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-04-20T20:14:09.356Z] [auth] Authentication Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-04-20T20:14:09.356Z] [firestore.websocket] websocket server for firestore only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-04-20T20:14:09.360Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] i  emulators: Shutting down emulators. {"metadata":{"emulator":{"name":"hub"},"message":"Shutting down emulators."}}
+[debug] [2026-04-20T20:14:09.363Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[debug] [2026-04-20T20:14:14.378Z] Error: Timed out.
+    at Timeout._onTimeout (C:\Users\alean\Desktop\Cubesat team page\node_modules\firebase-tools\lib\utils.js:308:49)
+    at listOnTimeout (node:internal/timers:594:17)
+    at process.processTimers (node:internal/timers:529:7)
+[error] 
+[error] Error: An unexpected error has occurred.

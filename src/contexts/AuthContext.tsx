@@ -13,6 +13,7 @@ import { User, UserRole, sanitizeGenero, sanitizeUserRole, sanitizeUserTeams, Te
 import { logger } from '@/lib/logger'
 import { COLLECTIONS } from '@/lib/constants'
 import { extractFullNameFromEmail } from '@/lib/utils'
+import { UserService } from '@/sdk/UserService'
 
 interface AuthContextType {
   user: User | null
@@ -170,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateUserProfile = async (data: Partial<User>) => {
     if (!firebaseUser) return
-    await setDoc(doc(db, COLLECTIONS.USERS, firebaseUser.uid), data, { merge: true })
+    await UserService.updateProfile(firebaseUser.uid, data)
     if (user) {
       setUser({ ...user, ...data })
     }
@@ -187,34 +188,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const updateUserRole = async (userId: string, newRole: UserRole | undefined) => {
-    await setDoc(doc(db, COLLECTIONS.USERS, userId), { rol: newRole || null }, { merge: true })
+    await UserService.updateRole(userId, newRole)
     if (user && user.id === userId) {
       setUser({ ...user, rol: newRole })
     }
   }
 
   const updateUserTeams = async (userId: string, newTeams: TeamType[]) => {
-    const limitedTeams = newTeams.slice(0, 2)
-    await setDoc(doc(db, COLLECTIONS.USERS, userId), { equipos: limitedTeams }, { merge: true })
+    await UserService.updateTeams(userId, newTeams)
     if (user && user.id === userId) {
+      const limitedTeams = newTeams.slice(0, 2)
       setUser({ ...user, equipos: limitedTeams })
     }
   }
 
   const getAllUsers = async (): Promise<User[]> => {
-    const usersSnapshot = await getDocs(collection(db, COLLECTIONS.USERS))
-    return usersSnapshot.docs.map(doc => {
-      const data = doc.data() as Record<string, unknown>
-      const fallbackUser: User = {
-        id: doc.id,
-        email: '',
-        nombre: '',
-        apellido: '',
-        createdAt: new Date(),
-        isActive: true,
-      }
-      return mapFirestoreUser(doc.id, data, fallbackUser)
-    })
+    return await UserService.getAll()
   }
 
   return (

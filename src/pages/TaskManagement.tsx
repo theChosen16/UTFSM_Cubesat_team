@@ -15,11 +15,12 @@ import {
   AlertCircle,
   X
 } from 'lucide-react'
-import { collection, getDocs, addDoc, doc, updateDoc, Timestamp } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
-import { COLLECTIONS } from '@/lib/constants'
-import { Task, User as UserType, TeamType, TEAM_LABELS, hasAnyRole, hasTeam } from '@/types'
+import { Task, User as UserType, TeamType, hasAnyRole, hasTeam } from '@/types'
+import { TEAM_LABELS } from '@/lib/ui-constants'
+import { TaskService } from '@/sdk/TaskService'
+import { ProjectService } from '@/sdk/ProjectService'
+import { UserService } from '@/sdk/UserService'
 
 interface ProjectOption {
   id: string
@@ -57,54 +58,15 @@ export default function TaskManagement() {
 
   const loadData = async () => {
     try {
-      const [tasksSnap, projectsSnap, membersSnap] = await Promise.all([
-        getDocs(collection(db, COLLECTIONS.TASKS)),
-        getDocs(collection(db, COLLECTIONS.PROJECTS)),
-        getDocs(collection(db, COLLECTIONS.USERS)),
+      const [tasksList, projectsList, usersList] = await Promise.all([
+        TaskService.getAll(),
+        ProjectService.getAll(),
+        UserService.getAll(),
       ])
 
-      setTasks(tasksSnap.docs.map(d => {
-        const data = d.data()
-        const rawAsignadoA = data.asignadoA
-        const normalizedAsignadoA = Array.isArray(rawAsignadoA)
-          ? rawAsignadoA
-          : rawAsignadoA ? [rawAsignadoA] : []
-        return {
-          id: d.id,
-          projectId: data.projectId || '',
-          titulo: data.titulo || '',
-          descripcion: data.descripcion || '',
-          estado: data.estado || 'pendiente',
-          asignadoA: normalizedAsignadoA,
-          equipo: data.equipo || 'software',
-          prioridad: data.prioridad || 'media',
-          creadoPor: data.creadoPor || '',
-          puntajeImportancia: data.puntajeImportancia || 0,
-          fechaInicioReal: data.fechaInicioReal || undefined,
-          fechaFinReal: data.fechaFinReal || undefined,
-          tiempoInvertido: data.tiempoInvertido || undefined,
-          createdAt: data.createdAt?.toDate?.() || new Date(),
-        } as Task
-      }))
-
-      setProjects(projectsSnap.docs.map(d => ({
-        id: d.id,
-        nombre: d.data().nombre || d.data().name || 'Sin nombre',
-      })))
-
-      setMembers(membersSnap.docs.map(d => {
-        const data = d.data()
-        return {
-          id: d.id,
-          email: data.email || '',
-          nombre: data.nombre || '',
-          apellido: data.apellido || '',
-          rol: data.rol || (Array.isArray(data.roles) ? data.roles[0] : undefined),
-          equipos: Array.isArray(data.equipos) ? data.equipos : (data.equipo ? [data.equipo] : []),
-          createdAt: data.createdAt?.toDate?.() || new Date(),
-          isActive: data.isActive ?? true,
-        } as UserType
-      }))
+      setTasks(tasksList)
+      setProjects(projectsList.map(p => ({ id: p.id, nombre: p.nombre })))
+      setMembers(usersList.map(u => ({ ...u, email: u.email || '' })))
     } catch (error) {
       logger.error('Error loading task management data', { error })
     } finally {
@@ -125,21 +87,20 @@ export default function TaskManagement() {
   }
 
   const handleCreateTask = async () => {
-    if (!titulo.trim() || !user) return
+    if (!titulo.trim() || !user || !equipo) return
     setSaving(true)
     setError('')
     try {
-      await addDoc(collection(db, COLLECTIONS.TASKS), {
+      await TaskService.create({
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
         projectId,
-        equipo,
+        equipo: equipo as TeamType,
         asignadoA,
         prioridad,
         puntajeImportancia,
         estado: 'pendiente',
-        creadoPor: user.id,
-        createdAt: Timestamp.now(),
+        creadoPor: user.id
       })
       resetForm()
       await loadData()
@@ -153,7 +114,7 @@ export default function TaskManagement() {
 
   const handleStatusChange = async (taskId: string, newStatus: Task['estado']) => {
     try {
-      await updateDoc(doc(db, COLLECTIONS.TASKS, taskId), { estado: newStatus })
+      await TaskService.updateStatus(taskId, newStatus)
       await loadData()
     } catch (err) {
       logger.error('Error updating task status', { error: err })
@@ -175,11 +136,7 @@ export default function TaskManagement() {
   const handleSaveTime = async (taskId: string) => {
     try {
       const dbTiempo = calculateDaysInvertidos(fechaInicioForm, fechaFinForm)
-      await updateDoc(doc(db, COLLECTIONS.TASKS, taskId), { 
-        fechaInicioReal: fechaInicioForm, 
-        fechaFinReal: fechaFinForm,
-        tiempoInvertido: dbTiempo
-      })
+      await TaskService.updateTime(taskId, fechaInicioForm, fechaFinForm, dbTiempo)
       setEditingTimeTaskId(null)
       await loadData()
     } catch (err) {

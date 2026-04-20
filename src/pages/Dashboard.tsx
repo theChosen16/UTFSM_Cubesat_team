@@ -14,11 +14,12 @@ import {
   AlertTriangle,
   Calendar
 } from 'lucide-react'
-import { ROLE_LABELS, TEAM_LABELS, TeamType } from '@/types'
-import { collection, getDocs } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { TeamType } from '@/types'
+import { ROLE_LABELS, TEAM_LABELS } from '@/lib/ui-constants'
+import { UserService } from '@/sdk/UserService'
+import { ProjectService } from '@/sdk/ProjectService'
+import { TaskService } from '@/sdk/TaskService'
 import { logger } from '@/lib/logger'
-import { COLLECTIONS } from '@/lib/constants'
 import { extractNameFromEmail } from '@/lib/utils'
 
 interface MemberCount {
@@ -63,41 +64,37 @@ export default function Dashboard() {
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const [usersSnapshot, projectsSnapshot, tasksSnapshot] = await Promise.all([
-          getDocs(collection(db, COLLECTIONS.USERS)),
-          getDocs(collection(db, COLLECTIONS.PROJECTS)),
-          getDocs(collection(db, COLLECTIONS.TASKS)),
+        const [usersList, projectsListRaw, tasksListRaw] = await Promise.all([
+          UserService.getAll(),
+          ProjectService.getAll(),
+          TaskService.getAll(),
         ])
 
         const byRole: Record<string, number> = {}
         const byTeam: Record<string, number> = {}
-        usersSnapshot.docs.forEach(doc => {
-          const data = doc.data()
-          const role = data.rol || (Array.isArray(data.roles) ? data.roles[0] : undefined)
+        usersList.forEach(u => {
+          const role = u.rol
           if (role) {
             byRole[role] = (byRole[role] || 0) + 1
           }
-          const teams: string[] = Array.isArray(data.equipos) ? data.equipos : (data.equipo ? [data.equipo] : [])
+          const teams = u.equipos || []
           teams.forEach(team => {
             byTeam[team] = (byTeam[team] || 0) + 1
           })
         })
-        setMemberCount({ total: usersSnapshot.size, byRole, byTeam })
+        setMemberCount({ total: usersList.length, byRole, byTeam })
 
-        const activeProjects = projectsSnapshot.docs.filter(d => {
-          const estado = d.data().estado || d.data().status
-          return estado !== 'completado'
-        }).length
+        const activeProjects = projectsListRaw.filter(p => p.estado !== 'completado').length
 
-        // Store recent projects (up to 4, sorted by creation date)
-        const projectsList: DashboardProject[] = projectsSnapshot.docs.map(d => ({
-          id: d.id,
-          nombre: d.data().nombre || d.data().name || '',
-          descripcion: d.data().descripcion || d.data().description || '',
-          estado: d.data().estado || d.data().status || 'planificacion',
-          prioridad: d.data().prioridad || d.data().priority || 'media',
-          fechaLimite: d.data().fechaLimite || d.data().deadline || '',
-          progress: d.data().progress || 0,
+        // Store recent projects (up to 4, sorted by state priority)
+        const projectsList: DashboardProject[] = projectsListRaw.map(p => ({
+          id: p.id,
+          nombre: p.nombre,
+          descripcion: p.descripcion,
+          estado: p.estado,
+          prioridad: 'media', // Project doesn't store priority natively in new SDK yet, fallback
+          fechaLimite: p.fechaLimite ? (p.fechaLimite instanceof Date ? p.fechaLimite.toISOString() : String(p.fechaLimite)) : '',
+          progress: 0, // Fallback
         }))
         projectsList.sort((a, b) => {
           const order: Record<string, number> = { en_progreso: 0, planificacion: 1, completado: 2 }
@@ -107,24 +104,23 @@ export default function Dashboard() {
 
         let pendingTasks = 0
         let completedTasks = 0
-        const tasksList: DashboardTask[] = []
-        tasksSnapshot.docs.forEach(d => {
-          const data = d.data()
-          const estado = data.estado
+        const tasksList: DashboardTask[] = tasksListRaw.map(t => {
+          const estado = t.estado
           if (estado === 'completado') {
             completedTasks++
           } else if (estado === 'pendiente' || estado === 'en_progreso') {
             pendingTasks++
           }
-          tasksList.push({
-            id: d.id,
-            titulo: data.titulo || '',
-            estado: data.estado || 'pendiente',
-            prioridad: data.prioridad || 'media',
-            projectId: data.projectId || '',
-            equipo: data.equipo || '',
-          })
+          return {
+            id: t.id,
+            titulo: t.titulo,
+            estado: t.estado,
+            prioridad: t.prioridad,
+            projectId: t.projectId,
+            equipo: t.equipo,
+          }
         })
+        
         // Show non-completed tasks first, up to 5
         const activeTasks = tasksList.filter(t => t.estado !== 'completado')
         setRecentTasks(activeTasks.slice(0, 5))

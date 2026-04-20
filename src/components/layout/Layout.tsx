@@ -17,8 +17,10 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn, extractNameFromEmail } from '@/lib/utils'
-import { ROLE_LABELS, TEAM_LABELS, hasRole } from '@/types'
+import { hasRole } from '@/types'
+import { ROLE_LABELS, TEAM_LABELS } from '@/lib/ui-constants'
 import { Badge } from '@/components/ui/badge'
+import { Chatbot } from '@/components/chat/Chatbot'
 
 interface LayoutProps {
   children: ReactNode
@@ -197,6 +199,9 @@ export default function Layout({ children }: LayoutProps) {
           {children}
         </div>
       </main>
+
+      {/* AI Bot Component */}
+      {user && <Chatbot />}
     </div>
   )
 }

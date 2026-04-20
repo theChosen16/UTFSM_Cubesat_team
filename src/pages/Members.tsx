@@ -17,12 +17,11 @@ import {
   ChevronRight,
   Info
 } from 'lucide-react'
-import { User as UserType, ROLE_LABELS, UserRole, TeamType, TEAM_LABELS, hasRole, hasAnyRole, Task } from '@/types'
+import { Task, User as UserType, UserRole, TeamType, hasRole, hasAnyRole } from '@/types'
+import { ROLE_LABELS, TEAM_LABELS } from '@/lib/ui-constants'
 import { logger } from '@/lib/logger'
 import { extractNameFromEmail, getRoleIcon } from '@/lib/utils'
-import { collection, getDocs } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
-import { COLLECTIONS } from '@/lib/constants'
+import { TaskService } from '@/sdk/TaskService'
 import { Trophy } from 'lucide-react'
 
 const TEAM_CONFIG: { key: TeamType | 'none'; label: string; icon: typeof Users; color: string; bgColor: string; borderColor: string }[] = [
@@ -41,18 +40,13 @@ export default function Members() {
 
   const loadMembers = useCallback(async () => {
     try {
-      const [users, tasksSnapshot] = await Promise.all([
+      const [users, tasksList] = await Promise.all([
         getAllUsers(),
-        getDocs(collection(db, COLLECTIONS.TASKS))
+        TaskService.getAll()
       ])
 
-      const loadedTasks = tasksSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Task[]
-
       setMembers(users)
-      setAllTasks(loadedTasks)
+      setAllTasks(tasksList)
     } catch (error) {
       logger.error('Error loading members or tasks', { error: error instanceof Error ? error : undefined })
     } finally {

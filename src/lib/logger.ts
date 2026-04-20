@@ -107,8 +107,8 @@ class Logger {
 
 export const logger = new Logger()
 
-// Expose the logger on `window` in non-production builds so it can be inspected
-// from the browser console during development and staging.
-if (typeof window !== 'undefined') {
-  ;(window as unknown as Record<string, unknown>).__cubesat_logger = logger
+// Expose the logger on the global object in non-production builds so it can be inspected
+// from the console during development and staging, being agnostic to browsers/Mobile/Node.
+if (typeof globalThis !== 'undefined') {
+  ;(globalThis as unknown as Record<string, unknown>).__cubesat_logger = logger
 }

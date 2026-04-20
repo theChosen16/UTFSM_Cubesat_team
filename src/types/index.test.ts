@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import {
-  TEAM_LABELS,
-  TEAM_COLORS,
-  ROLE_LABELS,
-  ROLE_DESCRIPTIONS,
   sanitizeUserRole,
   sanitizeUserTeams,
   hasRole,
@@ -13,6 +9,12 @@ import {
   sanitizeTeamType,
   sanitizeGenero
 } from '@/types'
+import {
+  TEAM_LABELS,
+  TEAM_COLORS,
+  ROLE_LABELS,
+  ROLE_DESCRIPTIONS,
+} from '@/lib/ui-constants'
 import type { TeamType, UserRole } from '@/types'
 
 describe('Types', () => {
