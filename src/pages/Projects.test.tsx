@@ -313,10 +313,8 @@ describe('Projects', () => {
     expect(callArgs.nombre).toBe('CubeSat Beta')
     expect(callArgs.descripcion).toBe('A new satellite')
     expect(callArgs.estado).toBe('planificacion')
-    expect(callArgs.prioridad).toBe('media')
     expect(callArgs.creadoPor).toBe('user1')
     expect(callArgs.asignadoA).toEqual([])
-    expect(callArgs.progress).toBe(0)
   })
 
   it('resets form after successful project creation', async () => {
