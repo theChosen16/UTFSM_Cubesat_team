@@ -4,8 +4,8 @@ dist
 dist-ssr
 *.local
 
-# Bun lock file (project uses npm)
-bun.lock
+# NPM lock file (project uses Bun)
+package-lock.json
 
 # Editor folders
 .vscode
