@@ -186,7 +186,7 @@ export default function Projects() {
       await loadProjects()
     } catch (err) {
       if (err instanceof z.ZodError) {
-        setError(err.errors[0].message)
+        setError(err.issues[0]?.message ?? 'Error de validación al guardar el proyecto.')
         return
       }
       logger.error('Error saving project', { error: err })

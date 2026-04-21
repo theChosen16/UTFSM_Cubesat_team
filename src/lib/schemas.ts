@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import { TEAM_TYPES } from '@/lib/ui-constants' // Necesitamos un array literal, o podemos usar el type nativo con Zod
-// Si TEAM_TYPES no está exportado, declaramos la tupla a nivel Zod:
+
 const validTeams = ['tecnico', 'manager', 'relaciones_publicas'] as const
 
 /**
@@ -8,7 +7,7 @@ const validTeams = ['tecnico', 'manager', 'relaciones_publicas'] as const
  */
 export const projectFormSchema = z.object({
   nombre: z.string().min(3, "El nombre debe tener al menos 3 caracteres").max(80, "Nombre demasiado largo"),
-  descripcion: z.string().optional(),
+  descripcion: z.string().default(''),
   estado: z.enum(['planificacion', 'en_progreso', 'completado']),
   fechaLimite: z.string().optional(),
 })
@@ -19,9 +18,9 @@ export type ProjectFormData = z.infer<typeof projectFormSchema>
  */
 export const taskFormSchema = z.object({
   titulo: z.string().min(3, "El título debe tener al menos 3 caracteres").max(100, "El título es demasiado largo"),
-  descripcion: z.string().optional(),
-  projectId: z.string().optional(),
-  equipo: z.enum(validTeams, { errorMap: () => ({ message: 'Equipo inválido' }) }),
+  descripcion: z.string().default(''),
+  projectId: z.string().default(''),
+  equipo: z.enum(validTeams, { error: 'Equipo inválido' }),
   asignadoA: z.array(z.string()),
   prioridad: z.enum(['alta', 'media', 'baja']),
   puntajeImportancia: z.number().min(1, "El puntaje mínimo es 1").max(10, "El puntaje máximo es 10").optional(),

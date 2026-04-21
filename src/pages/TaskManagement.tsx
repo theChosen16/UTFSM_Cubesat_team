@@ -18,6 +18,7 @@ import {
 import { logger } from '@/lib/logger'
 import { Task, User as UserType, TeamType, hasAnyRole, hasTeam } from '@/types'
 import { TEAM_LABELS } from '@/lib/ui-constants'
+import { ProjectService } from '@/sdk/ProjectService'
 import { TaskService } from '@/sdk/TaskService'
 import { UserService } from '@/sdk/UserService'
 import { taskFormSchema } from '@/lib/schemas'
@@ -104,7 +105,9 @@ export default function TaskManagement() {
 
       await TaskService.create({
         ...validData,
-        puntajeImportancia: validData.puntajeImportancia || 5,
+        descripcion: validData.descripcion,
+        projectId: validData.projectId,
+        puntajeImportancia: validData.puntajeImportancia ?? 5,
         estado: 'pendiente',
         creadoPor: user.id
       })
@@ -112,7 +115,7 @@ export default function TaskManagement() {
       await loadData()
     } catch (err) {
       if (err instanceof z.ZodError) {
-        setError(err.errors[0].message)
+        setError(err.issues[0]?.message ?? 'Error de validación al crear la tarea.')
         return
       }
       logger.error('Error creating task', { error: err })

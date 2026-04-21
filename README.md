@@ -170,6 +170,7 @@ Los usuarios pueden seleccionar los equipos a los que desean pertenecer desde su
 
 - [Node.js](https://nodejs.org/) ≥ 22 (LTS recomendado)
 - [npm](https://www.npmjs.com/) ≥ 10
+- [Bun](https://bun.sh/) ≥ 1.3 si quieres reproducir localmente el mismo runtime que usa GitHub Actions
 - Una cuenta y proyecto en [Firebase](https://console.firebase.google.com/)
 
 ## Instalación
@@ -202,9 +203,15 @@ VITE_FIREBASE_PROJECT_ID=your-project-id
 VITE_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
 VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
 VITE_FIREBASE_APP_ID=your-app-id
+VITE_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
+
+# Opcional: habilita el asistente de IA del equipo
+VITE_GOOGLE_AI_KEY=your-google-ai-key
 ```
 
 > ⚠️ **Nunca** subas `.env.local` al repositorio. Está excluido en `.gitignore`.
+
+`VITE_FIREBASE_MEASUREMENT_ID` es opcional y se usa para Analytics. `VITE_GOOGLE_AI_KEY` es opcional; si no está definida, el chatbot quedará deshabilitado sin romper el resto de la aplicación.
 
 ## Scripts disponibles
 
@@ -250,23 +257,47 @@ Los tests E2E cubren: autenticación (registro, roles, sign in/out), proyectos, 
 El proyecto se despliega automáticamente en **GitHub Pages** mediante GitHub Actions:
 
 1. Cada push o pull request a `main` ejecuta el pipeline de CI (lint + tests + build).
-2. Si el CI pasa, el workflow de despliegue publica la aplicación en GitHub Pages.
+2. Si el CI pasa en `main`, el workflow de despliegue publica la aplicación en GitHub Pages. Si el workflow `CI` falla, `Deploy to GitHub Pages` queda automáticamente **skipped**.
 3. Tras el despliegue, un smoke test verifica que la página es accesible (HTTP 200).
 
 La URL pública es: `https://thechosen16.github.io/UTFSM_Cubesat_team/`
 
+Para que el deploy publique la versión productiva correctamente, configura estos **GitHub Secrets** en el repositorio o entorno de Pages:
+
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_FIREBASE_MEASUREMENT_ID` (opcional)
+- `VITE_GOOGLE_AI_KEY` (opcional)
+
 ## CI/CD
 
-El pipeline de CI/CD utiliza GitHub Actions v5 con Node.js 22:
+El pipeline de CI/CD utiliza GitHub Actions sobre `ubuntu-latest` y ejecuta la instalación y los scripts con **Bun 1.x**:
 
-- **CI** (`.github/workflows/ci.yml`): Lint → Tests → Build en cada PR y push a main
-- **Deploy** (`.github/workflows/deploy.yml`): Build + Deploy a GitHub Pages + smoke test post-despliegue
+- **CI** (`.github/workflows/ci.yml`): job `quality` con `bun install --frozen-lockfile` → `bun run lint` → `bun run test` → `bun run build` en cada PR y push a `main`
+- **Deploy** (`.github/workflows/deploy.yml`): job `build` para generar el artefacto de Pages, job `deploy` para publicar y job `smoke-test` para comprobar la URL pública tras el despliegue
+- **workflow_dispatch** está habilitado en ambos workflows para ejecutar validaciones o despliegues manuales
 
 ### Flujo de trabajo
 
 ```
 PR / Push a main  →  CI (lint + test + build)  →  Deploy a GitHub Pages  →  Smoke Test
 ```
+
+### Validación local recomendada
+
+Para reproducir localmente el job `quality` de CI con el mismo runtime que Actions:
+
+```bash
+bun run lint
+bun run test
+bun run build
+```
+
+Si prefieres `npm`, los scripts del proyecto siguen siendo compatibles mediante `npm run lint`, `npm test` y `npm run build`.
 
 ## Logging y diagnóstico
 
@@ -367,7 +398,7 @@ Todo Pull Request debe cumplir **dos requisitos** antes de ser fusionado:
    - ✅ **Tests** (`npm test`) — tests unitarios con Vitest
    - ✅ **Build** (`npm run build`) — compilación TypeScript + build de producción
 
-   Si alguno de estos pasos falla, el PR no podrá ser fusionado. Asegúrate de ejecutar `npm run lint && npm test && npm run build` localmente antes de abrir el PR.
+  Si alguno de estos pasos falla, el PR no podrá ser fusionado. Asegúrate de ejecutar `bun run lint && bun run test && bun run build` o sus equivalentes con `npm` antes de abrir el PR.
 
 2. **Aprobación del mantenedor** — Una vez que el CI pasa exitosamente, el usuario **maestro** (administrador del proyecto) revisará el PR y decidirá si aprueba el merge. Los PR no se fusionan automáticamente; siempre requieren aprobación manual.
 
