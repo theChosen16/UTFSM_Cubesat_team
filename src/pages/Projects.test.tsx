@@ -139,8 +139,6 @@ describe('Projects', () => {
             nombre: 'CubeSat Alpha',
             descripcion: 'First satellite project',
             estado: 'en_progreso',
-            prioridad: 'alta',
-            progress: 45,
             fechaLimite: '2025-12-31',
           }),
         },
@@ -153,7 +151,6 @@ describe('Projects', () => {
     await waitFor(() => {
       expect(screen.getByText('CubeSat Alpha')).toBeInTheDocument()
       expect(screen.getByText('First satellite project')).toBeInTheDocument()
-      expect(screen.getByText('45%')).toBeInTheDocument()
     })
   })
 
@@ -258,7 +255,6 @@ describe('Projects', () => {
     expect(screen.getByText('Nombre del proyecto *')).toBeInTheDocument()
     expect(screen.getByText('Descripción')).toBeInTheDocument()
     expect(screen.getByText('Estado')).toBeInTheDocument()
-    expect(screen.getByText('Prioridad')).toBeInTheDocument()
     expect(screen.getByText('Fecha límite')).toBeInTheDocument()
   })
 
