@@ -17,10 +17,8 @@ import {
   Info,
   ClipboardList,
 } from 'lucide-react'
-import { collection, getDocs, doc, updateDoc, addDoc, query, where, Timestamp } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
 import { logger } from '@/lib/logger'
-import { COLLECTIONS } from '@/lib/constants'
+import { NotificationService } from '@/sdk/NotificationService'
 import { Notification as NotificationType } from '@/types'
 import { NOTIFICATION_LABELS } from '@/lib/ui-constants'
 import { cn } from '@/lib/utils'
@@ -69,29 +67,7 @@ export default function Notifications() {
   const loadNotifications = async () => {
     if (!user) return
     try {
-      const snapshot = await getDocs(
-        query(collection(db, COLLECTIONS.NOTIFICATIONS), where('recipientId', '==', user.id))
-      )
-      const loaded = snapshot.docs.map(d => {
-        const data = d.data()
-        return {
-          id: d.id,
-          recipientId: data.recipientId || '',
-          type: data.type || 'system',
-          title: data.title || '',
-          message: data.message || '',
-          read: data.read || false,
-          createdAt: data.createdAt?.toDate?.() || new Date(),
-          senderId: data.senderId || undefined,
-          senderName: data.senderName || undefined,
-          relatedId: data.relatedId || undefined,
-        } as NotificationType
-      })
-      loaded.sort((a, b) => {
-        if (!a.read && b.read) return -1
-        if (a.read && !b.read) return 1
-        return b.createdAt.getTime() - a.createdAt.getTime()
-      })
+      const loaded = await NotificationService.getByUser(user.id)
       setNotifications(loaded)
     } catch (error) {
       logger.error('Error loading notifications', { error })
@@ -114,7 +90,7 @@ export default function Notifications() {
 
   const handleMarkAsRead = async (notificationId: string) => {
     try {
-      await updateDoc(doc(db, COLLECTIONS.NOTIFICATIONS, notificationId), { read: true })
+      await NotificationService.markAsRead(notificationId)
       setNotifications(prev =>
         prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
       )
@@ -127,13 +103,9 @@ export default function Notifications() {
     if (!user || !messageRecipient || !messageText.trim()) return
     setSendingMessage(true)
     try {
-      await addDoc(collection(db, COLLECTIONS.NOTIFICATIONS), {
+      await NotificationService.sendMessage({
         recipientId: messageRecipient,
-        type: 'message',
-        title: 'Nuevo Mensaje',
         message: messageText.trim(),
-        read: false,
-        createdAt: Timestamp.now(),
         senderId: user.id,
         senderName: `${user.nombre} ${user.apellido}`,
       })

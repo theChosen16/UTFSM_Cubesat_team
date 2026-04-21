@@ -19,8 +19,9 @@ import { logger } from '@/lib/logger'
 import { Task, User as UserType, TeamType, hasAnyRole, hasTeam } from '@/types'
 import { TEAM_LABELS } from '@/lib/ui-constants'
 import { TaskService } from '@/sdk/TaskService'
-import { ProjectService } from '@/sdk/ProjectService'
 import { UserService } from '@/sdk/UserService'
+import { taskFormSchema } from '@/lib/schemas'
+import { z } from 'zod'
 
 interface ProjectOption {
   id: string
@@ -87,24 +88,33 @@ export default function TaskManagement() {
   }
 
   const handleCreateTask = async () => {
-    if (!titulo.trim() || !user || !equipo) return
+    if (!user) return
     setSaving(true)
     setError('')
     try {
-      await TaskService.create({
+      const validData = taskFormSchema.parse({
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
-        projectId,
-        equipo: equipo as TeamType,
+        projectId: projectId || undefined,
+        equipo,
         asignadoA,
         prioridad,
-        puntajeImportancia,
+        puntajeImportancia
+      })
+
+      await TaskService.create({
+        ...validData,
+        puntajeImportancia: validData.puntajeImportancia || 5,
         estado: 'pendiente',
         creadoPor: user.id
       })
       resetForm()
       await loadData()
     } catch (err) {
+      if (err instanceof z.ZodError) {
+        setError(err.errors[0].message)
+        return
+      }
       logger.error('Error creating task', { error: err })
       setError('Error al crear la tarea. Verifica tus permisos e intenta de nuevo.')
     } finally {

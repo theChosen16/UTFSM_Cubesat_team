@@ -1,8 +1,7 @@
 import { ChangeEvent, useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { doc, getDoc } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
 import { useAuth } from '@/contexts/AuthContext'
+import { UserService } from '@/sdk/UserService'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
@@ -31,7 +30,6 @@ import {
 import { UserRole, Questionnaire, TeamType, Genero, hasRole, hasAnyRole, hasTeam } from '@/types'
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, TEAM_LABELS } from '@/lib/ui-constants'
 import { logger } from '@/lib/logger'
-import { COLLECTIONS } from '@/lib/constants'
 import { extractNameFromEmail, getRoleIcon } from '@/lib/utils'
 
 const ROLE_STYLES: Record<UserRole, { badge: 'orange' | 'red'; icon: string; background: string }> = {
@@ -83,24 +81,18 @@ export default function Profile() {
       setViewLoading(true)
       const fetchUser = async () => {
         try {
-          const snap = await getDoc(doc(db, COLLECTIONS.USERS, userId))
-          if (snap.exists()) {
-            const data = snap.data()
-            setViewedUser({
-              id: snap.id,
-              email: data.email || '',
-              nombre: data.nombre || '',
-              apellido: data.apellido || '',
-              rol: data.rol,
-              equipos: data.equipos || [],
-              genero: data.genero,
-              photoURL: data.photoURL,
-              career: data.career,
-              year: data.year,
-              createdAt: data.createdAt?.toDate?.() || new Date(),
-              isActive: data.isActive ?? true,
-              questionnaire: data.questionnaire,
-            })
+          const fallbackUser = {
+            id: userId,
+            email: '',
+            nombre: '',
+            apellido: '',
+            createdAt: new Date(),
+            isActive: true
+          }
+          const fetchedUser = await UserService.getById(userId, fallbackUser)
+          
+          if (fetchedUser && fetchedUser.email !== '') {
+            setViewedUser(fetchedUser)
           }
         } catch (error) {
           logger.error('Error fetching user profile', { error: error instanceof Error ? error : undefined, userId })

@@ -20,6 +20,9 @@ import { logger } from '@/lib/logger'
 import { hasAnyRole, hasTeam, Task } from '@/types'
 import { ProjectService } from '@/sdk/ProjectService'
 import { TaskService } from '@/sdk/TaskService'
+import { z } from 'zod'
+import { projectFormSchema } from '@/lib/schemas'
+import { Project as ProjectType } from '@/types'
 
 interface ProjectData {
   id: string
@@ -163,18 +166,29 @@ export default function Projects() {
         // Simularemos eso actualizando localmente de todas formas (O se agrega luego al SDK).
       } else {
         // Create new logic
-        await ProjectService.create({
+        const validData = projectFormSchema.parse({
           nombre: nombre.trim(),
           descripcion: descripcion.trim(),
           estado,
+          fechaLimite
+        })
+
+        await ProjectService.create({
+          nombre: validData.nombre,
+          descripcion: validData.descripcion,
+          estado: validData.estado as ProjectType['estado'],
           creadoPor: user.id,
           asignadoA: [],
-          fechaLimite: fechaLimite ? new Date(fechaLimite) : undefined,
+          fechaLimite: validData.fechaLimite ? new Date(validData.fechaLimite) : undefined,
         })
       }
       resetForm()
       await loadProjects()
     } catch (err) {
+      if (err instanceof z.ZodError) {
+        setError(err.errors[0].message)
+        return
+      }
       logger.error('Error saving project', { error: err })
       setError('Error al guardar el proyecto. Verifica tus permisos e intenta de nuevo.')
     } finally {
