@@ -246,6 +246,8 @@
   content: '';
   will-change: transform;
   backface-visibility: hidden;
+  contain: paint;
+  pointer-events: none;
 }
 
 /* Layer 1 — distant small stars, slow drift (40 stars) */
@@ -291,8 +293,8 @@
     radial-gradient(1.2px 1.2px at   5px 190px, rgba(180,230,255,0.60), transparent),
     radial-gradient(1px 1px at 245px  95px, rgba(255,220,140,0.66), transparent),
     radial-gradient(1px 1px at 185px  40px, rgba(200,200,255,0.63), transparent);
-  background-size: 280px 145px;
-  animation: drift-chaotic-slow 70s linear infinite, glow-distant 9s ease-in-out infinite;
+  background-size: 420px 220px;
+  animation: drift-chaotic-slow 92s linear infinite, glow-distant 14s ease-in-out infinite;
 }
 
 /* Layer 2 — medium stars, moderate drift (30 stars) */
@@ -328,8 +330,8 @@
     radial-gradient(1.8px 1.8px at 330px 175px, rgba(200,230,255,0.72), transparent),
     radial-gradient(1.5px 1.5px at 250px 180px, rgba(240,255,210,0.74), transparent),
     radial-gradient(1.5px 1.5px at 395px 100px, rgba(220,200,255,0.76), transparent);
-  background-size: 260px 135px;
-  animation: drift-chaotic-mid 50s linear infinite reverse, glow-mid 7s ease-in-out infinite alternate;
+  background-size: 380px 210px;
+  animation: drift-chaotic-mid 66s linear infinite reverse, glow-mid 11s ease-in-out infinite alternate;
 }
 
 /* Layer 3 — bright accent stars, livelier motion (24 stars) */
@@ -359,8 +361,8 @@
     radial-gradient(2.5px 2.5px at 275px 145px, rgba(120,255,180,0.90), transparent),
     radial-gradient(2px 2px at 395px  40px, rgba(200,160,255,0.88), transparent),
     radial-gradient(2px 2px at 160px 190px, rgba(255,120,160,0.85), transparent);
-  background-size: 240px 130px;
-  animation: drift-chaotic-fast 30s linear infinite, glow-near 5.5s ease-in-out infinite;
+  background-size: 340px 190px;
+  animation: drift-chaotic-fast 42s linear infinite, glow-near 8.5s ease-in-out infinite;
 }
 
 /* ============================================
@@ -546,69 +548,66 @@
 
 /* Chaotic drift keyframes — erratic multi-waypoint paths with large displacements */
 @keyframes drift-chaotic-slow {
-  0%   { transform: translate(0, 0) rotate(0deg); }
-  8%   { transform: translate(14px, -20px) rotate(1deg); }
-  18%  { transform: translate(-10px, -35px) rotate(-1.5deg); }
-  28%  { transform: translate(30px, -18px) rotate(0.5deg); }
-  38%  { transform: translate(8px, 15px) rotate(-0.8deg); }
-  48%  { transform: translate(-25px, 5px) rotate(1.2deg); }
-  58%  { transform: translate(-35px, -28px) rotate(-0.3deg); }
-  68%  { transform: translate(-12px, 22px) rotate(0.7deg); }
-  78%  { transform: translate(20px, 30px) rotate(-1deg); }
-  88%  { transform: translate(35px, -5px) rotate(0.4deg); }
-  100% { transform: translate(0, 0) rotate(0deg); }
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
+  11%  { transform: translate3d(20px, -24px, 0) rotate(0.8deg); }
+  19%  { transform: translate3d(-16px, -46px, 0) rotate(-1.7deg); }
+  31%  { transform: translate3d(36px, -12px, 0) rotate(1.1deg); }
+  43%  { transform: translate3d(10px, 28px, 0) rotate(-1deg); }
+  57%  { transform: translate3d(-30px, 18px, 0) rotate(1.4deg); }
+  68%  { transform: translate3d(-44px, -16px, 0) rotate(-0.5deg); }
+  79%  { transform: translate3d(8px, 40px, 0) rotate(1deg); }
+  91%  { transform: translate3d(34px, 8px, 0) rotate(-1.2deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(0deg); }
 }
 
 @keyframes drift-chaotic-mid {
-  0%   { transform: translate(0, 0) rotate(0deg); }
-  10%  { transform: translate(-20px, 25px) rotate(-1.2deg); }
-  20%  { transform: translate(15px, 40px) rotate(0.8deg); }
-  30%  { transform: translate(35px, 10px) rotate(-0.5deg); }
-  40%  { transform: translate(10px, -30px) rotate(1.5deg); }
-  50%  { transform: translate(-30px, -20px) rotate(-0.8deg); }
-  60%  { transform: translate(-40px, 12px) rotate(0.3deg); }
-  70%  { transform: translate(-15px, 35px) rotate(-1deg); }
-  80%  { transform: translate(25px, 20px) rotate(0.6deg); }
-  90%  { transform: translate(18px, -15px) rotate(-0.4deg); }
-  100% { transform: translate(0, 0) rotate(0deg); }
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
+  9%   { transform: translate3d(-24px, 30px, 0) rotate(-1.4deg); }
+  21%  { transform: translate3d(18px, 46px, 0) rotate(0.9deg); }
+  34%  { transform: translate3d(44px, 6px, 0) rotate(-0.8deg); }
+  45%  { transform: translate3d(14px, -38px, 0) rotate(1.8deg); }
+  58%  { transform: translate3d(-38px, -24px, 0) rotate(-1.1deg); }
+  70%  { transform: translate3d(-48px, 14px, 0) rotate(0.6deg); }
+  82%  { transform: translate3d(-6px, 44px, 0) rotate(-1.4deg); }
+  92%  { transform: translate3d(26px, 18px, 0) rotate(0.7deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(0deg); }
 }
 
 @keyframes drift-chaotic-fast {
-  0%   { transform: translate(0, 0) rotate(0deg); }
-  7%   { transform: translate(25px, 15px) rotate(1.5deg); }
-  14%  { transform: translate(40px, -10px) rotate(-1deg); }
-  22%  { transform: translate(15px, -35px) rotate(0.5deg); }
-  30%  { transform: translate(-20px, -25px) rotate(-1.8deg); }
-  38%  { transform: translate(-38px, 8px) rotate(0.8deg); }
-  46%  { transform: translate(-20px, 32px) rotate(-0.3deg); }
-  54%  { transform: translate(10px, 40px) rotate(1.2deg); }
-  63%  { transform: translate(35px, 18px) rotate(-0.6deg); }
-  72%  { transform: translate(28px, -20px) rotate(1deg); }
-  82%  { transform: translate(-8px, -38px) rotate(-1.3deg); }
-  92%  { transform: translate(-30px, -10px) rotate(0.4deg); }
-  100% { transform: translate(0, 0) rotate(0deg); }
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
+  8%   { transform: translate3d(28px, 18px, 0) rotate(1.7deg); }
+  16%  { transform: translate3d(46px, -18px, 0) rotate(-1.2deg); }
+  24%  { transform: translate3d(8px, -44px, 0) rotate(0.8deg); }
+  33%  { transform: translate3d(-28px, -20px, 0) rotate(-2deg); }
+  41%  { transform: translate3d(-46px, 12px, 0) rotate(1deg); }
+  52%  { transform: translate3d(-12px, 42px, 0) rotate(-0.6deg); }
+  63%  { transform: translate3d(18px, 48px, 0) rotate(1.4deg); }
+  74%  { transform: translate3d(40px, 10px, 0) rotate(-0.7deg); }
+  85%  { transform: translate3d(18px, -34px, 0) rotate(1.3deg); }
+  93%  { transform: translate3d(-20px, -46px, 0) rotate(-1.5deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(0deg); }
 }
 
 /* Glow keyframes — vivid breathing for visible starlight */
 @keyframes glow-distant {
-  0%, 100% { opacity: 0.65; filter: brightness(1.0); }
-  25%      { opacity: 0.55; filter: brightness(0.85); }
-  50%      { opacity: 0.75; filter: brightness(1.15); }
-  75%      { opacity: 0.58; filter: brightness(0.9); }
+  0%, 100% { opacity: 0.42; }
+  23%      { opacity: 0.32; }
+  51%      { opacity: 0.54; }
+  74%      { opacity: 0.36; }
 }
 
 @keyframes glow-mid {
-  0%   { opacity: 0.80; filter: brightness(1.1); }
-  33%  { opacity: 0.68; filter: brightness(0.95); }
-  66%  { opacity: 0.88; filter: brightness(1.2); }
-  100% { opacity: 0.72; filter: brightness(1.0); }
+  0%   { opacity: 0.56; }
+  27%  { opacity: 0.43; }
+  63%  { opacity: 0.7; }
+  100% { opacity: 0.5; }
 }
 
 @keyframes glow-near {
-  0%, 100% { opacity: 0.92; filter: brightness(1.2) drop-shadow(0 0 3px rgba(180,220,255,0.4)); }
-  20%      { opacity: 0.82; filter: brightness(1.0) drop-shadow(0 0 1px rgba(180,220,255,0.2)); }
-  45%      { opacity: 0.98; filter: brightness(1.35) drop-shadow(0 0 4px rgba(180,220,255,0.5)); }
-  70%      { opacity: 0.85; filter: brightness(1.1) drop-shadow(0 0 2px rgba(180,220,255,0.25)); }
+  0%, 100% { opacity: 0.74; }
+  18%      { opacity: 0.5; }
+  44%      { opacity: 0.88; }
+  68%      { opacity: 0.58; }
 }
 
 /* Depth breathing — dramatic zoom to simulate warp through space */

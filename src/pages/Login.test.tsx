@@ -1,26 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import Login from '@/pages/Login'
 
 const mockSignIn = vi.fn()
-const mockNavigate = vi.fn()
+let mockAuthUser: { id: string; email: string } | null = null
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
     signIn: mockSignIn,
-    user: null,
+    user: mockAuthUser,
   }),
 }))
-
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom')
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  }
-})
 
 // Mock firebase modules to prevent initialization errors
 vi.mock('@/lib/firebase', () => ({
@@ -35,8 +27,12 @@ vi.mock('@/lib/logger', () => ({
 
 function renderLogin() {
   return render(
-    <MemoryRouter>
-      <Login />
+    <MemoryRouter initialEntries={['/login']}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/dashboard" element={<div>Dashboard</div>} />
+        <Route path="/projects" element={<div>Projects</div>} />
+      </Routes>
     </MemoryRouter>
   )
 }
@@ -44,6 +40,7 @@ function renderLogin() {
 describe('Login', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAuthUser = null
   })
 
   it('renders the login form', () => {
@@ -56,7 +53,9 @@ describe('Login', () => {
   })
 
   it('navigates to dashboard on successful login', async () => {
-    mockSignIn.mockResolvedValueOnce(undefined)
+    mockSignIn.mockImplementationOnce(async () => {
+      mockAuthUser = { id: 'user-1', email: 'alejandro.hernandeza@sansano.usm.cl' }
+    })
     const user = userEvent.setup()
 
     renderLogin()
@@ -67,8 +66,34 @@ describe('Login', () => {
 
     await waitFor(() => {
       expect(mockSignIn).toHaveBeenCalledWith('alejandro.hernandeza@sansano.usm.cl', 'Falopa123')
-      expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
+      expect(screen.getByText('Dashboard')).toBeInTheDocument()
     })
+  })
+
+  it('normalizes mobile email input before submitting', async () => {
+    mockSignIn.mockResolvedValueOnce(undefined)
+    const user = userEvent.setup()
+
+    renderLogin()
+
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), '  Alejandro.Hernandeza@Sansano.USM.CL  ')
+    await user.type(screen.getByPlaceholderText('••••••••'), 'Falopa123')
+    await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
+
+    await waitFor(() => {
+      expect(mockSignIn).toHaveBeenCalledWith('alejandro.hernandeza@sansano.usm.cl', 'Falopa123')
+    })
+  })
+
+  it('configures the email field for mobile keyboards', () => {
+    renderLogin()
+
+    const emailInput = screen.getByPlaceholderText('nombre@usm.cl')
+
+    expect(emailInput).toHaveAttribute('autocapitalize', 'none')
+    expect(emailInput).toHaveAttribute('autocorrect', 'off')
+    expect(emailInput).toHaveAttribute('inputmode', 'email')
+    expect(emailInput).toHaveAttribute('spellcheck', 'false')
   })
 
   it('shows specific error for invalid credentials', async () => {
@@ -192,7 +217,10 @@ describe('Login', () => {
   it('shows loading state while signing in', async () => {
     let resolveSignIn: () => void
     mockSignIn.mockReturnValueOnce(new Promise<void>((resolve) => {
-      resolveSignIn = resolve
+      resolveSignIn = () => {
+        mockAuthUser = { id: 'user-1', email: 'alejandro.hernandeza@sansano.usm.cl' }
+        resolve()
+      }
     }))
     const user = userEvent.setup()
 
@@ -208,7 +236,7 @@ describe('Login', () => {
     resolveSignIn!()
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
+      expect(screen.getByText('Dashboard')).toBeInTheDocument()
     })
   })
 
@@ -225,7 +253,7 @@ describe('Login', () => {
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
     await waitFor(() => {
-      expect(mockNavigate).not.toHaveBeenCalled()
+      expect(screen.getByText('Bienvenido de vuelta')).toBeInTheDocument()
     })
   })
 })

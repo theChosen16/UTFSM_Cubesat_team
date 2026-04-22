@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, Navigate } from 'react-router-dom'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import { Mail, Lock, AlertCircle, ShieldAlert } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
@@ -24,11 +24,15 @@ export default function Login() {
   const [blockerWarning, setBlockerWarning] = useState(false)
   const [loading, setLoading] = useState(false)
   const { signIn, user } = useAuth()
-  const navigate = useNavigate()
+  const location = useLocation()
+  const redirectTo = typeof location.state === 'object' && location.state && 'from' in location.state &&
+    typeof (location.state as { from?: { pathname?: string } }).from?.pathname === 'string'
+    ? (location.state as { from?: { pathname?: string } }).from!.pathname!
+    : '/dashboard'
 
   // Redirect if already authenticated
   if (user) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={redirectTo} replace />
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,12 +42,17 @@ export default function Login() {
     setLoading(true)
 
     try {
-      await signIn(email, password)
-      navigate('/dashboard')
+      const normalizedEmail = email.trim().toLowerCase()
+      if (normalizedEmail !== email) {
+        setEmail(normalizedEmail)
+      }
+
+      await signIn(normalizedEmail, password)
     } catch (err: unknown) {
       const firebaseError = err as { code?: string }
+      const normalizedEmail = email.trim().toLowerCase()
 
-      logger.warn('Login failed', { code: firebaseError.code, email })
+      logger.warn('Login failed', { code: firebaseError.code, email: normalizedEmail })
 
       if (isBlockedByClient(err)) {
         setBlockerWarning(true)
@@ -132,6 +141,11 @@ export default function Login() {
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
                   autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  inputMode="email"
+                  enterKeyHint="next"
                   required
                   aria-describedby={error ? 'login-error' : undefined}
                 />
@@ -155,6 +169,10 @@ export default function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
                   autoComplete="current-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  enterKeyHint="done"
                   required
                 />
               </div>
