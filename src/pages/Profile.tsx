@@ -213,17 +213,17 @@ export default function Profile() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="page-shell max-w-4xl">
       {/* Header */}
-      <div className="flex items-center gap-4 animate-fade-in-up">
+      <div className="flex items-start gap-3 sm:gap-4 animate-fade-in-up">
         {!isOwnProfile && (
           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white" onClick={() => navigate('/members')}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
         )}
         <div>
-          <h1 className="text-3xl font-bold text-white">{isOwnProfile ? 'Mi Perfil' : `Perfil de ${displayName}`}</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="page-title">{isOwnProfile ? 'Mi Perfil' : `Perfil de ${displayName}`}</h1>
+          <p className="page-copy">
             {isOwnProfile ? 'Información personal y configuración de cuenta' : 'Información del miembro'}
           </p>
         </div>
@@ -232,9 +232,9 @@ export default function Profile() {
       {/* Profile Card */}
       <Card className="bg-space-700/50 border-space-600">
         <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center gap-6">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center">
             {/* Avatar */}
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
               <div className="relative group">
                 {profileUser?.photoURL ? (
                   <img 
@@ -284,13 +284,13 @@ export default function Profile() {
             </div>
             
             {/* Action Buttons */}
-            <div className="md:ml-auto flex gap-2">
+            <div className="flex w-full flex-col gap-2 md:ml-auto md:w-auto md:flex-row">
               {isOwnProfile ? (
                 !isEditing ? (
                   <Button 
                     onClick={() => setIsEditing(true)}
                     variant="outline" 
-                    className="border-space-600 text-white hover:bg-space-600"
+                    className="w-full border-space-600 text-white hover:bg-space-600 md:w-auto"
                   >
                     <Edit className="w-4 h-4 mr-2" />
                     Completar Cuestionario
@@ -299,7 +299,7 @@ export default function Profile() {
                   <Button 
                     onClick={handleSave}
                     disabled={loading}
-                    className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
+                    className="w-full bg-cyan-500 text-space-900 hover:bg-cyan-600 md:w-auto"
                   >
                     <Save className="w-4 h-4 mr-2" />
                     {loading ? 'Guardando...' : 'Guardar Cambios'}
@@ -308,7 +308,7 @@ export default function Profile() {
               ) : (
                 <Button
                   onClick={() => navigate('/notifications', { state: { composeTo: profileUser?.id, composeToName: displayName } })}
-                  className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
+                  className="w-full bg-cyan-500 text-space-900 hover:bg-cyan-600 md:w-auto"
                 >
                   <MessageSquare className="w-4 h-4 mr-2" />
                   Enviar Mensaje
@@ -444,7 +444,7 @@ export default function Profile() {
                     value={genero}
                     onChange={(e) => setGenero(e.target.value as Genero | '')}
                     title="Seleccionar género"
-                    className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                    className="min-h-11 w-full rounded-xl border border-space-500 bg-space-700 px-3 text-base text-white focus:border-cyan-500 focus:outline-none sm:text-sm"
                   >
                     <option value="">Selecciona tu género</option>
                     <option value="masculino">Masculino</option>
@@ -461,7 +461,7 @@ export default function Profile() {
           </div>
 
           {/* Info Grid */}
-          <div className="grid md:grid-cols-2 gap-4" role="region" aria-label="Información del perfil">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2" role="region" aria-label="Información del perfil">
             <div className="flex items-center gap-3 p-4 rounded-lg bg-space-600/50">
               <Mail className="w-5 h-5 text-cyan-400" />
               <div className="flex-1">
@@ -478,7 +478,7 @@ export default function Profile() {
                     value={career}
                     onChange={handleInputChange(setCareer)}
                     placeholder="Ej: Ingeniería Civil Informática"
-                    className="bg-space-700 border-space-500 text-white text-sm h-8 mt-1"
+                    className="mt-2 bg-space-700 border-space-500 text-white"
                   />
                 ) : (
                   <p className="text-white">{profileUser?.career || 'No especificada'}</p>
@@ -494,7 +494,7 @@ export default function Profile() {
                     value={year}
                     onChange={handleInputChange(setYear)}
                     placeholder="Ej: 2024"
-                    className="bg-space-700 border-space-500 text-white text-sm h-8 mt-1"
+                    className="mt-2 bg-space-700 border-space-500 text-white"
                   />
                 ) : (
                   <p className="text-white">{profileUser?.year || 'No especificado'}</p>

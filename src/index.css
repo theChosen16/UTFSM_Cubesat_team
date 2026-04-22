@@ -50,6 +50,7 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
   }
 
   /* Balanced wrapping for headings */
@@ -100,6 +101,41 @@
     -webkit-text-fill-color: hsl(var(--foreground)) !important;
     caret-color: hsl(var(--foreground));
     transition: background-color 5000s ease-in-out 0s;
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply mx-auto w-full max-w-7xl space-y-5 sm:space-y-6 lg:space-y-8;
+  }
+
+  .page-header {
+    @apply flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between;
+  }
+
+  .page-title {
+    @apply text-2xl font-bold text-white sm:text-3xl;
+  }
+
+  .page-copy {
+    @apply mt-1 text-sm text-muted-foreground sm:text-base;
+  }
+
+  .page-actions {
+    @apply flex flex-col gap-3 sm:flex-row sm:items-center;
+  }
+
+  .touch-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .mobile-safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .mobile-safe-top {
+    padding-top: max(1rem, env(safe-area-inset-top));
   }
 }
 
@@ -157,6 +193,16 @@
 
 .skip-to-content:focus {
   top: 0;
+}
+
+@supports (height: 100dvh) {
+  .min-safe-screen {
+    min-height: 100dvh;
+  }
+
+  .max-safe-screen {
+    max-height: 100dvh;
+  }
 }
 
 /* Skeleton loading animation */

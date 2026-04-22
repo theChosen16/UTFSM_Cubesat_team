@@ -219,14 +219,14 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="page-shell">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in-up">
+      <div className="page-header animate-fade-in-up">
         <div>
-          <h1 className="text-3xl font-bold text-white">
+          <h1 className="page-title">
             ¡{greeting}, {displayName}!
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="page-copy">
             {user?.rol && (
               <>Tu rol: <span className="text-cyan-400">{ROLE_LABELS[user.rol]}</span>{' '}</>  
             )}
@@ -238,7 +238,7 @@ export default function Dashboard() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="page-actions justify-start md:justify-end">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
             <Rocket className="w-6 h-6 text-white" />
           </div>
@@ -246,7 +246,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" role="region" aria-label="Estadísticas del equipo" aria-live="polite">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4" role="region" aria-label="Estadísticas del equipo" aria-live="polite">
         {statCards.map((stat, index) => {
           const Icon = stat.icon
           return (
@@ -272,7 +272,7 @@ export default function Dashboard() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid gap-4 lg:grid-cols-3 lg:gap-6">
         {/* Recent Projects */}
         <Card className="lg:col-span-2 bg-space-700/50 border-space-600">
           <CardHeader>
@@ -292,20 +292,20 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {recentProjects.map(project => (
-                  <div key={project.id} className="p-4 rounded-lg bg-space-600/50 space-y-2 hover:bg-space-600/70 transition-colors duration-200">
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-white truncate">{project.nombre}</h3>
+                  <div key={project.id} className="space-y-2 rounded-xl bg-space-600/50 p-3.5 transition-colors duration-200 hover:bg-space-600/70 sm:p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <h3 className="line-clamp-2 text-sm font-semibold text-white sm:truncate">{project.nombre}</h3>
                       <Badge variant={getStatusVariant(project.estado)}>{getStatusLabel(project.estado)}</Badge>
                     </div>
                     {project.descripcion && (
                       <p className="text-xs text-muted-foreground line-clamp-1">{project.descripcion}</p>
                     )}
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                       <span className={getPriorityColor(project.prioridad)}>
                         Prioridad {project.prioridad}
                       </span>
                       {project.fechaLimite && (
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 break-words">
                           <Calendar className="w-3 h-3" />
                           {project.fechaLimite}
                         </span>
@@ -374,11 +374,11 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground mt-1">Las tareas aparecerán aquí cuando se creen.</p>
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {recentTasks.map(task => (
-                <div key={task.id} className="p-4 rounded-lg bg-space-600/50 space-y-2 hover:bg-space-600/70 transition-colors duration-200">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-white truncate">{task.titulo}</h3>
+                <div key={task.id} className="space-y-2 rounded-xl bg-space-600/50 p-3.5 transition-colors duration-200 hover:bg-space-600/70 sm:p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="line-clamp-2 text-sm font-semibold text-white">{task.titulo}</h3>
                     <Badge variant={getStatusVariant(task.estado)}>{getStatusLabel(task.estado)}</Badge>
                   </div>
                   {task.projectId && getProjectNameById(task.projectId) && (
@@ -387,13 +387,13 @@ export default function Dashboard() {
                       {getProjectNameById(task.projectId)}
                     </p>
                   )}
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       {getPriorityIcon(task.prioridad)}
                       <span className={getPriorityColor(task.prioridad)}>Prioridad {task.prioridad}</span>
                     </span>
                     {task.equipo && (
-                      <span className="ml-auto text-purple-400">
+                      <span className="text-purple-400 sm:ml-auto">
                         {TEAM_LABELS[task.equipo as TeamType] || task.equipo}
                       </span>
                     )}

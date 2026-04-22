@@ -224,8 +224,8 @@ export default function TaskManagement() {
 
     return (
       <Card key={task.id} className="bg-space-700/50 border-space-600 hover:border-space-500 transition-all duration-200">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row md:items-start gap-4">
+        <CardContent className="space-y-4 sm:space-y-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start">
             <div className="flex-1 space-y-2">
               <div className="flex items-center gap-3 flex-wrap min-w-0">
                 <h3 className="text-lg font-semibold text-white truncate max-w-full sm:max-w-none">{task.titulo}</h3>
@@ -240,7 +240,7 @@ export default function TaskManagement() {
               {task.descripcion && (
                 <p className="text-sm text-muted-foreground">{task.descripcion}</p>
               )}
-              <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground sm:gap-4">
                 {task.projectId && (
                   <span>Proyecto: <span className="text-white">{getProjectName(task.projectId)}</span></span>
                 )}
@@ -259,12 +259,12 @@ export default function TaskManagement() {
               </div>
             </div>
             {canChangeStatus && (
-              <div className="flex-shrink-0 flex flex-col items-end gap-2">
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-shrink-0 sm:items-end">
                 <select
                   value={task.estado}
                   onChange={(e) => handleStatusChange(task.id, e.target.value as Task['estado'])}
                   title="Cambiar estado de la tarea"
-                  className="px-3 py-2 rounded-lg bg-space-600 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                  className="min-h-11 w-full rounded-xl border border-space-500 bg-space-600 px-3 text-base text-white focus:border-cyan-500 focus:outline-none sm:w-auto sm:text-sm"
                 >
                   <option value="pendiente">Pendiente</option>
                   <option value="en_progreso">En Progreso</option>
@@ -283,7 +283,7 @@ export default function TaskManagement() {
           {editingTimeTaskId === task.id && (
             <div className="mt-4 p-4 rounded-lg bg-space-800/80 border border-space-600 space-y-3 animate-fade-in-up">
               <h4 className="text-sm font-medium text-white flex items-center gap-2"><Clock className="w-4 h-4 text-cyan-400" /> Registrar Calendario Real</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-xs text-slate-300">Inicio Real</label>
                   <Input type="datetime-local" value={fechaInicioForm} onChange={handleInputChange(setFechaInicioForm)} className="bg-space-700 text-xs h-9 border-space-500 text-white" />
@@ -305,19 +305,19 @@ export default function TaskManagement() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="page-shell">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in-up">
+      <div className="page-header animate-fade-in-up">
         <div>
-          <h1 className="text-3xl font-bold text-white">Gestión de Tareas</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="page-title">Gestión de Tareas</h1>
+          <p className="page-copy">
             Crea y administra las tareas del equipo
           </p>
         </div>
         {canManageTasks && (
           <Button
             onClick={() => setShowForm(!showForm)}
-            className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
+            className="w-full bg-cyan-500 text-space-900 hover:bg-cyan-600 sm:w-auto"
           >
             <Plus className="w-4 h-4 mr-2" />
             Nueva Tarea
@@ -329,7 +329,7 @@ export default function TaskManagement() {
       {showForm && canManageTasks && (
         <Card className="bg-space-700/50 border-space-600">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between gap-3">
               <CardTitle className="text-white flex items-center gap-2">
                 <ListTodo className="w-5 h-5 text-cyan-400" />
                 Nueva Tarea
@@ -370,7 +370,7 @@ export default function TaskManagement() {
               />
             </div>
 
-            <div className="grid md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-2">
                 <label htmlFor="task-project" className="text-sm font-medium text-white">Proyecto</label>
                 <select
@@ -378,7 +378,7 @@ export default function TaskManagement() {
                   value={projectId}
                   onChange={handleInputChange(setProjectId)}
                   title="Seleccionar proyecto"
-                  className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                  className="min-h-11 w-full rounded-xl border border-space-500 bg-space-700 px-3 text-base text-white focus:border-cyan-500 focus:outline-none sm:text-sm"
                 >
                   <option value="">Sin proyecto</option>
                   {projects.map(p => (
@@ -394,7 +394,7 @@ export default function TaskManagement() {
                   value={equipo}
                   onChange={(e) => setEquipo(e.target.value as TeamType | '')}
                   title="Seleccionar equipo"
-                  className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                  className="min-h-11 w-full rounded-xl border border-space-500 bg-space-700 px-3 text-base text-white focus:border-cyan-500 focus:outline-none sm:text-sm"
                 >
                   <option value="">Seleccionar equipo</option>
                   {Object.entries(TEAM_LABELS).map(([key, label]) => (
@@ -410,7 +410,7 @@ export default function TaskManagement() {
                   value={prioridad}
                   onChange={(e) => setPrioridad(e.target.value as 'alta' | 'media' | 'baja')}
                   title="Seleccionar prioridad"
-                  className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                  className="min-h-11 w-full rounded-xl border border-space-500 bg-space-700 px-3 text-base text-white focus:border-cyan-500 focus:outline-none sm:text-sm"
                 >
                   <option value="alta">Alta</option>
                   <option value="media">Media</option>
@@ -419,7 +419,7 @@ export default function TaskManagement() {
               </div>
 
               {canManageTasks && (
-                <div className="space-y-2 md:col-span-3">
+                <div className="space-y-2 sm:col-span-2 xl:col-span-3">
                   <label htmlFor="task-points" className="text-sm font-medium text-white flex justify-between items-center mb-1">
                     <span>Puntaje de Importancia</span>
                     <span className="text-cyan-400 font-bold bg-cyan-500/10 px-2 py-0.5 rounded text-xs">{puntajeImportancia}/10</span>
@@ -441,13 +441,13 @@ export default function TaskManagement() {
             {/* Member Assignment */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-white">Responsable(s)</label>
-              <div className="flex flex-wrap gap-2 p-3 rounded-lg bg-space-700 border border-space-500 max-h-[200px] overflow-y-auto">
+              <div className="touch-scroll flex max-h-[220px] flex-wrap gap-2 overflow-y-auto rounded-xl border border-space-500 bg-space-700 p-3">
                 {members.map(member => (
                   <button
                     key={member.id}
                     type="button"
                     onClick={() => toggleMember(member.id)}
-                    className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                    className={`min-h-11 rounded-full px-3 py-2 text-left text-sm transition-colors ${
                       asignadoA.includes(member.id)
                         ? 'bg-cyan-500 text-space-900 font-medium'
                         : 'bg-space-600 text-muted-foreground hover:bg-space-500 hover:text-white'
@@ -464,18 +464,18 @@ export default function TaskManagement() {
               )}
             </div>
 
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
               <Button
                 variant="outline"
                 onClick={resetForm}
-                className="border-space-600 text-white hover:bg-space-600"
+                className="w-full border-space-600 text-white hover:bg-space-600 sm:w-auto"
               >
                 Cancelar
               </Button>
               <Button
                 onClick={handleCreateTask}
                 disabled={!titulo.trim() || saving}
-                className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
+                className="w-full bg-cyan-500 text-space-900 hover:bg-cyan-600 sm:w-auto"
               >
                 {saving ? 'Creando...' : 'Crear Tarea'}
               </Button>

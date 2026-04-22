@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, 
@@ -32,6 +32,29 @@ export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (!sidebarOpen) return
+
+    const originalOverflow = document.body.style.overflow
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSidebarOpen(false)
+      }
+    }
+
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = originalOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [sidebarOpen])
+
   const handleSignOut = async () => {
     await signOut()
     navigate('/login')
@@ -47,7 +70,7 @@ export default function Layout({ children }: LayoutProps) {
   ]
 
   return (
-    <div className="min-h-screen bg-space-900">
+    <div className="min-safe-screen min-h-screen bg-space-900">
       {/* Skip to content — accessibility */}
       <a href="#main-content" className="skip-to-content">
         Saltar al contenido principal
@@ -56,7 +79,7 @@ export default function Layout({ children }: LayoutProps) {
       {/* Mobile menu button */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 rounded-lg bg-space-700 text-white hover:bg-space-600 transition-colors"
+        className="lg:hidden fixed left-3 top-3 z-50 flex h-11 w-11 items-center justify-center rounded-2xl border border-space-600/70 bg-space-800/95 text-white shadow-lg shadow-black/30 backdrop-blur-sm transition-colors hover:bg-space-700 sm:left-4 sm:top-4"
         aria-label={sidebarOpen ? "Cerrar menú" : "Abrir menú"}
         aria-expanded={sidebarOpen}
         aria-controls="sidebar-nav"
@@ -70,13 +93,13 @@ export default function Layout({ children }: LayoutProps) {
         role="navigation"
         aria-label="Navegación principal"
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 bg-space-800 border-r border-space-600/50 transform transition-transform duration-300 ease-in-out lg:translate-x-0 will-change-transform",
+          "touch-scroll mobile-safe-top mobile-safe-bottom fixed inset-y-0 left-0 z-40 w-[min(18rem,calc(100vw-1.5rem))] border-r border-space-600/50 bg-space-800/95 shadow-2xl shadow-black/40 backdrop-blur-md transform transition-transform duration-300 ease-in-out will-change-transform sm:w-80 lg:w-72 lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex flex-col h-full">
+        <div className="flex h-full flex-col pt-16 sm:pt-20 lg:pt-0">
           {/* Logo */}
-          <div className="p-6 border-b border-space-600">
+          <div className="border-b border-space-600 px-4 py-5 sm:p-6">
             <Link to="/dashboard" className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-cyan-500/20">
                 <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="w-6 h-6" />
@@ -89,7 +112,7 @@ export default function Layout({ children }: LayoutProps) {
           </div>
 
           {/* User info */}
-          <div className="p-4 border-b border-space-600">
+          <div className="border-b border-space-600 p-4">
             <div className="flex items-center gap-3">
               {user?.photoURL ? (
                 <img 
@@ -113,7 +136,7 @@ export default function Layout({ children }: LayoutProps) {
                   {user?.nombre || extractNameFromEmail(user?.email || '')} {user?.apellido || ''}
                 </p>
                 {user && (
-                  <div className="flex flex-col gap-1 mt-1">
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     {user.rol && (
                       <Badge 
                         variant={user.rol === 'maestro' ? 'orange' : 'red'}
@@ -141,7 +164,7 @@ export default function Layout({ children }: LayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1" aria-label="Menú principal">
+          <nav className="flex-1 px-3 pb-4 pt-3 sm:px-4" aria-label="Menú principal">
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = location.pathname === item.path
@@ -152,7 +175,7 @@ export default function Layout({ children }: LayoutProps) {
                   onClick={() => setSidebarOpen(false)}
                   aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group relative",
+                    "group relative mb-1 flex min-h-12 items-center gap-3 rounded-xl px-3.5 py-3 text-sm transition-all duration-200 sm:px-4 sm:text-[15px]",
                     isActive
                       ? "bg-cyan-500/15 text-cyan-400 shadow-sm shadow-cyan-500/10"
                       : "text-muted-foreground hover:bg-space-700/80 hover:text-white"
@@ -172,10 +195,10 @@ export default function Layout({ children }: LayoutProps) {
           </nav>
 
           {/* Sign out */}
-          <div className="p-4 border-t border-space-600/50">
+          <div className="border-t border-space-600/50 p-3 sm:p-4">
             <button
               onClick={handleSignOut}
-              className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-muted-foreground hover:bg-red-500/15 hover:text-red-400 transition-all duration-200 group"
+              className="group flex min-h-12 w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-muted-foreground transition-all duration-200 hover:bg-red-500/15 hover:text-red-400"
             >
               <LogOut size={20} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
               <span>Cerrar Sesión</span>
@@ -187,15 +210,15 @@ export default function Layout({ children }: LayoutProps) {
       {/* Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/70 z-30 lg:hidden transition-opacity duration-200"
+          className="fixed inset-0 z-30 bg-black/75 backdrop-blur-sm transition-opacity duration-200 lg:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
       )}
 
       {/* Main content */}
-      <main id="main-content" className="lg:ml-64 min-h-screen" role="main">
-        <div className="p-4 lg:p-8 animate-fade-in" style={{ contain: 'content' }}>
+      <main id="main-content" className="min-safe-screen min-h-screen lg:ml-72" role="main">
+        <div className="page-shell mobile-safe-bottom animate-fade-in px-4 pb-6 pt-20 sm:px-5 sm:pt-24 md:px-6 lg:px-8 lg:py-8" style={{ contain: 'content' }}>
           {children}
         </div>
       </main>

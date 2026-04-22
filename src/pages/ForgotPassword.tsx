@@ -37,22 +37,22 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className="min-h-screen bg-space-900 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-safe-screen min-h-screen bg-space-900 relative flex items-center justify-center overflow-hidden px-4 py-6 sm:py-10">
       <div className="absolute inset-0 stars-bg opacity-30" />
       
-      <Card className="w-full max-w-md bg-space-800 border-space-600">
+      <Card className="w-full max-w-[28rem] bg-space-800/95 border-space-600 backdrop-blur-sm">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
+          <div className="mb-4 flex justify-center">
             <div className="p-3 rounded-xl bg-cyan-500/20">
               <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="w-8 h-8" />
             </div>
           </div>
-          <CardTitle className="text-2xl text-white">Recuperar Contraseña</CardTitle>
+          <CardTitle className="text-xl text-white sm:text-2xl">Recuperar Contraseña</CardTitle>
           <CardDescription className="text-muted-foreground">
             Ingresa tu correo institucional para recibir un enlace de recuperación
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-1">
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             {error && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm animate-fade-in" role="alert">
