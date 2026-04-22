@@ -94,20 +94,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let isMounted = true
+    let authStateVersion = 0
+
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      const currentVersion = ++authStateVersion
+
+      if (!isMounted) {
+        return
+      }
+
       setFirebaseUser(fbUser)
       if (fbUser) {
+        const extractedName = fbUser.email ? extractFullNameFromEmail(fbUser.email) : { nombre: '', apellido: '' }
         const fallbackUser: User = {
           id: fbUser.uid,
           email: fbUser.email || '',
-          nombre: fbUser.displayName?.split(' ')[0] || '',
-          apellido: fbUser.displayName?.split(' ').slice(1).join(' ') || '',
+          nombre: fbUser.displayName?.split(' ')[0] || extractedName.nombre,
+          apellido: fbUser.displayName?.split(' ').slice(1).join(' ') || extractedName.apellido,
           createdAt: new Date(),
           isActive: true,
         }
 
+        setUser((currentUser) => (currentUser?.id === fbUser.uid ? { ...fallbackUser, ...currentUser } : fallbackUser))
+
         try {
           const userDoc = await getDoc(doc(db, COLLECTIONS.USERS, fbUser.uid))
+          if (!isMounted || authStateVersion !== currentVersion) {
+            return
+          }
+
           if (userDoc.exists()) {
             const userData = userDoc.data() as Record<string, unknown>
             // Auto-repair: if Firestore doc is missing email, backfill from Auth
@@ -123,23 +139,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               Object.assign(userData, repairData)
             }
             setUser(mapFirestoreUser(fbUser.uid, userData, fallbackUser))
-          } else {
-            setUser(fallbackUser)
           }
         } catch (error) {
+          if (!isMounted || authStateVersion !== currentVersion) {
+            return
+          }
+
           logger.warn('Could not fetch Firestore user data – may be blocked by ad-blocker', { error: error instanceof Error ? error : undefined })
           setUser(fallbackUser)
+        } finally {
+          if (isMounted && authStateVersion === currentVersion) {
+            setLoading(false)
+          }
         }
       } else {
         setUser(null)
+        setLoading(false)
       }
-      setLoading(false)
     })
-    return unsubscribe
+
+    return () => {
+      isMounted = false
+      unsubscribe()
+    }
   }, [])
 
   const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password)
+    await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password)
   }
 
   const signUp = async (email: string, password: string, nombre: string, apellido: string) => {
