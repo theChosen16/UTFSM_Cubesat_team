@@ -2,10 +2,17 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 
-const mockOnAuthStateChanged = vi.fn()
-const mockGetDoc = vi.fn()
-const mockSetDoc = vi.fn()
-const mockDoc = vi.fn(() => ({}))
+const {
+  mockOnAuthStateChanged,
+  mockGetDoc,
+  mockSetDoc,
+  mockDoc,
+} = vi.hoisted(() => ({
+  mockOnAuthStateChanged: vi.fn(),
+  mockGetDoc: vi.fn(),
+  mockSetDoc: vi.fn(),
+  mockDoc: vi.fn(() => ({})),
+}))
 
 vi.mock('@/lib/firebase', () => ({
   auth: {},
