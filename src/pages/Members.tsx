@@ -142,12 +142,12 @@ export default function Members() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="page-shell">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in-up">
+      <div className="page-header animate-fade-in-up">
         <div>
-          <h1 className="text-3xl font-bold text-white">Miembros del Equipo</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="page-title">Miembros del Equipo</h1>
+          <p className="page-copy">
             Directorio de miembros y sus funciones en el equipo
           </p>
         </div>
@@ -159,7 +159,7 @@ export default function Members() {
         )}
       </div>
 
-      <div className="bg-space-800/80 border border-space-600/50 rounded-xl p-4 flex items-start gap-3 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+      <div className="flex items-start gap-3 rounded-2xl border border-space-600/50 bg-space-800/80 p-4 animate-fade-in-up sm:p-5" style={{ animationDelay: '100ms' }}>
         <Info className="w-5 h-5 text-cyan-400 flex-shrink-0 mt-0.5" />
         <p className="text-sm text-slate-300">
           <strong className="text-white">Nota Histórica:</strong> Este historial de participación y el sistema de ranking están presentes meramente para capturar y dejar una huella temporal del desarrollo colaborativo en la historia del equipo.
@@ -167,7 +167,7 @@ export default function Members() {
       </div>
 
       {/* Search */}
-      <div className="relative max-w-md">
+      <div className="relative w-full max-w-xl">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
         <input
           type="search"
@@ -193,12 +193,12 @@ export default function Members() {
             <button
               onClick={() => toggleTeam(team.key)}
               aria-expanded={!isCollapsed}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${team.bgColor} border ${team.borderColor} hover:brightness-110 transition-all duration-200`}
+              className={`w-full rounded-2xl border px-3.5 py-3.5 transition-all duration-200 hover:brightness-110 sm:px-4 ${team.bgColor} ${team.borderColor}`}
             >
               <div className={`p-2 rounded-lg ${team.bgColor}`}>
                 <TeamIcon className={`w-5 h-5 ${team.color}`} />
               </div>
-              <h2 className="text-lg font-semibold text-white flex-1 text-left truncate">{team.label}</h2>
+              <h2 className="flex-1 truncate text-left text-base font-semibold text-white sm:text-lg">{team.label}</h2>
               <Badge variant="secondary" className="text-xs flex-shrink-0">
                 {teamMembers.length} {teamMembers.length === 1 ? 'miembro' : 'miembros'}
               </Badge>
@@ -210,7 +210,7 @@ export default function Members() {
 
             {/* Team member cards */}
             {!isCollapsed && (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" role="list" aria-label={`Miembros de ${team.label}`}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 xl:gap-6" role="list" aria-label={`Miembros de ${team.label}`}>
                 {teamMembers.map((member) => {
                   const isCurrentUser = user?.id === member.id
                   const isMaster = hasRole(user, 'maestro')
@@ -218,8 +218,8 @@ export default function Members() {
                   return (
                     <Card key={member.id} className="bg-space-700/50 border-space-600 hover:border-cyan-500/30 transition-all duration-200">
                       <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                             {member.photoURL ? (
                               <img 
                                 src={member.photoURL} 
@@ -265,7 +265,7 @@ export default function Members() {
                                 <Trophy className="w-3.5 h-3.5" />
                                 <span>Rango: {rank.label}</span>
                               </div>
-                              <div className="flex gap-4 text-xs">
+                              <div className="flex flex-wrap gap-3 text-xs sm:gap-4">
                                 <div className="text-muted-foreground flex items-center gap-1">
                                   <span>✅</span>
                                   <span className="text-white font-medium">{completedCount}</span> términadas
@@ -329,7 +329,7 @@ export default function Members() {
                                 const checked = member.equipos?.includes(team) ?? false
                                 const disabled = !checked && (member.equipos?.length ?? 0) >= 2
                                 return (
-                                  <label key={team} className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-space-600 border border-space-500 text-sm cursor-pointer ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-cyan-500'}`}>
+                                  <label key={team} className={`flex min-h-11 items-center gap-2 rounded-xl border border-space-500 bg-space-600 px-3 py-2 text-sm cursor-pointer ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-cyan-500'}`}>
                                     <input
                                       type="checkbox"
                                       checked={checked}

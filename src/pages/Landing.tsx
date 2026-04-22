@@ -86,7 +86,7 @@ export default function Landing() {
   const timelineRef = useScrollReveal()
 
   return (
-    <div className="min-h-screen bg-space-900 relative overflow-hidden">
+    <div className="min-safe-screen min-h-screen bg-space-900 relative overflow-hidden">
       {/* Stars background with depth effect */}
       <div className="absolute inset-0 stars-depth">
         <div className="absolute inset-0 stars-bg opacity-80" />
@@ -102,13 +102,13 @@ export default function Landing() {
 
       {/* Hero Section */}
       <header className="relative z-10" role="banner">
-        <nav className="container mx-auto px-6 py-6" aria-label="Navegación principal">
+        <nav className="container mx-auto px-4 py-4 sm:px-6 sm:py-6" aria-label="Navegación principal">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-cyan-500/20">
-                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="w-10 h-10" />
+              <div className="rounded-xl bg-cyan-500/20 p-2.5 sm:p-3">
+                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="h-9 w-9 sm:h-10 sm:w-10" />
               </div>
-              <span className="text-xl font-bold text-white">USM Cubesat Team</span>
+              <span className="text-base font-bold text-white sm:text-xl">USM Cubesat Team</span>
             </div>
             <div className="hidden sm:flex items-center gap-4">
               <Link to="/login">
@@ -129,7 +129,7 @@ export default function Landing() {
                 </Button>
               </Link>
               <Link to="/register">
-                <Button size="sm" className="bg-cyan-500 hover:bg-cyan-600 text-space-900 px-2">
+                <Button size="sm" className="bg-cyan-500 hover:bg-cyan-600 text-space-900 px-3">
                   Unirse
                 </Button>
               </Link>
@@ -138,40 +138,40 @@ export default function Landing() {
         </nav>
 
         {/* Hero Content */}
-        <div className="container mx-auto px-6 py-20 lg:py-32">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="flex justify-center mb-8">
+        <div className="container mx-auto px-4 py-16 sm:px-6 sm:py-20 lg:py-32">
+          <div className="mx-auto max-w-5xl text-center">
+            <div className="mb-6 flex justify-center sm:mb-8">
               <div className="relative">
                 <div className="absolute inset-0 rounded-full bg-cyan-500/20 blur-xl" />
-                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="relative w-28 h-28 drop-shadow-[0_0_25px_rgba(6,182,212,0.4)]" loading="eager" fetchPriority="high" />
+                <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="relative h-24 w-24 drop-shadow-[0_0_25px_rgba(6,182,212,0.4)] sm:h-28 sm:w-28" loading="eager" />
               </div>
             </div>
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-space-700 border border-space-600 mb-8">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-space-600 bg-space-700 px-3 py-2 sm:mb-8 sm:px-4">
               <Rocket className="w-4 h-4 text-orange-400" />
-              <span className="text-sm text-muted-foreground">Universidad Técnica Federico Santa María</span>
+              <span className="text-xs text-muted-foreground sm:text-sm">Universidad Técnica Federico Santa María</span>
             </div>
             
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight">
+            <h1 className="mb-5 text-[2.35rem] font-bold leading-tight text-white sm:text-5xl md:text-6xl lg:text-7xl">
               Construyendo el futuro del{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-400">
                 espacio
               </span>
             </h1>
             
-            <p className="text-lg md:text-xl text-muted-foreground mb-12 max-w-2xl mx-auto">
+            <p className="mx-auto mb-10 max-w-3xl text-base text-muted-foreground sm:text-lg md:text-xl">
               Somos un equipo universitario dedicado al diseño, construcción y operación de nano satélites. 
               Únete a nosotros y forma parte de la próxima generación de exploradores espaciales.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/register">
-                <Button size="lg" className="bg-cyan-500 hover:bg-cyan-600 text-space-900 font-semibold px-8">
+            <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <Link to="/register" className="w-full sm:w-auto">
+                <Button size="lg" className="w-full bg-cyan-500 px-8 font-semibold text-space-900 hover:bg-cyan-600 sm:w-auto">
                   Comenzar Ahora
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
               </Link>
-              <Link to="/login">
-                <Button size="lg" variant="outline" className="border-space-600 text-white hover:bg-space-700">
+              <Link to="/login" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="w-full border-space-600 text-white hover:bg-space-700 sm:w-auto">
                   Ya tengo cuenta
                 </Button>
               </Link>
@@ -182,15 +182,15 @@ export default function Landing() {
 
       {/* Features Section */}
       <section className="relative z-10 py-20 bg-space-800/50" aria-labelledby="teams-heading">
-        <div className="container mx-auto px-6">
-          <h2 id="teams-heading" className="text-3xl md:text-4xl font-bold text-white text-center mb-16">
+        <div className="container mx-auto px-4 sm:px-6">
+          <h2 id="teams-heading" className="mb-12 text-center text-3xl font-bold text-white sm:mb-16 md:text-4xl">
             Nuestros Equipos
           </h2>
           
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid gap-4 sm:gap-6 md:grid-cols-3 md:gap-8">
             {/* Technical Team */}
-            <div className="p-6 rounded-2xl bg-space-700/50 border border-space-600 hover:border-purple-500/50 transition-colors group">
-              <div className="w-14 h-14 rounded-xl bg-purple-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+            <div className="group rounded-2xl border border-space-600 bg-space-700/50 p-5 transition-colors hover:border-purple-500/50 sm:p-6">
+              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/20 transition-transform group-hover:scale-110 sm:mb-6 sm:h-14 sm:w-14">
                 <Cpu className="w-7 h-7 text-purple-400" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Equipo Técnico</h3>
@@ -200,8 +200,8 @@ export default function Landing() {
             </div>
 
             {/* Manager Team */}
-            <div className="p-6 rounded-2xl bg-space-700/50 border border-space-600 hover:border-cyan-500/50 transition-colors group">
-              <div className="w-14 h-14 rounded-xl bg-cyan-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+            <div className="group rounded-2xl border border-space-600 bg-space-700/50 p-5 transition-colors hover:border-cyan-500/50 sm:p-6">
+              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20 transition-transform group-hover:scale-110 sm:mb-6 sm:h-14 sm:w-14">
                 <Users className="w-7 h-7 text-cyan-400" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Manager</h3>
@@ -211,8 +211,8 @@ export default function Landing() {
             </div>
 
             {/* PR Team */}
-            <div className="p-6 rounded-2xl bg-space-700/50 border border-space-600 hover:border-green-500/50 transition-colors group">
-              <div className="w-14 h-14 rounded-xl bg-green-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+            <div className="group rounded-2xl border border-space-600 bg-space-700/50 p-5 transition-colors hover:border-green-500/50 sm:p-6">
+              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/20 transition-transform group-hover:scale-110 sm:mb-6 sm:h-14 sm:w-14">
                 <Globe className="w-7 h-7 text-green-400" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-3">Relaciones Públicas</h3>
@@ -226,17 +226,17 @@ export default function Landing() {
 
       {/* History Timeline */}
       <section className="relative z-10 py-20 bg-space-900/80" aria-labelledby="timeline-heading">
-        <div className="container mx-auto px-6">
-          <h2 id="timeline-heading" className="text-3xl md:text-4xl font-bold text-white text-center mb-4">
+        <div className="container mx-auto px-4 sm:px-6">
+          <h2 id="timeline-heading" className="mb-4 text-center text-3xl font-bold text-white md:text-4xl">
             Nuestra Trayectoria
           </h2>
-          <p className="text-muted-foreground text-center mb-16 max-w-2xl mx-auto">
+          <p className="mx-auto mb-12 max-w-2xl text-center text-sm text-muted-foreground sm:mb-16 sm:text-base">
             Desde nuestra fundación en 2019, hemos forjado un camino de excelencia en ingeniería aeroespacial estudiantil.
           </p>
 
-          <div ref={timelineRef} className="relative max-w-4xl mx-auto">
+          <div ref={timelineRef} className="relative mx-auto max-w-5xl">
             {/* Timeline center line */}
-            <div className="absolute left-4 md:left-1/2 top-0 bottom-0 w-0.5 bg-gradient-to-b from-cyan-500/60 via-purple-500/60 to-cyan-500/60 md:-translate-x-px" />
+            <div className="absolute bottom-0 left-3.5 top-0 w-0.5 bg-gradient-to-b from-cyan-500/60 via-purple-500/60 to-cyan-500/60 sm:left-4 md:left-1/2 md:-translate-x-px" />
 
             {TIMELINE_EVENTS.map((event, index) => {
               const isLeft = index % 2 === 0
@@ -259,15 +259,15 @@ export default function Landing() {
                   }`}
                 >
                   {/* Dot on timeline */}
-                  <div className="absolute left-4 md:left-1/2 -translate-x-1/2 z-10">
+                  <div className="absolute left-3.5 z-10 -translate-x-1/2 sm:left-4 md:left-1/2">
                     <div className={`w-10 h-10 rounded-full ${colors.dot} ${colors.glow} shadow-lg flex items-center justify-center`}>
                       <EventIcon className="w-5 h-5 text-white" />
                     </div>
                   </div>
 
                   {/* Card */}
-                  <div className={`ml-14 md:ml-0 md:w-[calc(50%-2rem)] ${isLeft ? 'md:pr-8 md:text-right' : 'md:pl-8 md:ml-auto'}`}>
-                    <div className={`p-5 rounded-xl bg-space-700/80 border ${colors.border} hover:bg-space-700 transition-colors`}>
+                  <div className={`ml-11 sm:ml-14 md:ml-0 md:w-[calc(50%-2rem)] ${isLeft ? 'md:pr-8 md:text-right' : 'md:pl-8 md:ml-auto'}`}>
+                    <div className={`rounded-xl border bg-space-700/80 p-4 transition-colors hover:bg-space-700 sm:p-5 ${colors.border}`}>
                       <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${colors.bg} mb-3`}>
                         <span className={`text-sm font-bold ${colors.text}`}>{event.year}</span>
                       </div>
@@ -284,13 +284,13 @@ export default function Landing() {
 
       {/* Footer */}
       <footer className="relative z-10 py-8 border-t border-space-700" role="contentinfo">
-        <div className="container mx-auto px-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
             <div className="flex items-center gap-3">
               <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" className="w-8 h-8" aria-hidden="true" loading="lazy" />
-              <span className="text-muted-foreground">USM Cubesat Team © {new Date().getFullYear()}</span>
+              <span className="text-center text-sm text-muted-foreground sm:text-left">USM Cubesat Team © {new Date().getFullYear()}</span>
             </div>
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 sm:gap-6">
               <a href="https://github.com/theChosen16/UTFSM_Cubesat_team" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-cyan-400 transition-colors" aria-label="Repositorio en GitHub">
                 GitHub
               </a>

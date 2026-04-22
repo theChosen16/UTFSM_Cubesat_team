@@ -167,24 +167,24 @@ export default function Notifications() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="page-shell">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in-up">
+      <div className="page-header animate-fade-in-up">
         <div>
-          <h1 className="text-3xl font-bold text-white">Buzón</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="page-title">Buzón</h1>
+          <p className="page-copy">
             Notificaciones y mensajes de la plataforma
           </p>
         </div>
         {unreadNotificationCount > 0 && (
-          <Badge variant="orange" className="text-sm px-3 py-1">
+          <Badge variant="orange" className="w-fit text-sm px-3 py-1">
             {unreadNotificationCount} sin leer
           </Badge>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-space-600 pb-0" role="tablist" aria-label="Secciones del buzón">
+      <div className="touch-scroll -mx-1 flex gap-2 overflow-x-auto border-b border-space-600 px-1 pb-0" role="tablist" aria-label="Secciones del buzón">
         {tabs.map(tab => {
           const TabIcon = tab.icon
           return (
@@ -195,7 +195,7 @@ export default function Notifications() {
               aria-selected={activeTab === tab.id}
               aria-controls={`tabpanel-${tab.id}`}
               className={cn(
-                "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors",
+                "flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors",
                 activeTab === tab.id
                   ? "border-cyan-500 text-cyan-400"
                   : "border-transparent text-muted-foreground hover:text-white hover:border-space-500"
@@ -239,7 +239,7 @@ export default function Notifications() {
                       !notification.read && "border-l-4 border-l-cyan-500"
                     )}
                   >
-                    <CardContent className="flex items-start gap-4 py-4">
+                    <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:gap-4">
                       <div className={cn("p-2 rounded-lg", bgColor)}>
                         <Icon className={cn("w-5 h-5", iconColor)} />
                       </div>
@@ -271,7 +271,7 @@ export default function Notifications() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleMarkAsRead(notification.id)}
-                          className="text-muted-foreground hover:text-cyan-400"
+                          className="self-end text-muted-foreground hover:text-cyan-400 sm:self-auto"
                           title="Marcar como leída"
                         >
                           <MailOpen className="w-4 h-4" />
@@ -293,7 +293,7 @@ export default function Notifications() {
           {!showCompose ? (
             <Button
               onClick={() => setShowCompose(true)}
-              className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
+              className="w-full bg-cyan-500 text-space-900 hover:bg-cyan-600 sm:w-auto"
             >
               <Send className="w-4 h-4 mr-2" />
               Nuevo Mensaje
@@ -321,7 +321,7 @@ export default function Notifications() {
                         value={messageRecipient}
                         onChange={(e) => setMessageRecipient(e.target.value)}
                         title="Seleccionar destinatario"
-                        className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                        className="min-h-11 w-full rounded-xl border border-space-500 bg-space-700 px-3 text-base text-white focus:border-cyan-500 focus:outline-none sm:text-sm"
                       >
                         <option value="">Selecciona un usuario</option>
                         {allUsers.map(u => (
@@ -341,11 +341,11 @@ export default function Notifications() {
                         className="bg-space-700 border-space-500 text-white min-h-[100px]"
                       />
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row">
                       <Button
                         onClick={handleSendMessage}
                         disabled={sendingMessage || !messageRecipient || !messageText.trim()}
-                        className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
+                        className="w-full bg-cyan-500 text-space-900 hover:bg-cyan-600 sm:w-auto"
                       >
                         <Send className="w-4 h-4 mr-2" />
                         {sendingMessage ? 'Enviando...' : 'Enviar'}
@@ -353,7 +353,7 @@ export default function Notifications() {
                       <Button
                         variant="outline"
                         onClick={() => { setShowCompose(false); setMessageText(''); setMessageRecipient('') }}
-                        className="border-space-600 text-white hover:bg-space-600"
+                        className="w-full border-space-600 text-white hover:bg-space-600 sm:w-auto"
                       >
                         Cancelar
                       </Button>
@@ -385,7 +385,7 @@ export default function Notifications() {
                     !msg.read && "border-l-4 border-l-blue-500"
                   )}
                 >
-                  <CardContent className="flex items-start gap-4 py-4">
+                  <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:gap-4">
                     <div className="p-2 rounded-lg bg-blue-500/20">
                       <MessageSquare className="w-5 h-5 text-blue-400" />
                     </div>
@@ -414,7 +414,7 @@ export default function Notifications() {
                         variant="ghost"
                         size="icon"
                         onClick={() => handleMarkAsRead(msg.id)}
-                        className="text-muted-foreground hover:text-blue-400"
+                        className="self-end text-muted-foreground hover:text-blue-400 sm:self-auto"
                         title="Marcar como leído"
                       >
                         <MailOpen className="w-4 h-4" />

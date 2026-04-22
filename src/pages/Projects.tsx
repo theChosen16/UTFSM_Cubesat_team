@@ -206,19 +206,19 @@ export default function Projects() {
   )
 
   return (
-    <div className="space-y-6">
+    <div className="page-shell">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in-up">
+      <div className="page-header animate-fade-in-up">
         <div>
-          <h1 className="text-3xl font-bold text-white">Proyectos</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="page-title">Proyectos</h1>
+          <p className="page-copy">
             Gestiona y supervisa los proyectos del equipo
           </p>
         </div>
         {canCreateProject && (
           <Button
             onClick={() => setShowForm(!showForm)}
-            className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
+            className="w-full bg-cyan-500 text-space-900 hover:bg-cyan-600 sm:w-auto"
           >
             <Plus className="w-4 h-4 mr-2" />
             Nuevo Proyecto
@@ -230,7 +230,7 @@ export default function Projects() {
       {showForm && (canCreateProject || canEditProject) && (
         <Card className="bg-space-700/50 border-space-600">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between gap-3">
               <CardTitle className="text-white flex items-center gap-2">
                 <Rocket className="w-5 h-5 text-cyan-400" />
                 {editingProjectId ? 'Editar Proyecto' : 'Nuevo Proyecto'}
@@ -272,7 +272,7 @@ export default function Projects() {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-2">
                 <label htmlFor="project-status" className="text-sm font-medium text-white">Estado</label>
                 <select
@@ -280,7 +280,7 @@ export default function Projects() {
                   value={estado}
                   onChange={(e) => setEstado(e.target.value as 'planificacion' | 'en_progreso' | 'completado')}
                   title="Seleccionar estado"
-                  className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                  className="min-h-11 w-full rounded-xl border border-space-500 bg-space-700 px-3 text-base text-white focus:border-cyan-500 focus:outline-none sm:text-sm"
                 >
                   <option value="planificacion">Planificación</option>
                   <option value="en_progreso">En Progreso</option>
@@ -295,7 +295,7 @@ export default function Projects() {
                   value={prioridadForm}
                   onChange={(e) => setPrioridadForm(e.target.value as 'alta' | 'media' | 'baja')}
                   title="Seleccionar prioridad"
-                  className="w-full px-3 py-2 rounded-lg bg-space-700 border border-space-500 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                  className="min-h-11 w-full rounded-xl border border-space-500 bg-space-700 px-3 text-base text-white focus:border-cyan-500 focus:outline-none sm:text-sm"
                 >
                   <option value="alta">Alta</option>
                   <option value="media">Media</option>
@@ -315,18 +315,18 @@ export default function Projects() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
               <Button
                 variant="outline"
                 onClick={resetForm}
-                className="border-space-600 text-white hover:bg-space-600"
+                className="w-full border-space-600 text-white hover:bg-space-600 sm:w-auto"
               >
                 Cancelar
               </Button>
               <Button
                 onClick={handleSaveProject}
                 disabled={!nombre.trim() || saving}
-                className="bg-cyan-500 hover:bg-cyan-600 text-space-900"
+                className="w-full bg-cyan-500 text-space-900 hover:bg-cyan-600 sm:w-auto"
               >
                 {saving ? 'Guardando...' : (editingProjectId ? 'Guardar Cambios' : 'Crear Proyecto')}
               </Button>
@@ -346,7 +346,7 @@ export default function Projects() {
             className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground"
           />
         </div>
-        <Button variant="outline" className="border-space-600 text-white hover:bg-space-700">
+        <Button variant="outline" className="w-full border-space-600 text-white hover:bg-space-700 sm:w-auto">
           <Filter className="w-4 h-4 mr-2" />
           Filtros
         </Button>
@@ -356,11 +356,11 @@ export default function Projects() {
 
       {/* Projects Grid */}
       {!loading && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" role="list" aria-label="Lista de proyectos">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 xl:gap-6" role="list" aria-label="Lista de proyectos">
         {filteredProjects.map((project) => (
           <Card key={project.id} className="bg-space-700/50 border-space-600 hover:border-cyan-500/50 transition-all duration-200 hover:shadow-lg hover:shadow-cyan-500/5">
             <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
                   <Rocket className="w-5 h-5 text-cyan-400" />
                 </div>
@@ -378,7 +378,7 @@ export default function Projects() {
               <CardTitle className="text-lg text-white mt-3">{project.name}</CardTitle>
               <CardDescription className="line-clamp-2">{project.description}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4">
               {/* Progress Bar */}
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
@@ -394,7 +394,7 @@ export default function Projects() {
               </div>
 
               {/* Meta Info */}
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Badge variant={getStatusColor(project.status) as 'cyan' | 'orange' | 'green'}>
                   {getStatusLabel(project.status)}
                 </Badge>
@@ -404,9 +404,9 @@ export default function Projects() {
               </div>
 
               {/* Deadline */}
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-start gap-2 text-sm text-muted-foreground">
                 <Calendar className="w-4 h-4" />
-                <span>Fecha límite: {project.deadline}</span>
+                <span className="break-words">Fecha límite: {project.deadline}</span>
               </div>
 
               {/* Associated Tasks */}
@@ -416,7 +416,7 @@ export default function Projects() {
                     <ListTodo className="w-4 h-4 text-purple-400" />
                     Tareas {project.tasks.filter(t => t.estado === 'completado').length}/{project.tasks.length}
                   </h4>
-                  <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                  <div className="touch-scroll max-h-32 space-y-2 overflow-y-auto pr-1">
                     {project.tasks.map(t => (
                       <div key={t.id} className="flex items-center justify-between text-xs p-2 rounded bg-space-800/50 border border-space-600/30">
                         <span className="text-white truncate flex-1 mr-2" title={t.titulo}>{t.titulo}</span>

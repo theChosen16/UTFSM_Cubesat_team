@@ -97,14 +97,14 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-space-900 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-safe-screen min-h-screen bg-space-900 relative flex items-center justify-center overflow-hidden px-4 py-6 sm:py-10">
       {/* Stars background */}
       <div className="absolute inset-0 stars-bg opacity-30" />
 
       {/* Name step modal overlay */}
       {showNameStep && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <Card className="w-full max-w-sm bg-space-800 border-space-600 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 p-3 sm:items-center sm:p-4">
+          <Card className="touch-scroll max-safe-screen w-full max-w-sm overflow-y-auto rounded-t-[1.75rem] bg-space-800 border-space-600 animate-fade-in sm:max-w-md sm:rounded-2xl">
             <CardHeader className="text-center">
               <div className="flex justify-center mb-3">
                 <div className="p-3 rounded-full bg-cyan-500/20">
@@ -182,19 +182,19 @@ export default function Register() {
         </div>
       )}
       
-      <Card className="w-full max-w-md bg-space-800 border-space-600">
+      <Card className="w-full max-w-[28rem] bg-space-800/95 border-space-600 backdrop-blur-sm">
         <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
+          <div className="mb-4 flex justify-center">
             <div className="p-3 rounded-xl bg-cyan-500/20">
               <img src={`${import.meta.env.BASE_URL}logo.png`} alt="USM Cubesat" className="w-8 h-8" />
             </div>
           </div>
-          <CardTitle className="text-2xl text-white">Únete al equipo</CardTitle>
+          <CardTitle className="text-xl text-white sm:text-2xl">Únete al equipo</CardTitle>
           <CardDescription className="text-muted-foreground">
             Crea tu cuenta para comenzar
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-1">
           <form onSubmit={handleFirstStep} className="space-y-4" noValidate>
             {error && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm animate-fade-in" role="alert" id="register-error">
