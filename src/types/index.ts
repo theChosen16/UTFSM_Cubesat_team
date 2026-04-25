@@ -193,8 +193,9 @@ export interface ActivityLogEntry {
 export interface FileRecord {
   id: string
   name: string
-  storagePath: string
+  driveFileId: string
   downloadURL: string
+  viewURL: string
   mimeType: string
   size: number
   uploadedBy: string

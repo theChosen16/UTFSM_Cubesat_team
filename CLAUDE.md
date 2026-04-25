@@ -3,7 +3,7 @@
 ## Proyecto
 
 **USM CubeSat Team** — plataforma web privada para gestión interna del equipo de nano-satélites de la UTFSM.
-Stack: React 18 + TypeScript + Vite + Tailwind CSS + Firebase (Auth / Firestore / Storage) + React Router v6.
+Stack: React 18 + TypeScript + Vite + Tailwind CSS + Firebase (Auth / Firestore) + Google Drive vía Apps Script (uploads) + React Router v6.
 Deploy: GitHub Pages vía GitHub Actions (`https://thechosen16.github.io/UTFSM_Cubesat_team/`).
 
 ## Comandos esenciales
@@ -39,7 +39,7 @@ Las constantes de colección están en `src/lib/constants.ts` (`COLLECTIONS`).
 
 - `TaskService` — CRUD de tareas; `updateStatus` registra en ActivityLog; `addProgressUpdate` y `attachFileToDeliverable` incluyen logs y notificaciones automáticas.
 - `ActivityLogService` — `create`, `getAll`, `getByUser`.
-- `FileService` — `upload` (Firebase Storage + Firestore), `getAll`, `delete`.
+- `FileService` — `upload` (Apps Script + Drive + Firestore metadata), `getAll`, `delete`. Lee `VITE_DRIVE_UPLOAD_URL` y `VITE_DRIVE_UPLOAD_SECRET`. `isConfigured()` indica si el bridge está disponible.
 - `NotificationService` — `create` (con deduplicación opcional), `ensureDeadlineReminder`, `notifyDeliverableUploaded`.
 - `UserService`, `ProjectService`, `BotService` — servicios pre-existentes.
 
@@ -78,12 +78,21 @@ Las constantes de colección están en `src/lib/constants.ts` (`COLLECTIONS`).
 ## Reglas de Firebase
 
 - `firestore.rules` — regla granular de `update` en `tasks`: los asignados solo pueden tocar `estado, progressUpdates, fechaInicioReal, fechaFinReal, tiempoInvertido, deliverables, attachmentIds, completedBy, completedAt, scoreAwarded`.
-- `storage.rules` — `files/{scope}/{fileName}`: read y create para cualquier usuario autenticado; delete solo al autor o manager.
+- **Sin `storage.rules`** — los archivos viven en Google Drive vía Apps Script (`apps-script/Code.gs`), no en Firebase Storage. Esto evita el costo de Firebase Storage en planes pagos.
+
+## Drive bridge (Apps Script)
+
+- Backend gratuito para subir archivos: `apps-script/Code.gs` desplegado como Web App de Apps Script con permisos del dueño del Drive.
+- Recibe `POST` con `{ secret, action: 'upload'|'delete', userEmail, fileName, fileBase64, mimeType, taskId?, projectId?, deliverableId? }`.
+- Organiza en subcarpetas `tasks/{taskId}/`, `projects/{projectId}/`, `general/`.
+- Marca cada archivo como **anyone-with-link can view** → los miembros bajan/previsualizan sin acceso al folder padre.
+- Validaciones: secret compartido + email institucional (`@usm.cl`/`@sansano.usm.cl`) + límite 35 MB.
+- Setup: `apps-script/README.md` documenta el flujo completo.
 
 ## Tests
 
 - **Unitarios**: `src/pages/*.test.tsx`, `src/sdk/*.test.ts`, `src/lib/*.test.ts` — 171 tests.
-- **E2E**: `src/test/e2e/*.e2e.test.ts` — usan emuladores Firebase (Auth + Firestore + Storage en puertos 9099/8080/9199).
+- **E2E**: `src/test/e2e/*.e2e.test.ts` — usan emuladores Firebase (Auth + Firestore en puertos 9099/8080).
 - Mocks globales en `src/test/setup.ts`.
 
 ## Convenciones

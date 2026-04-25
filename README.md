@@ -32,7 +32,8 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 | Framework UI | [React 18](https://reactjs.org/) + [TypeScript](https://www.typescriptlang.org/) |
 | Build tool | [Vite](https://vitejs.dev/) |
 | Estilos | [Tailwind CSS](https://tailwindcss.com/) |
-| Backend / Auth | [Firebase](https://firebase.google.com/) (Authentication + Firestore + Storage) |
+| Backend / Auth | [Firebase](https://firebase.google.com/) (Authentication + Firestore) |
+| Almacenamiento de archivos | [Google Apps Script](https://script.google.com/) + [Google Drive](https://drive.google.com/) (gratuito, sin Firebase Storage) |
 | Routing | [React Router v6](https://reactrouter.com/) |
 | Iconos | [Lucide React](https://lucide.dev/) |
 | Testing | [Vitest](https://vitest.dev/) + [Testing Library](https://testing-library.com/) + Firebase Emulators (E2E) |
@@ -52,7 +53,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
   - **Historial de avance**: cualquier responsable puede registrar un mensaje de progreso en una tarea, con estado y fecha, visible en orden cronológico inverso
   - **Indicador de plazo vencido**: las tareas con fecha límite pasada muestran el plazo en rojo
   - **Aprobación de entregables**: maestro, admin y manager pueden marcar un entregable como aprobado
-- **Repertorio de archivos** (`/files`): biblioteca central para evidencias, entregables y documentos del equipo. Permite subir archivos asociados a proyectos o tareas, filtrar por proyecto, tarea, miembro y tipo de documento (PDF, Imagen, Planilla, Documento). Los administradores y el propio autor pueden eliminar archivos
+- **Repertorio de archivos** (`/files`): biblioteca central para evidencias, entregables y documentos del equipo, **respaldada en Google Drive** vía un Apps Script gratuito (sin Firebase Storage). Permite subir archivos asociados a proyectos o tareas, filtrar por proyecto, tarea, miembro y tipo de documento (PDF, Imagen, Planilla, Documento). Los archivos se organizan automáticamente en subcarpetas `tasks/{id}/`, `projects/{id}/` y `general/` dentro del folder de Drive del proyecto. Los administradores y el propio autor pueden eliminar archivos
 - **Selección de equipos**: cada usuario puede pertenecer a hasta 2 equipos simultáneamente, seleccionables desde su perfil mediante checkboxes
 - **Miembros**: directorio de integrantes mostrando equipos asignados (máximo 2) y rol. Solo se muestran badges de rol para admin y maestro. Gestión de rol mediante dropdown, accesible para maestro. Asignación de equipos mediante checkboxes, accesible para maestro y admin. Manejo de errores en imágenes de avatar con fallback automático
 - **Perfil**: vista y edición de datos personales, selección de equipos (máx. 2), género y cuestionario de cualidades
@@ -217,11 +218,44 @@ VITE_FIREBASE_MEASUREMENT_ID=G-XXXXXXXXXX
 
 # Opcional: habilita el asistente de IA del equipo
 VITE_GOOGLE_AI_KEY=your-google-ai-key
+
+# Opcional pero requerido para subir archivos (Google Drive bridge)
+# Ver apps-script/README.md
+VITE_DRIVE_UPLOAD_URL=https://script.google.com/macros/s/AKfyc.../exec
+VITE_DRIVE_UPLOAD_SECRET=long-random-shared-secret
 ```
 
 > ⚠️ **Nunca** subas `.env.local` al repositorio. Está excluido en `.gitignore`.
 
-`VITE_FIREBASE_MEASUREMENT_ID` es opcional y se usa para Analytics. `VITE_GOOGLE_AI_KEY` es opcional; si no está definida, el chatbot quedará deshabilitado sin romper el resto de la aplicación.
+`VITE_FIREBASE_MEASUREMENT_ID` es opcional y se usa para Analytics. `VITE_GOOGLE_AI_KEY` es opcional; si no está definida, el chatbot quedará deshabilitado sin romper el resto de la aplicación. `VITE_DRIVE_UPLOAD_*` son requeridas para habilitar el repertorio de archivos; si no están definidas, la subida queda deshabilitada y la UI muestra un banner explicativo.
+
+## Almacenamiento de archivos (Google Drive bridge)
+
+En lugar de Firebase Storage (que requiere plan pago para uso productivo), la plataforma utiliza un **Apps Script Web App** desplegado por el dueño del Drive como puente gratuito hacia un folder compartido.
+
+**Cómo funciona:**
+
+1. El dueño despliega `apps-script/Code.gs` como Web App de Google Apps Script (corre con sus permisos de Drive)
+2. La web envía `POST` con el archivo en base64 + metadatos (`taskId`, `projectId`, `deliverableId`, `userEmail`)
+3. El script valida el secret compartido y que el correo sea institucional (`@usm.cl` o `@sansano.usm.cl`)
+4. Sube el archivo a una subcarpeta del folder raíz (`tasks/{id}/`, `projects/{id}/` o `general/`) y le pone permiso "anyone with link can view"
+5. Firestore almacena los metadatos (Drive file ID, nombre, mime, tamaño, autor, asociaciones) para queries y permisos
+6. La web abre el archivo vía `https://drive.google.com/file/d/{ID}/view` — los miembros NO necesitan acceso al folder
+
+**Setup completo:** ver [`apps-script/README.md`](./apps-script/README.md).
+
+**Límites del plan gratuito:**
+
+- 35 MB por archivo (límite de request HTTP de Apps Script)
+- 15 GB acumulados por cuenta de Drive
+- 6 horas/día de ejecución acumulada de Apps Script
+
+**Variables de entorno requeridas:**
+
+```env
+VITE_DRIVE_UPLOAD_URL=https://script.google.com/macros/s/AKfyc.../exec
+VITE_DRIVE_UPLOAD_SECRET=long-random-shared-secret
+```
 
 ## Scripts disponibles
 
@@ -248,7 +282,6 @@ Los emuladores están configurados en `firebase.json`:
 |----------|--------|
 | Auth | 9099 |
 | Firestore | 8080 |
-| Storage | 9199 |
 | Emulator UI | 4000 |
 
 ### Ejecución
@@ -283,6 +316,8 @@ Para que el deploy publique la versión productiva correctamente, configura esto
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_MEASUREMENT_ID` (opcional)
 - `VITE_GOOGLE_AI_KEY` (opcional)
+- `VITE_DRIVE_UPLOAD_URL` (requerida para habilitar el repertorio de archivos)
+- `VITE_DRIVE_UPLOAD_SECRET` (requerida para habilitar el repertorio de archivos)
 
 ## CI/CD
 
@@ -365,10 +400,10 @@ src/
 
 ### Reglas de seguridad
 
-El proyecto usa dos archivos de reglas de Firebase:
+El proyecto usa **únicamente** reglas de Firestore (los archivos viven en Drive vía Apps Script, no en Firebase Storage):
 
 - **`firestore.rules`**: autenticación requerida para todas las colecciones. Los miembros asignados a una tarea pueden actualizar campos específicos (`estado`, `progressUpdates`, `deliverables`, `attachmentIds`, etc.) sin necesidad de ser manager. La colección `activity_log` solo permite create al propio usuario (`userId == request.auth.uid`). La colección `files` permite delete al propio autor o a un manager.
-- **`storage.rules`**: todos los usuarios autenticados pueden leer y subir archivos. Solo el autor o un manager puede eliminar un archivo.
+- **`apps-script/Code.gs`**: capa de seguridad de Drive. Valida secret compartido + correo institucional (`@usm.cl`/`@sansano.usm.cl`) antes de subir o eliminar archivos. Cada archivo subido se marca como "anyone with link can view" para que los miembros puedan abrirlo sin acceso al folder padre.
 
 ## Contribuir
 

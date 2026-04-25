@@ -1,23 +1,76 @@
 import { addDoc, collection, deleteDoc, doc, getDocs, Timestamp } from 'firebase/firestore'
-import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { COLLECTIONS } from '@/lib/constants'
-import { db, storage } from '@/lib/firebase'
+import { db } from '@/lib/firebase'
 import { FileRecord } from '@/types'
 import { logger } from '@/lib/logger'
 import { ActivityLogService } from '@/sdk/ActivityLogService'
 
+const DRIVE_UPLOAD_URL = import.meta.env.VITE_DRIVE_UPLOAD_URL as string | undefined
+const DRIVE_UPLOAD_SECRET = import.meta.env.VITE_DRIVE_UPLOAD_SECRET as string | undefined
+const MAX_UPLOAD_BYTES = 35 * 1024 * 1024
+
 const toDate = (value: unknown): Date => {
   if (value instanceof Date) return value
   if (typeof value === 'string' || typeof value === 'number') return new Date(value)
-  if (value && typeof value === 'object' && 'toDate' in value && typeof value.toDate === 'function') {
-    return value.toDate()
+  if (value && typeof value === 'object' && 'toDate' in value && typeof (value as { toDate: unknown }).toDate === 'function') {
+    return (value as { toDate: () => Date }).toDate()
   }
   return new Date()
 }
 
-const sanitizeFileName = (name: string) => name.replace(/[^a-zA-Z0-9._-]/g, '_')
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result !== 'string') {
+        reject(new Error('Unexpected FileReader result'))
+        return
+      }
+      const commaIndex = result.indexOf(',')
+      resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result)
+    }
+    reader.onerror = () => reject(reader.error || new Error('FileReader error'))
+    reader.readAsDataURL(file)
+  })
+}
+
+interface DriveBridgeResponse {
+  id?: string
+  name?: string
+  viewURL?: string
+  downloadURL?: string
+  size?: number
+  mimeType?: string
+  ok?: boolean
+  error?: string
+}
+
+const callBridge = async (payload: Record<string, unknown>): Promise<DriveBridgeResponse> => {
+  if (!DRIVE_UPLOAD_URL || !DRIVE_UPLOAD_SECRET) {
+    throw new Error('drive-bridge-not-configured')
+  }
+  // Use text/plain to avoid CORS preflight on Apps Script web apps
+  const response = await fetch(DRIVE_UPLOAD_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ secret: DRIVE_UPLOAD_SECRET, ...payload }),
+  })
+  if (!response.ok) {
+    throw new Error(`drive-bridge-http-${response.status}`)
+  }
+  const data = (await response.json()) as DriveBridgeResponse
+  if (data.error) {
+    throw new Error(`drive-bridge-${data.error}`)
+  }
+  return data
+}
 
 export class FileService {
+  static isConfigured(): boolean {
+    return Boolean(DRIVE_UPLOAD_URL && DRIVE_UPLOAD_SECRET)
+  }
+
   static async getAll(): Promise<FileRecord[]> {
     try {
       const snapshot = await getDocs(collection(db, COLLECTIONS.FILES))
@@ -36,36 +89,48 @@ export class FileService {
 
   static async upload(file: File, payload: {
     uploadedBy: string
+    uploadedByEmail: string
     taskId?: string
     projectId?: string
     deliverableId?: string
   }): Promise<FileRecord> {
-    try {
-      const scope = payload.taskId || payload.projectId || payload.deliverableId || 'general'
-      const storagePath = `files/${scope}/${Date.now()}-${sanitizeFileName(file.name)}`
-      const storageRef = ref(storage, storagePath)
+    if (!this.isConfigured()) {
+      throw new Error('Drive uploads no están configurados. Pide al maestro configurar VITE_DRIVE_UPLOAD_URL.')
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      const limit = Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)
+      throw new Error(`El archivo supera el límite de ${limit} MB.`)
+    }
 
-      await uploadBytes(storageRef, file, {
-        contentType: file.type || 'application/octet-stream',
-        customMetadata: {
-          uploadedBy: payload.uploadedBy,
-          taskId: payload.taskId || '',
-          projectId: payload.projectId || '',
-          deliverableId: payload.deliverableId || '',
-        },
+    try {
+      const fileBase64 = await fileToBase64(file)
+
+      const data = await callBridge({
+        action: 'upload',
+        userEmail: payload.uploadedByEmail,
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        fileBase64,
+        taskId: payload.taskId,
+        projectId: payload.projectId,
+        deliverableId: payload.deliverableId,
       })
-      const downloadURL = await getDownloadURL(storageRef)
+
+      if (!data.id || !data.viewURL || !data.downloadURL) {
+        throw new Error('drive-bridge-incomplete-response')
+      }
 
       const metadata = {
-        name: file.name,
-        storagePath,
-        downloadURL,
-        mimeType: file.type || 'application/octet-stream',
-        size: file.size,
+        name: data.name || file.name,
+        driveFileId: data.id,
+        downloadURL: data.downloadURL,
+        viewURL: data.viewURL,
+        mimeType: data.mimeType || file.type || 'application/octet-stream',
+        size: data.size ?? file.size,
         uploadedBy: payload.uploadedBy,
-        taskId: payload.taskId || undefined,
-        projectId: payload.projectId || undefined,
-        deliverableId: payload.deliverableId || undefined,
+        taskId: payload.taskId || null,
+        projectId: payload.projectId || null,
+        deliverableId: payload.deliverableId || null,
         createdAt: Timestamp.now(),
       }
 
@@ -83,11 +148,20 @@ export class FileService {
           mimeType: metadata.mimeType,
           size: metadata.size,
         },
-      })
+      }).catch(() => undefined)
 
       return {
         id: recordRef.id,
-        ...metadata,
+        name: metadata.name,
+        driveFileId: metadata.driveFileId,
+        downloadURL: metadata.downloadURL,
+        viewURL: metadata.viewURL,
+        mimeType: metadata.mimeType,
+        size: metadata.size,
+        uploadedBy: payload.uploadedBy,
+        taskId: payload.taskId,
+        projectId: payload.projectId,
+        deliverableId: payload.deliverableId,
         createdAt: new Date(),
       }
     } catch (error) {
@@ -96,12 +170,18 @@ export class FileService {
     }
   }
 
-  static async delete(record: FileRecord): Promise<void> {
+  static async delete(record: FileRecord, actor: { email: string }): Promise<void> {
     try {
-      await Promise.all([
-        deleteDoc(doc(db, COLLECTIONS.FILES, record.id)),
-        deleteObject(ref(storage, record.storagePath)),
-      ])
+      if (this.isConfigured() && record.driveFileId) {
+        await callBridge({
+          action: 'delete',
+          userEmail: actor.email,
+          fileId: record.driveFileId,
+        }).catch(driveErr => {
+          logger.warn('Drive delete failed; removing Firestore record anyway', { error: driveErr instanceof Error ? driveErr : undefined, fileId: record.id })
+        })
+      }
+      await deleteDoc(doc(db, COLLECTIONS.FILES, record.id))
     } catch (error) {
       logger.error('Error in FileService.delete', { error: error instanceof Error ? error : undefined, id: record.id })
       throw error

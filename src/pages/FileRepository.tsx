@@ -129,12 +129,17 @@ export default function FileRepository() {
 
   const handleUpload = async () => {
     if (!user || !selectedFile) return
+    if (!user.email) {
+      setError('Tu cuenta no tiene un correo institucional registrado.')
+      return
+    }
     setUploading(true)
     setError('')
     try {
       const linkedTask = tasks.find(task => task.id === uploadTaskId)
       await FileService.upload(selectedFile, {
         uploadedBy: user.id,
+        uploadedByEmail: user.email,
         taskId: uploadTaskId || undefined,
         projectId: uploadProjectId || linkedTask?.projectId || undefined,
       })
@@ -145,15 +150,22 @@ export default function FileRepository() {
       await loadData()
     } catch (uploadError) {
       logger.error('Error uploading repository file', { error: uploadError })
-      setError('No se pudo subir el archivo al repertorio.')
+      const message = uploadError instanceof Error ? uploadError.message : 'No se pudo subir el archivo al repertorio.'
+      setError(message.includes('drive-bridge-not-configured')
+        ? 'El repertorio de archivos aún no está configurado. Pide al maestro habilitar Google Drive.'
+        : message)
     } finally {
       setUploading(false)
     }
   }
 
   const handleDelete = async (file: FileRecord) => {
+    if (!user?.email) {
+      setError('Tu cuenta no tiene un correo institucional registrado.')
+      return
+    }
     try {
-      await FileService.delete(file)
+      await FileService.delete(file, { email: user.email })
       await loadData()
     } catch (deleteError) {
       logger.error('Error deleting repository file', { error: deleteError, fileId: file.id })
@@ -165,7 +177,7 @@ export default function FileRepository() {
     return <Spinner />
   }
 
-  const storageNotConfigured = error.includes('storage') || error.includes('Storage')
+  const driveBridgeConfigured = FileService.isConfigured()
 
   return (
     <div className="page-shell">
@@ -173,22 +185,21 @@ export default function FileRepository() {
         <div>
           <h1 className="page-title">Repertorio de Archivos</h1>
           <p className="page-copy">
-            Biblioteca central para evidencias, entregables y documentos del proyecto.
+            Biblioteca central de evidencias, entregables y documentos respaldada en Google Drive.
           </p>
         </div>
       </div>
 
-      {storageNotConfigured && (
+      {!driveBridgeConfigured && (
         <div className="flex items-start gap-3 rounded-2xl border border-orange-500/40 bg-orange-500/10 p-4">
           <AlertTriangle className="h-5 w-5 shrink-0 text-orange-400 mt-0.5" />
           <div className="space-y-1">
-            <p className="text-sm font-medium text-white">Firebase Storage no está habilitado</p>
+            <p className="text-sm font-medium text-white">El puente con Google Drive no está configurado</p>
             <p className="text-sm text-slate-300">
-              Para subir archivos, habilita Firebase Storage en la{' '}
-              <a href="https://console.firebase.google.com/project/usmcubesateam-1e3f4/storage" target="_blank" rel="noopener noreferrer" className="text-cyan-400 underline hover:text-cyan-300">
-                consola de Firebase
-              </a>{' '}
-              y luego ejecuta <code className="rounded bg-space-700 px-1.5 py-0.5 text-xs text-cyan-300">npx firebase-tools deploy --only storage</code>.
+              Sigue las instrucciones de <code className="rounded bg-space-700 px-1.5 py-0.5 text-xs text-cyan-300">apps-script/README.md</code>{' '}
+              para desplegar el script y luego define las variables{' '}
+              <code className="rounded bg-space-700 px-1.5 py-0.5 text-xs text-cyan-300">VITE_DRIVE_UPLOAD_URL</code> y{' '}
+              <code className="rounded bg-space-700 px-1.5 py-0.5 text-xs text-cyan-300">VITE_DRIVE_UPLOAD_SECRET</code>.
             </p>
           </div>
         </div>
@@ -334,7 +345,7 @@ export default function FileRepository() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <FileText className="h-4 w-4 text-cyan-400" />
-                            <a href={file.downloadURL} target="_blank" rel="noopener noreferrer" className="truncate text-sm font-medium text-white hover:text-cyan-300">
+                            <a href={file.viewURL} target="_blank" rel="noopener noreferrer" className="truncate text-sm font-medium text-white hover:text-cyan-300">
                               {file.name}
                             </a>
                             <Badge variant="secondary">{getMimeGroup(file.mimeType)}</Badge>

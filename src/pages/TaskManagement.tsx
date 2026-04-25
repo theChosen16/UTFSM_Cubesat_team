@@ -268,8 +268,13 @@ export default function TaskManagement() {
     setUploadingKey(uploadKey)
     setError('')
     try {
+      if (!user.email) {
+        setError('Tu cuenta no tiene un correo institucional registrado.')
+        return
+      }
       const record = await FileService.upload(file, {
         uploadedBy: user.id,
+        uploadedByEmail: user.email,
         taskId: task.id,
         projectId: task.projectId || undefined,
         deliverableId: deliverable.id,
@@ -282,7 +287,10 @@ export default function TaskManagement() {
       await loadData()
     } catch (err) {
       logger.error('Error uploading deliverable file', { error: err, taskId: task.id, deliverableId: deliverable.id })
-      setError('No se pudo subir el archivo del entregable.')
+      const message = err instanceof Error ? err.message : 'No se pudo subir el archivo del entregable.'
+      setError(message.includes('drive-bridge-not-configured')
+        ? 'El puente con Google Drive no está configurado. Pide al maestro habilitarlo.'
+        : message.startsWith('El archivo supera') ? message : 'No se pudo subir el archivo del entregable.')
     } finally {
       setUploadingKey(null)
     }
@@ -526,9 +534,9 @@ export default function TaskManagement() {
                           deliverableFiles.map(file => (
                             <a
                               key={file.id}
-                              href={file.downloadURL}
+                              href={file.viewURL}
                               target="_blank"
-                              rel="noreferrer"
+                              rel="noopener noreferrer"
                               className="flex items-center gap-2 text-sm text-cyan-300 hover:text-cyan-200"
                             >
                               <Upload className="h-3.5 w-3.5" />
