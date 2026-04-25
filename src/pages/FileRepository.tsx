@@ -11,7 +11,7 @@ import { ProjectService } from '@/sdk/ProjectService'
 import { TaskService } from '@/sdk/TaskService'
 import { UserService } from '@/sdk/UserService'
 import { logger } from '@/lib/logger'
-import { Calendar, FileText, FolderOpen, Search, Trash2, Upload } from 'lucide-react'
+import { AlertTriangle, Calendar, FileText, FolderOpen, Search, Trash2, Upload } from 'lucide-react'
 
 interface ProjectOption {
   id: string
@@ -66,19 +66,21 @@ export default function FileRepository() {
 
   const loadData = useCallback(async () => {
     try {
-      const [filesList, tasksList, projectsList, usersList] = await Promise.all([
+      const [filesResult, tasksResult, projectsResult, usersResult] = await Promise.allSettled([
         FileService.getAll(),
         TaskService.getAll(),
         ProjectService.getAll(),
         UserService.getAll(),
       ])
-      setFiles(filesList)
-      setTasks(tasksList)
-      setProjects(projectsList.map(project => ({ id: project.id, nombre: project.nombre })))
-      setMembers(usersList.map(member => ({ ...member, email: member.email || '' })))
-    } catch (loadError) {
-      logger.error('Error loading file repository data', { error: loadError })
-      setError('No se pudo cargar el repertorio de archivos.')
+
+      if (filesResult.status === 'fulfilled') setFiles(filesResult.value)
+      else logger.error('Error loading files', { error: filesResult.reason instanceof Error ? filesResult.reason : undefined })
+
+      if (tasksResult.status === 'fulfilled') setTasks(tasksResult.value)
+      else logger.error('Error loading tasks for file repo', { error: tasksResult.reason instanceof Error ? tasksResult.reason : undefined })
+
+      if (projectsResult.status === 'fulfilled') setProjects(projectsResult.value.map(project => ({ id: project.id, nombre: project.nombre })))
+      if (usersResult.status === 'fulfilled') setMembers(usersResult.value.map(member => ({ ...member, email: member.email || '' })))
     } finally {
       setLoading(false)
     }
@@ -163,6 +165,8 @@ export default function FileRepository() {
     return <Spinner />
   }
 
+  const storageNotConfigured = error.includes('storage') || error.includes('Storage')
+
   return (
     <div className="page-shell">
       <div className="page-header animate-fade-in-up">
@@ -173,6 +177,22 @@ export default function FileRepository() {
           </p>
         </div>
       </div>
+
+      {storageNotConfigured && (
+        <div className="flex items-start gap-3 rounded-2xl border border-orange-500/40 bg-orange-500/10 p-4">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-orange-400 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-white">Firebase Storage no está habilitado</p>
+            <p className="text-sm text-slate-300">
+              Para subir archivos, habilita Firebase Storage en la{' '}
+              <a href="https://console.firebase.google.com/project/usmcubesateam-1e3f4/storage" target="_blank" rel="noopener noreferrer" className="text-cyan-400 underline hover:text-cyan-300">
+                consola de Firebase
+              </a>{' '}
+              y luego ejecuta <code className="rounded bg-space-700 px-1.5 py-0.5 text-xs text-cyan-300">npx firebase-tools deploy --only storage</code>.
+            </p>
+          </div>
+        </div>
+      )}
 
       <Card className="bg-space-700/50 border-space-600">
         <CardHeader>
@@ -314,7 +334,7 @@ export default function FileRepository() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <FileText className="h-4 w-4 text-cyan-400" />
-                            <a href={file.downloadURL} target="_blank" rel="noreferrer" className="truncate text-sm font-medium text-white hover:text-cyan-300">
+                            <a href={file.downloadURL} target="_blank" rel="noopener noreferrer" className="truncate text-sm font-medium text-white hover:text-cyan-300">
                               {file.name}
                             </a>
                             <Badge variant="secondary">{getMimeGroup(file.mimeType)}</Badge>

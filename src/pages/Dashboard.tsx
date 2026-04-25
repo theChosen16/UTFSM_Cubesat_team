@@ -92,12 +92,21 @@ export default function Dashboard() {
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const [members, projectsListRaw, tasksListRaw, activityLog] = await Promise.all([
+        const [membersResult, projectsResult, tasksResult, activityResult] = await Promise.allSettled([
           UserService.getAll(),
           ProjectService.getAll(),
           TaskService.getAll(),
           ActivityLogService.getAll(),
         ])
+
+        const members = membersResult.status === 'fulfilled' ? membersResult.value : []
+        const projectsListRaw = projectsResult.status === 'fulfilled' ? projectsResult.value : []
+        const tasksListRaw = tasksResult.status === 'fulfilled' ? tasksResult.value : []
+        const activityLog = activityResult.status === 'fulfilled' ? activityResult.value : []
+
+        if (membersResult.status === 'rejected') logger.error('Error loading dashboard members', { error: membersResult.reason instanceof Error ? membersResult.reason : undefined })
+        if (projectsResult.status === 'rejected') logger.error('Error loading dashboard projects', { error: projectsResult.reason instanceof Error ? projectsResult.reason : undefined })
+        if (tasksResult.status === 'rejected') logger.error('Error loading dashboard tasks', { error: tasksResult.reason instanceof Error ? tasksResult.reason : undefined })
 
         setUsersList(members)
 

@@ -73,19 +73,24 @@ export default function TaskManagement() {
 
   const loadData = async () => {
     try {
-      const [tasksList, projectsList, usersList, filesList] = await Promise.all([
+      const [tasksResult, projectsResult, usersResult, filesResult] = await Promise.allSettled([
         TaskService.getAll(),
         ProjectService.getAll(),
         UserService.getAll(),
         FileService.getAll(),
       ])
 
-      setTasks(tasksList)
-      setProjects(projectsList.map(p => ({ id: p.id, nombre: p.nombre })))
-      setMembers(usersList.map(u => ({ ...u, email: u.email || '' })))
-      setFiles(filesList)
-    } catch (error) {
-      logger.error('Error loading task management data', { error })
+      if (tasksResult.status === 'fulfilled') setTasks(tasksResult.value)
+      else logger.error('Error loading tasks', { error: tasksResult.reason instanceof Error ? tasksResult.reason : undefined })
+
+      if (projectsResult.status === 'fulfilled') setProjects(projectsResult.value.map(p => ({ id: p.id, nombre: p.nombre })))
+      else logger.error('Error loading projects', { error: projectsResult.reason instanceof Error ? projectsResult.reason : undefined })
+
+      if (usersResult.status === 'fulfilled') setMembers(usersResult.value.map(u => ({ ...u, email: u.email || '' })))
+      else logger.error('Error loading users', { error: usersResult.reason instanceof Error ? usersResult.reason : undefined })
+
+      if (filesResult.status === 'fulfilled') setFiles(filesResult.value)
+      // files is optional — silent fail is acceptable
     } finally {
       setLoading(false)
     }
@@ -445,32 +450,44 @@ export default function TaskManagement() {
             )}
           </div>
 
-          {(task.hitos?.length || 0) > 0 && (
-            <div className="rounded-xl border border-space-600 bg-space-800/60 p-4">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
-                <ListTodo className="h-4 w-4 text-cyan-400" />
-                Hitos definidos
-              </div>
-              <div className="space-y-2">
-                {task.hitos?.map(hito => (
-                  <div key={hito.id} className="rounded-lg border border-space-600/70 bg-space-700/40 px-3 py-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm text-white">{hito.titulo}</p>
-                        {hito.descripcion && <p className="text-xs text-muted-foreground">{hito.descripcion}</p>}
-                      </div>
-                      <Badge variant={hito.estado === 'completado' ? 'green' : 'orange'}>
-                        {hito.estado === 'completado' ? 'Completado' : 'Pendiente'}
-                      </Badge>
-                    </div>
-                    {hito.fechaLimite && (
-                      <p className="mt-1 text-xs text-muted-foreground">Plazo: {formatDateTime(hito.fechaLimite)}</p>
-                    )}
+          {(task.hitos?.length || 0) > 0 && (() => {
+            const total = task.hitos!.length
+            const done = task.hitos!.filter(h => h.estado === 'completado').length
+            const pct = total === 0 ? 0 : Math.round((done / total) * 100)
+            return (
+              <div className="rounded-xl border border-space-600 bg-space-800/60 p-4">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm font-medium text-white">
+                    <ListTodo className="h-4 w-4 text-cyan-400" />
+                    Hitos
                   </div>
-                ))}
+                  <span className="text-xs text-muted-foreground">{done}/{total} completados</span>
+                </div>
+                <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-space-600">
+                  <div className={`h-full rounded-full bg-cyan-500 transition-all duration-500 ${
+                    pct === 0 ? 'w-0' : pct <= 16 ? 'w-1/6' : pct <= 25 ? 'w-1/4' : pct <= 33 ? 'w-1/3' :
+                    pct <= 50 ? 'w-1/2' : pct <= 66 ? 'w-2/3' : pct <= 75 ? 'w-3/4' : pct < 100 ? 'w-5/6' : 'w-full'
+                  }`} />
+                </div>
+                <div className="space-y-2">
+                  {task.hitos?.map(hito => (
+                    <div key={hito.id} className="flex items-start gap-3 rounded-lg border border-space-600/70 bg-space-700/40 px-3 py-2">
+                      <div className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center ${hito.estado === 'completado' ? 'border-green-500 bg-green-500/20' : 'border-space-400'}`}>
+                        {hito.estado === 'completado' && <div className="h-1.5 w-1.5 rounded-full bg-green-400" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm ${hito.estado === 'completado' ? 'text-muted-foreground line-through' : 'text-white'}`}>{hito.titulo}</p>
+                        {hito.descripcion && <p className="text-xs text-muted-foreground">{hito.descripcion}</p>}
+                        {hito.fechaLimite && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">Plazo: {formatDateTime(hito.fechaLimite)}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {(task.deliverables?.length || 0) > 0 && (
             <div className="rounded-xl border border-space-600 bg-space-800/60 p-4">
@@ -544,57 +561,66 @@ export default function TaskManagement() {
             </div>
           )}
 
-          <div className="rounded-xl border border-space-600 bg-space-800/60 p-4">
-            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
-              <History className="h-4 w-4 text-purple-400" />
-              Historial de avance
-            </div>
-            {progressUpdates.length > 0 ? (
-              <div className="space-y-2">
-                {progressUpdates.slice(0, 3).map(update => (
-                  <div key={update.id} className="rounded-lg border border-space-600/70 bg-space-700/40 px-3 py-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-medium text-white">{getMemberName(update.authorId)}</p>
-                      <span className="text-[11px] text-muted-foreground">{formatDateTime(update.createdAt)}</span>
-                    </div>
-                    <p className="mt-1 text-sm text-slate-200">{update.message}</p>
-                    {update.status && (
-                      <p className="mt-1 text-[11px] text-muted-foreground">Estado reportado: {getStatusLabel(update.status)}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Todavía no hay avances registrados para esta tarea.</p>
-            )}
-
-            {canChangeStatus && (
-              <div className="mt-4 border-t border-space-600/70 pt-4">
-                {activeProgressTaskId === task.id ? (
-                  <div className="space-y-3">
-                    <Textarea
-                      value={progressMessage}
-                      onChange={handleInputChange(setProgressMessage)}
-                      placeholder="Describe qué hiciste, bloqueo actual o próximo paso..."
-                      className="bg-space-700 border-space-500 text-white min-h-[90px]"
-                    />
-                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                      <Button variant="outline" onClick={() => setActiveProgressTaskId(null)} className="border-space-600 text-white hover:bg-space-600">
-                        Cancelar
-                      </Button>
-                      <Button onClick={() => handleSaveProgress(task)} disabled={!progressMessage.trim() || submittingProgress} className="bg-cyan-500 text-space-900 hover:bg-cyan-600">
-                        {submittingProgress ? 'Guardando...' : 'Registrar avance'}
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button variant="ghost" size="sm" onClick={() => openProgressComposer(task.id)} className="text-cyan-400 hover:text-cyan-300 px-0">
-                    + Registrar avance de usuario
+          {(progressUpdates.length > 0 || canChangeStatus) && (
+            <div className="rounded-xl border border-space-600 bg-space-800/60 p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-white">
+                  <History className="h-4 w-4 text-purple-400" />
+                  Historial de avance
+                  {progressUpdates.length > 0 && (
+                    <span className="rounded-full bg-purple-500/20 px-2 py-0.5 text-xs text-purple-300">{progressUpdates.length}</span>
+                  )}
+                </div>
+                {canChangeStatus && activeProgressTaskId !== task.id && (
+                  <Button variant="ghost" size="sm" onClick={() => openProgressComposer(task.id)} className="h-7 px-2 text-xs text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10">
+                    + Registrar avance
                   </Button>
                 )}
               </div>
-            )}
-          </div>
+
+              {activeProgressTaskId === task.id && (
+                <div className="mb-4 space-y-3 rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-3">
+                  <Textarea
+                    value={progressMessage}
+                    onChange={handleInputChange(setProgressMessage)}
+                    placeholder="Describe qué hiciste, bloqueo actual o próximo paso..."
+                    className="bg-space-700 border-space-500 text-white min-h-[80px]"
+                    autoFocus
+                  />
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <Button variant="outline" onClick={() => setActiveProgressTaskId(null)} className="border-space-600 text-white hover:bg-space-600">
+                      Cancelar
+                    </Button>
+                    <Button onClick={() => handleSaveProgress(task)} disabled={!progressMessage.trim() || submittingProgress} className="bg-cyan-500 text-space-900 hover:bg-cyan-600">
+                      {submittingProgress ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {progressUpdates.length > 0 ? (
+                <div className="space-y-2">
+                  {progressUpdates.slice(0, 3).map(update => (
+                    <div key={update.id} className="rounded-lg border border-space-600/70 bg-space-700/40 px-3 py-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold text-white">{getMemberName(update.authorId)}</p>
+                        <span className="text-[11px] text-muted-foreground shrink-0">{formatDateTime(update.createdAt)}</span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-200">{update.message}</p>
+                      {update.status && (
+                        <p className="mt-1 text-[11px] text-purple-300">Estado: {getStatusLabel(update.status)}</p>
+                      )}
+                    </div>
+                  ))}
+                  {progressUpdates.length > 3 && (
+                    <p className="text-center text-xs text-muted-foreground">y {progressUpdates.length - 3} avance{progressUpdates.length - 3 !== 1 ? 's' : ''} más...</p>
+                  )}
+                </div>
+              ) : canChangeStatus ? (
+                <p className="text-sm text-muted-foreground">Aún no hay avances registrados. Usa el botón de arriba para añadir el primero.</p>
+              ) : null}
+            </div>
+          )}
 
           {/* Time Tracking Inline Form */}
           {editingTimeTaskId === task.id && (

@@ -50,17 +50,20 @@ export default function Members() {
 
   const loadMembers = useCallback(async () => {
     try {
-      const [users, tasksList, activityLog] = await Promise.all([
+      const [usersResult, tasksResult, activityResult] = await Promise.allSettled([
         getAllUsers(),
         TaskService.getAll(),
         ActivityLogService.getAll(),
       ])
 
-      setMembers(users)
-      setAllTasks(tasksList)
-      setAllActivity(activityLog)
-    } catch (error) {
-      logger.error('Error loading members or tasks', { error: error instanceof Error ? error : undefined })
+      if (usersResult.status === 'fulfilled') setMembers(usersResult.value)
+      else logger.error('Error loading members', { error: usersResult.reason instanceof Error ? usersResult.reason : undefined })
+
+      if (tasksResult.status === 'fulfilled') setAllTasks(tasksResult.value)
+      else logger.error('Error loading tasks', { error: tasksResult.reason instanceof Error ? tasksResult.reason : undefined })
+
+      if (activityResult.status === 'fulfilled') setAllActivity(activityResult.value)
+      // activity log is optional — silent fail is acceptable
     } finally {
       setLoading(false)
     }
