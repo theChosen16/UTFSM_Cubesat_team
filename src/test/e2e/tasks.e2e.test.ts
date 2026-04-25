@@ -160,4 +160,187 @@ describe('Tasks E2E', () => {
       expect(stored.data()!.prioridad).toBe(prioridad)
     }
   })
+
+  it('should store fechaLimite and hitos on a task', async () => {
+    const fechaLimite = '2026-06-30'
+    const hitos = [
+      { id: 'h1', titulo: 'Diseño preliminar', completado: false },
+      { id: 'h2', titulo: 'Revisión CDR', completado: false },
+    ]
+
+    const ref = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Task with deadline',
+      descripcion: 'Has deadline and milestones',
+      projectId,
+      estado: 'pendiente',
+      asignadoA: [maestroUid],
+      equipo: 'tecnico',
+      prioridad: 'alta',
+      puntajeImportancia: 10,
+      creadoPor: maestroUid,
+      fechaLimite,
+      hitos,
+      deliverables: [],
+      progressUpdates: [],
+      attachmentIds: [],
+      createdAt: Timestamp.now(),
+    })
+
+    const stored = await getDoc(ref)
+    expect(stored.data()!.fechaLimite).toBe(fechaLimite)
+    expect(stored.data()!.hitos).toHaveLength(2)
+    expect(stored.data()!.hitos[0].titulo).toBe('Diseño preliminar')
+    expect(stored.data()!.hitos[0].completado).toBe(false)
+  })
+
+  it('should store deliverables and update their estado', async () => {
+    const deliverables = [
+      {
+        id: 'd1',
+        titulo: 'Informe técnico',
+        descripcion: 'Documento PDF con resultados',
+        estado: 'pendiente',
+        attachmentIds: [],
+      },
+    ]
+
+    const ref = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Task with deliverable',
+      descripcion: 'Has a deliverable',
+      projectId,
+      estado: 'pendiente',
+      asignadoA: [maestroUid],
+      equipo: 'tecnico',
+      prioridad: 'media',
+      puntajeImportancia: 5,
+      creadoPor: maestroUid,
+      deliverables,
+      hitos: [],
+      progressUpdates: [],
+      attachmentIds: [],
+      createdAt: Timestamp.now(),
+    })
+
+    // Update deliverable estado to 'entregado'
+    const task = await getDoc(ref)
+    const updatedDeliverables = (task.data()!.deliverables as typeof deliverables).map(d =>
+      d.id === 'd1' ? { ...d, estado: 'entregado', deliveredAt: new Date().toISOString(), deliveredBy: maestroUid } : d
+    )
+    await setDoc(ref, { deliverables: updatedDeliverables }, { merge: true })
+
+    const updated = await getDoc(ref)
+    expect(updated.data()!.deliverables[0].estado).toBe('entregado')
+    expect(updated.data()!.deliverables[0].deliveredBy).toBe(maestroUid)
+  })
+
+  it('should append progressUpdates to a task', async () => {
+    const ref = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Task with progress',
+      descripcion: 'Tracks progress',
+      projectId,
+      estado: 'en_progreso',
+      asignadoA: [maestroUid],
+      equipo: 'tecnico',
+      prioridad: 'alta',
+      puntajeImportancia: 8,
+      creadoPor: maestroUid,
+      deliverables: [],
+      hitos: [],
+      progressUpdates: [],
+      attachmentIds: [],
+      createdAt: Timestamp.now(),
+    })
+
+    const update1 = {
+      id: crypto.randomUUID(),
+      authorId: maestroUid,
+      message: 'Avancé un 30% del análisis',
+      createdAt: new Date().toISOString(),
+      status: 'en_progreso',
+    }
+    const update2 = {
+      id: crypto.randomUUID(),
+      authorId: maestroUid,
+      message: 'Completé el análisis, pendiente revisión',
+      createdAt: new Date().toISOString(),
+      status: 'en_revision',
+    }
+
+    await setDoc(ref, { progressUpdates: [update1] }, { merge: true })
+    await setDoc(ref, { progressUpdates: [update1, update2] }, { merge: true })
+
+    const stored = await getDoc(ref)
+    expect(stored.data()!.progressUpdates).toHaveLength(2)
+    expect(stored.data()!.progressUpdates[1].message).toBe('Completé el análisis, pendiente revisión')
+    expect(stored.data()!.progressUpdates[1].status).toBe('en_revision')
+  })
+
+  it('should complete task and record scoreAwarded', async () => {
+    const puntajeImportancia = 15
+    const ref = await addDoc(collection(db, 'tasks'), {
+      titulo: 'High-value task',
+      descripcion: 'Worth many points',
+      projectId,
+      estado: 'en_progreso',
+      asignadoA: [maestroUid],
+      equipo: 'tecnico',
+      prioridad: 'alta',
+      puntajeImportancia,
+      creadoPor: maestroUid,
+      deliverables: [],
+      hitos: [],
+      progressUpdates: [],
+      attachmentIds: [],
+      createdAt: Timestamp.now(),
+    })
+
+    await setDoc(ref, {
+      estado: 'completado',
+      completedBy: maestroUid,
+      completedAt: new Date().toISOString(),
+      scoreAwarded: puntajeImportancia,
+    }, { merge: true })
+
+    const stored = await getDoc(ref)
+    expect(stored.data()!.estado).toBe('completado')
+    expect(stored.data()!.scoreAwarded).toBe(puntajeImportancia)
+    expect(stored.data()!.completedBy).toBe(maestroUid)
+  })
+
+  it('should create activity_log entry when task is created', async () => {
+    const taskRef = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Activity log task',
+      descripcion: 'Will generate activity',
+      projectId,
+      estado: 'pendiente',
+      asignadoA: [maestroUid],
+      equipo: 'tecnico',
+      prioridad: 'media',
+      puntajeImportancia: 3,
+      creadoPor: maestroUid,
+      deliverables: [],
+      hitos: [],
+      progressUpdates: [],
+      attachmentIds: [],
+      createdAt: Timestamp.now(),
+    })
+
+    await addDoc(collection(db, 'activity_log'), {
+      userId: maestroUid,
+      type: 'task_created',
+      relatedId: taskRef.id,
+      taskId: taskRef.id,
+      projectId,
+      description: 'Creó la tarea "Activity log task"',
+      metadata: { prioridad: 'media', puntajeImportancia: 3 },
+      createdAt: Timestamp.now(),
+    })
+
+    const snap = await getDocs(
+      query(collection(db, 'activity_log'), where('taskId', '==', taskRef.id))
+    )
+    expect(snap.size).toBe(1)
+    expect(snap.docs[0].data().type).toBe('task_created')
+    expect(snap.docs[0].data().userId).toBe(maestroUid)
+  })
 })

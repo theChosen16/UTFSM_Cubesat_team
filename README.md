@@ -32,7 +32,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 | Framework UI | [React 18](https://reactjs.org/) + [TypeScript](https://www.typescriptlang.org/) |
 | Build tool | [Vite](https://vitejs.dev/) |
 | Estilos | [Tailwind CSS](https://tailwindcss.com/) |
-| Backend / Auth | [Firebase](https://firebase.google.com/) (Authentication + Firestore) |
+| Backend / Auth | [Firebase](https://firebase.google.com/) (Authentication + Firestore + Storage) |
 | Routing | [React Router v6](https://reactrouter.com/) |
 | Iconos | [Lucide React](https://lucide.dev/) |
 | Testing | [Vitest](https://vitest.dev/) + [Testing Library](https://testing-library.com/) + Firebase Emulators (E2E) |
@@ -46,7 +46,13 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
   - Saludo personalizado según género del usuario (Bienvenido/Bienvenida)
   - Estructura del equipo muestra distribución de miembros por equipo (`equipo`), no por rol
 - **Proyectos**: listado y creación de proyectos del equipo con formulario integrado (nombre, descripción, equipo, prioridad, fecha límite). Datos almacenados en Firestore con feedback de errores al usuario
-- **Gestión de Tareas**: dashboard para maestro, admin y manager que permite crear tareas asignando proyecto, equipo encargado, prioridad y responsable(s). Mensajes de error visibles al usuario en caso de fallo
+- **Gestión de Tareas**: dashboard para maestro, admin y manager que permite crear tareas asignando proyecto, equipo encargado, prioridad, responsable(s) y **fecha límite**. Cada tarea puede incluir **hitos internos** (pasos trazables) y **entregables** (archivos o resultados esperados). Mensajes de error visibles al usuario en caso de fallo
+  - **Hitos de tarea**: divide una tarea en etapas internas con nombre, descripción y fecha límite propios
+  - **Entregables y evidencias**: define qué archivos o resultados deben entregarse; los responsables suben archivos directamente desde la tarjeta de la tarea
+  - **Historial de avance**: cualquier responsable puede registrar un mensaje de progreso en una tarea, con estado y fecha, visible en orden cronológico inverso
+  - **Indicador de plazo vencido**: las tareas con fecha límite pasada muestran el plazo en rojo
+  - **Aprobación de entregables**: maestro, admin y manager pueden marcar un entregable como aprobado
+- **Repertorio de archivos** (`/files`): biblioteca central para evidencias, entregables y documentos del equipo. Permite subir archivos asociados a proyectos o tareas, filtrar por proyecto, tarea, miembro y tipo de documento (PDF, Imagen, Planilla, Documento). Los administradores y el propio autor pueden eliminar archivos
 - **Selección de equipos**: cada usuario puede pertenecer a hasta 2 equipos simultáneamente, seleccionables desde su perfil mediante checkboxes
 - **Miembros**: directorio de integrantes mostrando equipos asignados (máximo 2) y rol. Solo se muestran badges de rol para admin y maestro. Gestión de rol mediante dropdown, accesible para maestro. Asignación de equipos mediante checkboxes, accesible para maestro y admin. Manejo de errores en imágenes de avatar con fallback automático
 - **Perfil**: vista y edición de datos personales, selección de equipos (máx. 2), género y cuestionario de cualidades
@@ -55,7 +61,11 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 - **Indicadores de permisos**: las opciones restringidas del menú lateral muestran un ícono de candado para distinguir acciones que requieren permisos especiales
 - **Diseño responsivo**: interfaz adaptativa optimizada para móvil y escritorio con prevención de solapamiento de texto/iconos en pantallas pequeñas (320px+). Navegación compacta en landing, textos truncados en tarjetas, badges y encabezados
 - **Animación de fondo estelar warp-speed**: múltiples capas parallax de ~210 estrellas con colores variados (azules, dorados, rosas, verdes), movimiento caótico multi-waypoint, rotaciones sutiles y brillo dinámico. Incluye **capas fractales Fibonacci** con distribución en espiral áurea, profundidad escalada y drift variable. Efecto *warp-pulse* que simula viaje a la velocidad de la luz. Punto focal con animaciones `focal-wander` y `warp-pulse`. Compatible con `prefers-reduced-motion` y **optimizada para móvil** (ver [Optimización de rendimiento móvil](#optimización-de-rendimiento-móvil))
-- **Notificaciones y mensajería**: sistema de notificaciones internas con bandeja de entrada, mensajes directos y composición con destinatario pre-seleccionado desde el perfil de otro miembro
+- **Notificaciones y mensajería**: sistema de notificaciones internas con bandeja de entrada, mensajes directos y composición con destinatario pre-seleccionado desde el perfil de otro miembro. El sistema genera automáticamente:
+  - `deadline_reminder`: aviso a los responsables cuando una tarea tiene plazo dentro de los próximos 3 días o ya vencido (con deduplicación para no spam)
+  - `deliverable_uploaded`: aviso al creador y demás responsables cuando alguien sube un archivo a un entregable
+- **Registro de actividad (Activity Log)**: cada acción relevante (crear tarea, cambiar estado, registrar avance, subir entregable) queda registrada en la colección `activity_log` de Firestore con metadatos estructurados
+- **Métricas de miembros y leaderboard**: el Dashboard muestra un ranking de miembros basado en puntos acumulados por tareas completadas (`scoreAwarded`). La página de Miembros muestra conteo de tareas completadas, pendientes y última actividad registrada por cada integrante
 - **Perfiles clickeables**: en el directorio de miembros, hacer clic en un usuario navega a su perfil donde se puede ver su información y enviar un mensaje directo
 - **Auto-extracción de nombre desde email**: al registrarse con correo institucional, el sistema extrae automáticamente nombre y apellido. Usuarios registrados antes de esta funcionalidad recuperan su nombre al iniciar sesión
 - **Rutas protegidas** que redirigen a login cuando el usuario no está autenticado
@@ -238,6 +248,7 @@ Los emuladores están configurados en `firebase.json`:
 |----------|--------|
 | Auth | 9099 |
 | Firestore | 8080 |
+| Storage | 9199 |
 | Emulator UI | 4000 |
 
 ### Ejecución
@@ -250,7 +261,7 @@ npm run test:e2e
 npm run emulators
 ```
 
-Los tests E2E cubren: autenticación (registro, roles, sign in/out), proyectos, tareas, notificaciones, miembros y perfiles. Total: **33 tests** en 6 archivos.
+Los tests E2E cubren: autenticación (registro, roles, sign in/out), proyectos, tareas (incluyendo hitos, entregables y avances), notificaciones, miembros y perfiles. Total: **~36 tests** en 6 archivos.
 
 ## Despliegue
 
@@ -326,21 +337,38 @@ window.__cubesat_logger.exportJSON()
 ```
 src/
 ├── components/
-│   ├── layout/         # Layout principal con sidebar
+│   ├── layout/         # Layout principal con sidebar (incluye ruta /files)
 │   ├── ui/             # Componentes reutilizables (Button, Card, Badge, Spinner, etc.)
 │   ├── ErrorBoundary.tsx
 │   └── ProtectedRoute.tsx
 ├── contexts/           # AuthContext (autenticación y gestión de usuarios)
 ├── lib/
-│   ├── constants.ts    # Constantes centralizadas (colecciones Firestore, dominios válidos)
-│   ├── firebase.ts     # Configuración Firebase
+│   ├── constants.ts    # Constantes centralizadas (colecciones Firestore: tasks, files, activity_log, member_scores)
+│   ├── firebase.ts     # Configuración Firebase (auth, db, storage)
 │   ├── logger.ts       # Sistema de logging estructurado
-│   └── utils.ts        # Utilidades compartidas (cn, extractNameFromEmail, getRoleIcon)
-├── pages/              # Páginas de la aplicación (con tests unitarios adyacentes)
+│   ├── memberMetrics.ts # Cálculo de rendimiento y ranking de miembros
+│   ├── schemas.ts      # Esquemas Zod (incluye milestoneSchema, deliverableSchema)
+│   ├── ui-constants.ts # Labels UI (incluye tipos de notificación deadline_reminder, deliverable_uploaded)
+│   └── utils.ts        # Utilidades compartidas
+├── pages/              # Páginas lazy-loaded (con tests unitarios adyacentes)
+│   └── FileRepository.tsx  # Repertorio central de archivos
+├── sdk/
+│   ├── ActivityLogService.ts  # Registro de actividad en Firestore
+│   ├── FileService.ts         # Subida/descarga/eliminación en Firebase Storage
+│   ├── NotificationService.ts # Notificaciones (incluye deadline_reminder, deliverable_uploaded)
+│   ├── TaskService.ts         # Tareas con hitos, entregables, avances y score
+│   └── ...                    # Otros servicios (UserService, ProjectService, BotService)
 ├── test/               # Setup de tests y mocks de Firebase
-├── types/              # Tipos TypeScript, interfaces y constantes de dominio
+├── types/              # Tipos TypeScript (Task, TaskMilestone, TaskDeliverable, ActivityLogEntry, FileRecord…)
 └── docs/               # Documentación adicional (historia del equipo)
 ```
+
+### Reglas de seguridad
+
+El proyecto usa dos archivos de reglas de Firebase:
+
+- **`firestore.rules`**: autenticación requerida para todas las colecciones. Los miembros asignados a una tarea pueden actualizar campos específicos (`estado`, `progressUpdates`, `deliverables`, `attachmentIds`, etc.) sin necesidad de ser manager. La colección `activity_log` solo permite create al propio usuario (`userId == request.auth.uid`). La colección `files` permite delete al propio autor o a un manager.
+- **`storage.rules`**: todos los usuarios autenticados pueden leer y subir archivos. Solo el autor o un manager puede eliminar un archivo.
 
 ## Contribuir
 

@@ -29,6 +29,8 @@ export const TEAM_COLORS: Record<TeamType, string> = {
 
 export const NOTIFICATION_LABELS: Record<NotificationType, string> = {
   task_assigned: 'Tarea Asignada',
+  deliverable_uploaded: 'Entregable Subido',
+  deadline_reminder: 'Recordatorio de Plazo',
   message: 'Mensaje',
   system: 'Sistema',
 }

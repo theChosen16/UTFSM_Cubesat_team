@@ -2,6 +2,26 @@ import { z } from 'zod'
 
 const validTeams = ['tecnico', 'manager', 'relaciones_publicas'] as const
 
+const milestoneSchema = z.object({
+  id: z.string().min(1, 'El hito requiere un identificador'),
+  titulo: z.string().min(1, 'El hito debe tener un título').max(100, 'El título del hito es demasiado largo'),
+  descripcion: z.string().optional(),
+  estado: z.enum(['pendiente', 'completado']).default('pendiente'),
+  fechaLimite: z.string().optional(),
+  completedAt: z.string().optional(),
+})
+
+const deliverableSchema = z.object({
+  id: z.string().min(1, 'El entregable requiere un identificador'),
+  titulo: z.string().min(1, 'El entregable debe tener un título').max(100, 'El título del entregable es demasiado largo'),
+  descripcion: z.string().optional(),
+  estado: z.enum(['pendiente', 'entregado', 'aprobado']).default('pendiente'),
+  fechaLimite: z.string().optional(),
+  attachmentIds: z.array(z.string()).optional(),
+  deliveredAt: z.string().optional(),
+  deliveredBy: z.string().optional(),
+})
+
 /**
  * Validaciones para Creación de Proyecto
  */
@@ -24,6 +44,10 @@ export const taskFormSchema = z.object({
   asignadoA: z.array(z.string()),
   prioridad: z.enum(['alta', 'media', 'baja']),
   puntajeImportancia: z.number().min(1, "El puntaje mínimo es 1").max(10, "El puntaje máximo es 10").optional(),
+  fechaLimite: z.string().optional(),
+  hitos: z.array(milestoneSchema).default([]),
+  deliverables: z.array(deliverableSchema).default([]),
+  attachmentIds: z.array(z.string()).default([]),
 })
 export type TaskFormData = z.infer<typeof taskFormSchema>
 

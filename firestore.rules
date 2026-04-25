@@ -7,6 +7,15 @@ service cloud.firestore {
       return userData != null && (userData.rol == role || (userData.roles is list && role in userData.roles));
     }
 
+    function hasTeam(team) {
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return userData != null && userData.equipos is list && team in userData.equipos;
+    }
+
+    function canManageWorkspace() {
+      return hasTeam('manager') || hasRole('maestro') || hasRole('admin');
+    }
+
     match /users/{userId} {
       // Allow creation if the user is authenticated and the ID matches
       allow create: if request.auth != null && request.auth.uid == userId;
@@ -44,10 +53,7 @@ service cloud.firestore {
     match /projects/{projectId} {
       // All authenticated users can read projects (team collaboration tool, all users are institutional)
       allow read: if request.auth != null;
-      allow create, update: if request.auth != null &&
-        ('manager' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.equipos ||
-         hasRole('maestro') ||
-         hasRole('admin'));
+      allow create, update: if request.auth != null && canManageWorkspace();
       allow delete: if request.auth != null &&
         hasRole('maestro');
     }
@@ -55,12 +61,47 @@ service cloud.firestore {
     match /tasks/{taskId} {
       // All authenticated users can read tasks (team collaboration tool, all users are institutional)
       allow read: if request.auth != null;
-      allow create, update: if request.auth != null &&
-        ('manager' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.equipos ||
-         hasRole('maestro') ||
-         hasRole('admin'));
+      allow create: if request.auth != null && canManageWorkspace();
+      allow update: if request.auth != null && (
+        canManageWorkspace() ||
+        (
+          resource.data.asignadoA is list &&
+          request.auth.uid in resource.data.asignadoA &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'estado',
+            'progressUpdates',
+            'fechaInicioReal',
+            'fechaFinReal',
+            'tiempoInvertido',
+            'deliverables',
+            'attachmentIds',
+            'completedBy',
+            'completedAt',
+            'scoreAwarded'
+          ])
+        )
+      );
       allow delete: if request.auth != null &&
         hasRole('maestro');
+    }
+
+    match /activity_log/{entryId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /files/{fileId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.uploadedBy == request.auth.uid;
+      allow delete: if request.auth != null && (
+        resource.data.uploadedBy == request.auth.uid ||
+        canManageWorkspace()
+      );
+    }
+
+    match /member_scores/{scoreId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null && canManageWorkspace();
     }
   }
 }

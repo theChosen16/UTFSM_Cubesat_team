@@ -110,25 +110,111 @@ export interface Project {
   createdAt: Date
 }
 
+export type TaskStatus = 'pendiente' | 'en_progreso' | 'completado'
+
+export type TaskPriority = 'alta' | 'media' | 'baja'
+
+export type DeliverableStatus = 'pendiente' | 'entregado' | 'aprobado'
+
+export interface TaskMilestone {
+  id: string
+  titulo: string
+  descripcion?: string
+  estado: 'pendiente' | 'completado'
+  fechaLimite?: string
+  completedAt?: string
+}
+
+export interface TaskDeliverable {
+  id: string
+  titulo: string
+  descripcion?: string
+  estado: DeliverableStatus
+  fechaLimite?: string
+  attachmentIds?: string[]
+  deliveredAt?: string
+  deliveredBy?: string
+}
+
+export interface TaskProgressUpdate {
+  id: string
+  authorId: string
+  message: string
+  createdAt: string
+  status?: TaskStatus
+}
+
 export interface Task {
   id: string
   projectId: string
   titulo: string
   descripcion: string
-  estado: 'pendiente' | 'en_progreso' | 'completado'
+  estado: TaskStatus
   asignadoA: string[]
   equipo: TeamType
-  prioridad: 'alta' | 'media' | 'baja'
+  prioridad: TaskPriority
   creadoPor: string
   puntajeImportancia?: number
+  fechaLimite?: string
+  hitos?: TaskMilestone[]
+  deliverables?: TaskDeliverable[]
+  progressUpdates?: TaskProgressUpdate[]
+  attachmentIds?: string[]
   fechaInicioReal?: string  // ISO date string
   fechaFinReal?: string     // ISO date string
   tiempoInvertido?: string  // Human readable string like '4 días'
+  completedBy?: string
+  completedAt?: string
+  scoreAwarded?: number
   createdAt: Date
+}
+
+export type ActivityLogType =
+  | 'task_created'
+  | 'task_status_changed'
+  | 'task_progress_logged'
+  | 'task_completed'
+  | 'deliverable_uploaded'
+  | 'deliverable_status_changed'
+
+export interface ActivityLogEntry {
+  id: string
+  userId: string
+  type: ActivityLogType
+  relatedId: string
+  taskId?: string
+  projectId?: string
+  deliverableId?: string
+  description: string
+  metadata?: Record<string, unknown>
+  createdAt: Date
+}
+
+export interface FileRecord {
+  id: string
+  name: string
+  storagePath: string
+  downloadURL: string
+  mimeType: string
+  size: number
+  uploadedBy: string
+  createdAt: Date
+  taskId?: string
+  projectId?: string
+  deliverableId?: string
+}
+
+export interface MemberScore {
+  userId: string
+  totalCompletedTasks: number
+  totalScore: number
+  lastActivityAt?: Date
 }
 
 export type NotificationType =
   | 'task_assigned'
+  | 'deliverable_uploaded'
+  | 'deadline_reminder'
   | 'message'
   | 'system'
 

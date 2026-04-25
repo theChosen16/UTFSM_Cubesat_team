@@ -10,6 +10,7 @@ import {
   X,
   Rocket,
   ListTodo,
+  FolderOpen,
   Crown,
   Shield,
   Bell,
@@ -64,6 +65,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, restricted: false },
     { path: '/projects', label: 'Proyectos', icon: FolderKanban, restricted: false },
     { path: '/tasks', label: 'Gestión de Tareas', icon: ListTodo, restricted: false },
+    { path: '/files', label: 'Repertorio', icon: FolderOpen, restricted: false },
     { path: '/members', label: 'Miembros', icon: Users, restricted: false },
     { path: '/notifications', label: 'Buzón', icon: Bell, restricted: false },
     { path: '/profile', label: 'Mi Perfil', icon: User, restricted: false },
@@ -81,7 +83,6 @@ export default function Layout({ children }: LayoutProps) {
         onClick={() => setSidebarOpen(!sidebarOpen)}
         className="lg:hidden fixed left-3 top-3 z-50 flex h-11 w-11 items-center justify-center rounded-2xl border border-space-600/70 bg-space-800/95 text-white shadow-lg shadow-black/30 backdrop-blur-sm transition-colors hover:bg-space-700 sm:left-4 sm:top-4"
         aria-label={sidebarOpen ? "Cerrar menú" : "Abrir menú"}
-        aria-expanded={sidebarOpen}
         aria-controls="sidebar-nav"
       >
         {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
@@ -218,7 +219,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Main content */}
       <main id="main-content" className="min-safe-screen min-h-screen lg:ml-72" role="main">
-        <div className="page-shell mobile-safe-bottom animate-fade-in px-4 pb-6 pt-20 sm:px-5 sm:pt-24 md:px-6 lg:px-8 lg:py-8" style={{ contain: 'content' }}>
+        <div className="page-shell mobile-safe-bottom animate-fade-in px-4 pb-6 pt-20 sm:px-5 sm:pt-24 md:px-6 lg:px-8 lg:py-8 [contain:content]">
           {children}
         </div>
       </main>

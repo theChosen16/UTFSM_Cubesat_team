@@ -1,26 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { 
-  Rocket, 
-  FolderKanban, 
-  Users, 
-  Cpu, 
-  Globe, 
+import {
+  Rocket,
+  FolderKanban,
+  Users,
+  Cpu,
+  Globe,
   Clock,
   CheckCircle2,
   ListTodo,
   AlertTriangle,
-  Calendar
+  Calendar,
+  History,
+  Trophy,
 } from 'lucide-react'
-import { TeamType } from '@/types'
+import { ActivityLogEntry, TeamType, User as UserType } from '@/types'
 import { ROLE_LABELS, TEAM_LABELS } from '@/lib/ui-constants'
 import { UserService } from '@/sdk/UserService'
 import { ProjectService } from '@/sdk/ProjectService'
 import { TaskService } from '@/sdk/TaskService'
+import { ActivityLogService } from '@/sdk/ActivityLogService'
 import { logger } from '@/lib/logger'
 import { extractNameFromEmail } from '@/lib/utils'
+import { buildMemberPerformance, getMemberRankInfo } from '@/lib/memberMetrics'
 
 interface MemberCount {
   total: number
@@ -33,7 +37,6 @@ interface DashboardProject {
   nombre: string
   descripcion: string
   estado: string
-  prioridad: string
   fechaLimite: string
   progress: number
 }
@@ -45,6 +48,8 @@ interface DashboardTask {
   prioridad: string
   projectId: string
   equipo: string
+  fechaLimite?: string
+  puntajeImportancia?: number
 }
 
 interface DashboardStats {
@@ -53,85 +58,134 @@ interface DashboardStats {
   completedTasks: number
 }
 
+interface LeaderboardEntry {
+  member: UserType
+  totalScore: number
+  completedCount: number
+  activityCount: number
+}
+
+const formatDateTime = (value?: string | Date) => {
+  if (!value) return ''
+  const parsed = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(parsed.getTime())) return String(value)
+  return parsed.toLocaleString('es-CL', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export default function Dashboard() {
   const { user } = useAuth()
   const [memberCount, setMemberCount] = useState<MemberCount>({ total: 0, byRole: {}, byTeam: {} })
   const [stats, setStats] = useState<DashboardStats>({ activeProjects: 0, pendingTasks: 0, completedTasks: 0 })
   const [recentProjects, setRecentProjects] = useState<DashboardProject[]>([])
   const [recentTasks, setRecentTasks] = useState<DashboardTask[]>([])
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [recentActivity, setRecentActivity] = useState<ActivityLogEntry[]>([])
+  const [usersList, setUsersList] = useState<UserType[]>([])
   const [loadingStats, setLoadingStats] = useState(true)
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const [usersList, projectsListRaw, tasksListRaw] = await Promise.all([
+        const [members, projectsListRaw, tasksListRaw, activityLog] = await Promise.all([
           UserService.getAll(),
           ProjectService.getAll(),
           TaskService.getAll(),
+          ActivityLogService.getAll(),
         ])
+
+        setUsersList(members)
 
         const byRole: Record<string, number> = {}
         const byTeam: Record<string, number> = {}
-        usersList.forEach(u => {
-          const role = u.rol
-          if (role) {
-            byRole[role] = (byRole[role] || 0) + 1
+        members.forEach(member => {
+          if (member.rol) {
+            byRole[member.rol] = (byRole[member.rol] || 0) + 1
           }
-          const teams = u.equipos || []
-          teams.forEach(team => {
+          ;(member.equipos || []).forEach(team => {
             byTeam[team] = (byTeam[team] || 0) + 1
           })
         })
-        setMemberCount({ total: usersList.length, byRole, byTeam })
+        setMemberCount({ total: members.length, byRole, byTeam })
 
-        const activeProjects = projectsListRaw.filter(p => p.estado !== 'completado').length
+        const activeProjects = projectsListRaw.filter(project => project.estado !== 'completado').length
+        const projectsList: DashboardProject[] = projectsListRaw
+          .map(project => {
+            const projectTasks = tasksListRaw.filter(task => task.projectId === project.id)
+            const completedProjectTasks = projectTasks.filter(task => task.estado === 'completado').length
+            const progress = projectTasks.length === 0
+              ? (project.estado === 'completado' ? 100 : 0)
+              : Math.round((completedProjectTasks / projectTasks.length) * 100)
 
-        // Store recent projects (up to 4, sorted by state priority)
-        const projectsList: DashboardProject[] = projectsListRaw.map(p => ({
-          id: p.id,
-          nombre: p.nombre,
-          descripcion: p.descripcion,
-          estado: p.estado,
-          prioridad: 'media', // Project doesn't store priority natively in new SDK yet, fallback
-          fechaLimite: p.fechaLimite ? (p.fechaLimite instanceof Date ? p.fechaLimite.toISOString() : String(p.fechaLimite)) : '',
-          progress: 0, // Fallback
-        }))
-        projectsList.sort((a, b) => {
-          const order: Record<string, number> = { en_progreso: 0, planificacion: 1, completado: 2 }
-          return (order[a.estado] ?? 1) - (order[b.estado] ?? 1)
-        })
+            return {
+              id: project.id,
+              nombre: project.nombre,
+              descripcion: project.descripcion,
+              estado: project.estado,
+              fechaLimite: project.fechaLimite ? formatDateTime(project.fechaLimite) : '',
+              progress,
+            }
+          })
+          .sort((left, right) => {
+            const order: Record<string, number> = { en_progreso: 0, planificacion: 1, completado: 2 }
+            return (order[left.estado] ?? 1) - (order[right.estado] ?? 1)
+          })
         setRecentProjects(projectsList.slice(0, 4))
 
-        let pendingTasks = 0
-        let completedTasks = 0
-        const tasksList: DashboardTask[] = tasksListRaw.map(t => {
-          const estado = t.estado
-          if (estado === 'completado') {
-            completedTasks++
-          } else if (estado === 'pendiente' || estado === 'en_progreso') {
-            pendingTasks++
-          }
-          return {
-            id: t.id,
-            titulo: t.titulo,
-            estado: t.estado,
-            prioridad: t.prioridad,
-            projectId: t.projectId,
-            equipo: t.equipo,
-          }
-        })
-        
-        // Show non-completed tasks first, up to 5
-        const activeTasks = tasksList.filter(t => t.estado !== 'completado')
+        const pendingTasks = tasksListRaw.filter(task => task.estado !== 'completado').length
+        const completedTasks = tasksListRaw.filter(task => task.estado === 'completado').length
+        const activeTasks = tasksListRaw
+          .filter(task => task.estado !== 'completado')
+          .sort((left, right) => {
+            if (left.fechaLimite && right.fechaLimite) {
+              return new Date(left.fechaLimite).getTime() - new Date(right.fechaLimite).getTime()
+            }
+            if (left.fechaLimite) return -1
+            if (right.fechaLimite) return 1
+            return (right.puntajeImportancia ?? 0) - (left.puntajeImportancia ?? 0)
+          })
+          .map(task => ({
+            id: task.id,
+            titulo: task.titulo,
+            estado: task.estado,
+            prioridad: task.prioridad,
+            projectId: task.projectId,
+            equipo: task.equipo,
+            fechaLimite: task.fechaLimite,
+            puntajeImportancia: task.puntajeImportancia,
+          }))
         setRecentTasks(activeTasks.slice(0, 5))
-
         setStats({ activeProjects, pendingTasks, completedTasks })
+
+        const leaderboardEntries = members
+          .map(member => {
+            const performance = buildMemberPerformance(member.id, tasksListRaw, activityLog)
+            return {
+              member,
+              totalScore: performance.totalScore,
+              completedCount: performance.completedCount,
+              activityCount: performance.activityCount,
+            }
+          })
+          .sort((left, right) => {
+            if (right.totalScore !== left.totalScore) return right.totalScore - left.totalScore
+            if (right.completedCount !== left.completedCount) return right.completedCount - left.completedCount
+            return right.activityCount - left.activityCount
+          })
+        setLeaderboard(leaderboardEntries.slice(0, 5))
+        setRecentActivity(activityLog.slice(0, 6))
       } catch (error) {
         logger.error('Error loading dashboard stats', { error })
       } finally {
         setLoadingStats(false)
       }
     }
+
     loadStats()
   }, [])
 
@@ -214,13 +268,17 @@ export default function Dashboard() {
   }
 
   const getProjectNameById = (projectId: string) => {
-    const project = recentProjects.find(p => p.id === projectId)
+    const project = recentProjects.find(item => item.id === projectId)
     return project ? project.nombre : ''
+  }
+
+  const getMemberName = (memberId: string) => {
+    const member = usersList.find(item => item.id === memberId)
+    return member ? `${member.nombre || ''} ${member.apellido || ''}`.trim() || extractNameFromEmail(member.email) : memberId
   }
 
   return (
     <div className="page-shell">
-      {/* Header */}
       <div className="page-header animate-fade-in-up">
         <div>
           <h1 className="page-title">
@@ -228,10 +286,10 @@ export default function Dashboard() {
           </h1>
           <p className="page-copy">
             {user?.rol && (
-              <>Tu rol: <span className="text-cyan-400">{ROLE_LABELS[user.rol]}</span>{' '}</>  
+              <>Tu rol: <span className="text-cyan-400">{ROLE_LABELS[user.rol]}</span>{' '}</>
             )}
             {user?.equipos && user.equipos.length > 0 && (
-              <>Equipos: <span className="text-purple-400">{user.equipos.map(t => TEAM_LABELS[t]).join(', ')}</span></>  
+              <>Equipos: <span className="text-purple-400">{user.equipos.map(team => TEAM_LABELS[team]).join(', ')}</span></>
             )}
             {!user?.rol && (!user?.equipos || user.equipos.length === 0) && (
               <span className="text-muted-foreground">Sin rol ni equipo asignado</span>
@@ -245,12 +303,11 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4" role="region" aria-label="Estadísticas del equipo" aria-live="polite">
-        {statCards.map((stat, index) => {
+        {statCards.map((stat) => {
           const Icon = stat.icon
           return (
-            <Card key={stat.title} className="bg-space-700/50 border-space-600 hover:bg-space-700/70 transition-all duration-300" style={{ animationDelay: `${index * 75}ms` }}>
+            <Card key={stat.title} className="bg-space-700/50 border-space-600 hover:bg-space-700/70 transition-all duration-300">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0 flex-1">
@@ -271,9 +328,75 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Main Content Grid */}
+      <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
+        <Card className="bg-space-700/50 border-space-600">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-orange-400" />
+              Ranking del equipo
+            </CardTitle>
+            <CardDescription>Puntaje acumulado según tareas completadas y aportes registrados.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {leaderboard.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Todavía no hay puntajes suficientes para construir el ranking.</p>
+            ) : (
+              <div className="space-y-3">
+                {leaderboard.map((entry, index) => {
+                  const rank = getMemberRankInfo(entry.totalScore)
+                  const isCurrentUser = user?.id === entry.member.id
+                  const leaderboardKey = entry.member.id || entry.member.email || `leaderboard-${index}`
+                  return (
+                    <div key={leaderboardKey} className={`rounded-xl border px-4 py-3 ${isCurrentUser ? 'border-cyan-500/60 bg-cyan-500/10' : 'border-space-600 bg-space-800/50'}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">#{index + 1} {entry.member.nombre || extractNameFromEmail(entry.member.email)} {entry.member.apellido || ''}</p>
+                          <p className="text-xs text-muted-foreground">{entry.completedCount} tareas completadas · {entry.activityCount} actividades</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-orange-300">{entry.totalScore} pts</p>
+                          <Badge className={rank.color} variant="secondary">{rank.label}</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-space-700/50 border-space-600">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <History className="w-5 h-5 text-purple-400" />
+              Historial reciente
+            </CardTitle>
+            <CardDescription>Quién hizo qué y cuándo dentro del proyecto.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {recentActivity.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aún no hay actividad registrada.</p>
+            ) : (
+              <div className="space-y-3">
+                {recentActivity.map(activity => (
+                  <div key={activity.id} className="rounded-xl border border-space-600 bg-space-800/50 px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-white">{getMemberName(activity.userId)}</p>
+                        <p className="mt-1 text-sm text-slate-300">{activity.description}</p>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground whitespace-nowrap">{formatDateTime(activity.createdAt)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-3 lg:gap-6">
-        {/* Recent Projects */}
         <Card className="lg:col-span-2 bg-space-700/50 border-space-600">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
@@ -301,21 +424,13 @@ export default function Dashboard() {
                       <p className="text-xs text-muted-foreground line-clamp-1">{project.descripcion}</p>
                     )}
                     <div className="flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                      <span className={getPriorityColor(project.prioridad)}>
-                        Prioridad {project.prioridad}
-                      </span>
+                      <span className="text-cyan-300">Progreso estimado {project.progress}%</span>
                       {project.fechaLimite && (
                         <span className="flex items-center gap-1 break-words">
                           <Calendar className="w-3 h-3" />
                           {project.fechaLimite}
                         </span>
                       )}
-                    </div>
-                    <div className="w-full bg-space-800 rounded-full h-1.5">
-                      <div
-                        className="bg-cyan-500 h-1.5 rounded-full transition-all"
-                        style={{ width: `${project.progress}%` }}
-                      />
                     </div>
                   </div>
                 ))}
@@ -324,7 +439,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Team Overview */}
         <Card className="bg-space-700/50 border-space-600">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
@@ -357,7 +471,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Tasks Section */}
       <Card className="bg-space-700/50 border-space-600">
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
@@ -396,6 +509,17 @@ export default function Dashboard() {
                       <span className="text-purple-400 sm:ml-auto">
                         {TEAM_LABELS[task.equipo as TeamType] || task.equipo}
                       </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    {task.fechaLimite && (
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {formatDateTime(task.fechaLimite)}
+                      </span>
+                    )}
+                    {(task.puntajeImportancia ?? 0) > 0 && (
+                      <span className="text-orange-300">{task.puntajeImportancia} pts</span>
                     )}
                   </div>
                 </div>

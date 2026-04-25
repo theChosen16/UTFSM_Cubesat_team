@@ -3,6 +3,9 @@ export const COLLECTIONS = {
   USERS: 'users',
   PROJECTS: 'projects',
   TASKS: 'tasks',
+  FILES: 'files',
+  ACTIVITY_LOG: 'activity_log',
+  MEMBER_SCORES: 'member_scores',
   NOTIFICATIONS: 'notifications',
 } as const
 

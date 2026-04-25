@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import Layout from './components/layout/Layout'
@@ -5,14 +6,17 @@ import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
-import Dashboard from './pages/Dashboard'
-import Projects from './pages/Projects'
-import Members from './pages/Members'
-import Profile from './pages/Profile'
-import TaskManagement from './pages/TaskManagement'
-import Notifications from './pages/Notifications'
 import ProtectedRoute from './components/ProtectedRoute'
 import { Spinner } from './components/ui/spinner'
+
+// Heavy pages – loaded only when first visited
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Projects = lazy(() => import('./pages/Projects'))
+const Members = lazy(() => import('./pages/Members'))
+const Profile = lazy(() => import('./pages/Profile'))
+const TaskManagement = lazy(() => import('./pages/TaskManagement'))
+const Notifications = lazy(() => import('./pages/Notifications'))
+const FileRepository = lazy(() => import('./pages/FileRepository'))
 
 function App() {
   const { user, loading } = useAuth()
@@ -36,15 +40,18 @@ function App() {
         element={
           <ProtectedRoute user={user}>
             <Layout>
-              <Routes>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/projects" element={<Projects />} />
-                <Route path="/tasks" element={<TaskManagement />} />
-                <Route path="/members" element={<Members />} />
-                <Route path="/notifications" element={<Notifications />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/profile/:userId" element={<Profile />} />
-              </Routes>
+              <Suspense fallback={<Spinner className="min-h-[60vh]" />}>
+                <Routes>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/projects" element={<Projects />} />
+                  <Route path="/tasks" element={<TaskManagement />} />
+                  <Route path="/files" element={<FileRepository />} />
+                  <Route path="/members" element={<Members />} />
+                  <Route path="/notifications" element={<Notifications />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/profile/:userId" element={<Profile />} />
+                </Routes>
+              </Suspense>
             </Layout>
           </ProtectedRoute>
         }

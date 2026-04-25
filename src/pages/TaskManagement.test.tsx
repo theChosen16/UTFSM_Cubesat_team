@@ -108,6 +108,9 @@ describe('TaskManagement', () => {
     expect(screen.getByText('Equipo encargado')).toBeInTheDocument()
     expect(screen.getByText('Prioridad')).toBeInTheDocument()
     expect(screen.getByText('Responsable(s)')).toBeInTheDocument()
+    expect(screen.getByText('Plazo')).toBeInTheDocument()
+    expect(screen.getByText('Hitos de la tarea')).toBeInTheDocument()
+    expect(screen.getByText('Entregables y evidencias')).toBeInTheDocument()
   })
 
   it('does not show "Nueva Tarea" button for regular members', async () => {
@@ -185,15 +188,20 @@ describe('TaskManagement', () => {
     await user.click(screen.getByRole('button', { name: /crear tarea/i }))
 
     await waitFor(() => {
-      expect(mockAddDoc).toHaveBeenCalledTimes(1)
+      expect(mockAddDoc).toHaveBeenCalledTimes(2)
     })
 
-    const callArgs = mockAddDoc.mock.calls[0][1]
-    expect(callArgs.titulo).toBe('Diseñar PCB')
-    expect(callArgs.descripcion).toBe('Diseño del circuito')
-    expect(callArgs.estado).toBe('pendiente')
-    expect(callArgs.prioridad).toBe('media')
-    expect(callArgs.creadoPor).toBe('user1')
+    const taskCallArgs = mockAddDoc.mock.calls[0][1]
+    expect(taskCallArgs.titulo).toBe('Diseñar PCB')
+    expect(taskCallArgs.descripcion).toBe('Diseño del circuito')
+    expect(taskCallArgs.estado).toBe('pendiente')
+    expect(taskCallArgs.prioridad).toBe('media')
+    expect(taskCallArgs.creadoPor).toBe('user1')
+
+    const activityCallArgs = mockAddDoc.mock.calls[1][1]
+    expect(activityCallArgs.type).toBe('task_created')
+    expect(activityCallArgs.userId).toBe('user1')
+    expect(activityCallArgs.relatedId).toBe('new-task-id')
   })
 
   it('resets form after successful task creation', async () => {

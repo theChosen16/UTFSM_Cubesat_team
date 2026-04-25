@@ -1,4 +1,4 @@
-import { useState, useEffect, ChangeEvent } from 'react'
+import { useState, useEffect, ChangeEvent, useMemo } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,14 +13,19 @@ import {
   Clock,
   AlertTriangle,
   AlertCircle,
-  X
+  X,
+  Calendar,
+  Upload,
+  History,
+  FileText
 } from 'lucide-react'
 import { logger } from '@/lib/logger'
-import { Task, User as UserType, TeamType, hasAnyRole, hasTeam } from '@/types'
+import { FileRecord, Task, TaskDeliverable, TaskMilestone, User as UserType, TeamType, hasAnyRole, hasTeam } from '@/types'
 import { TEAM_LABELS } from '@/lib/ui-constants'
 import { ProjectService } from '@/sdk/ProjectService'
 import { TaskService } from '@/sdk/TaskService'
 import { UserService } from '@/sdk/UserService'
+import { FileService } from '@/sdk/FileService'
 import { taskFormSchema } from '@/lib/schemas'
 import { z } from 'zod'
 
@@ -34,6 +39,7 @@ export default function TaskManagement() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [members, setMembers] = useState<UserType[]>([])
+  const [files, setFiles] = useState<FileRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -47,10 +53,17 @@ export default function TaskManagement() {
   const [asignadoA, setAsignadoA] = useState<string[]>([])
   const [prioridad, setPrioridad] = useState<'alta' | 'media' | 'baja'>('media')
   const [puntajeImportancia, setPuntajeImportancia] = useState<number>(5)
+  const [fechaLimite, setFechaLimite] = useState('')
+  const [hitos, setHitos] = useState<TaskMilestone[]>([])
+  const [deliverables, setDeliverables] = useState<TaskDeliverable[]>([])
 
   const [editingTimeTaskId, setEditingTimeTaskId] = useState<string | null>(null)
   const [fechaInicioForm, setFechaInicioForm] = useState('')
   const [fechaFinForm, setFechaFinForm] = useState('')
+  const [activeProgressTaskId, setActiveProgressTaskId] = useState<string | null>(null)
+  const [progressMessage, setProgressMessage] = useState('')
+  const [submittingProgress, setSubmittingProgress] = useState(false)
+  const [uploadingKey, setUploadingKey] = useState<string | null>(null)
 
   const canManageTasks = hasAnyRole(user, 'maestro', 'admin') || hasTeam(user, 'manager')
 
@@ -60,15 +73,17 @@ export default function TaskManagement() {
 
   const loadData = async () => {
     try {
-      const [tasksList, projectsList, usersList] = await Promise.all([
+      const [tasksList, projectsList, usersList, filesList] = await Promise.all([
         TaskService.getAll(),
         ProjectService.getAll(),
         UserService.getAll(),
+        FileService.getAll(),
       ])
 
       setTasks(tasksList)
       setProjects(projectsList.map(p => ({ id: p.id, nombre: p.nombre })))
       setMembers(usersList.map(u => ({ ...u, email: u.email || '' })))
+      setFiles(filesList)
     } catch (error) {
       logger.error('Error loading task management data', { error })
     } finally {
@@ -84,9 +99,41 @@ export default function TaskManagement() {
     setAsignadoA([])
     setPrioridad('media')
     setPuntajeImportancia(5)
+    setFechaLimite('')
+    setHitos([])
+    setDeliverables([])
     setShowForm(false)
     setError('')
   }
+
+  const createMilestone = (): TaskMilestone => ({
+    id: crypto.randomUUID(),
+    titulo: '',
+    descripcion: '',
+    estado: 'pendiente',
+    fechaLimite: '',
+  })
+
+  const createDeliverable = (): TaskDeliverable => ({
+    id: crypto.randomUUID(),
+    titulo: '',
+    descripcion: '',
+    estado: 'pendiente',
+    fechaLimite: '',
+    attachmentIds: [],
+  })
+
+  const updateMilestone = (milestoneId: string, patch: Partial<TaskMilestone>) => {
+    setHitos(prev => prev.map(item => item.id === milestoneId ? { ...item, ...patch } : item))
+  }
+
+  const updateDeliverableDraft = (deliverableId: string, patch: Partial<TaskDeliverable>) => {
+    setDeliverables(prev => prev.map(item => item.id === deliverableId ? { ...item, ...patch } : item))
+  }
+
+  const filesById = useMemo(() => {
+    return new Map(files.map(file => [file.id, file]))
+  }, [files])
 
   const handleCreateTask = async () => {
     if (!user) return
@@ -100,7 +147,26 @@ export default function TaskManagement() {
         equipo,
         asignadoA,
         prioridad,
-        puntajeImportancia
+        puntajeImportancia,
+        fechaLimite: fechaLimite || undefined,
+        hitos: hitos
+          .filter(item => item.titulo.trim())
+          .map(item => ({
+            ...item,
+            titulo: item.titulo.trim(),
+            descripcion: item.descripcion?.trim() || '',
+            fechaLimite: item.fechaLimite || undefined,
+          })),
+        deliverables: deliverables
+          .filter(item => item.titulo.trim())
+          .map(item => ({
+            ...item,
+            titulo: item.titulo.trim(),
+            descripcion: item.descripcion?.trim() || '',
+            fechaLimite: item.fechaLimite || undefined,
+            attachmentIds: [],
+          })),
+        attachmentIds: [],
       })
 
       await TaskService.create({
@@ -126,8 +192,10 @@ export default function TaskManagement() {
   }
 
   const handleStatusChange = async (taskId: string, newStatus: Task['estado']) => {
+    if (!user) return
     try {
-      await TaskService.updateStatus(taskId, newStatus)
+      const task = tasks.find(item => item.id === taskId)
+      await TaskService.updateStatus(taskId, newStatus, { actorId: user.id, task })
       await loadData()
     } catch (err) {
       logger.error('Error updating task status', { error: err })
@@ -162,6 +230,68 @@ export default function TaskManagement() {
     setEditingTimeTaskId(task.id)
     setFechaInicioForm(task.fechaInicioReal || '')
     setFechaFinForm(task.fechaFinReal || '')
+  }
+
+  const openProgressComposer = (taskId: string) => {
+    setActiveProgressTaskId(taskId)
+    setProgressMessage('')
+  }
+
+  const handleSaveProgress = async (task: Task) => {
+    if (!user || !progressMessage.trim()) return
+    setSubmittingProgress(true)
+    try {
+      await TaskService.addProgressUpdate(task.id, {
+        authorId: user.id,
+        message: progressMessage.trim(),
+        status: task.estado,
+      })
+      setActiveProgressTaskId(null)
+      setProgressMessage('')
+      await loadData()
+    } catch (err) {
+      logger.error('Error logging task progress', { error: err, taskId: task.id })
+      setError('Error al registrar el avance de la tarea.')
+    } finally {
+      setSubmittingProgress(false)
+    }
+  }
+
+  const handleDeliverableUpload = async (task: Task, deliverable: TaskDeliverable, file: File | null) => {
+    if (!user || !file) return
+    const uploadKey = `${task.id}:${deliverable.id}`
+    setUploadingKey(uploadKey)
+    setError('')
+    try {
+      const record = await FileService.upload(file, {
+        uploadedBy: user.id,
+        taskId: task.id,
+        projectId: task.projectId || undefined,
+        deliverableId: deliverable.id,
+      })
+
+      await TaskService.attachFileToDeliverable(task.id, deliverable.id, record.id, user.id, {
+        fileName: file.name,
+        actorName: user.nombre || user.email || user.id,
+      })
+      await loadData()
+    } catch (err) {
+      logger.error('Error uploading deliverable file', { error: err, taskId: task.id, deliverableId: deliverable.id })
+      setError('No se pudo subir el archivo del entregable.')
+    } finally {
+      setUploadingKey(null)
+    }
+  }
+
+  const handleApproveDeliverable = async (taskId: string, deliverableId: string) => {
+    if (!user) return
+    try {
+      await TaskService.updateDeliverable(taskId, deliverableId, { estado: 'aprobado' }, user.id)
+      await loadData()
+    } catch (err) {
+      logger.error('Error approving deliverable', { error: err, taskId, deliverableId })
+      setError('No se pudo aprobar el entregable.')
+    }
   }
 
   const toggleMember = (memberId: string) => {
@@ -207,6 +337,34 @@ export default function TaskManagement() {
     }
   }
 
+  const getDeliverableBadge = (status: TaskDeliverable['estado']) => {
+    switch (status) {
+      case 'pendiente': return 'orange'
+      case 'entregado': return 'cyan'
+      case 'aprobado': return 'green'
+      default: return 'secondary' as const
+    }
+  }
+
+  const formatDateTime = (value?: string) => {
+    if (!value) return ''
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return value
+    return parsed.toLocaleString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  const getDeliverableFiles = (deliverable: TaskDeliverable) => {
+    return (deliverable.attachmentIds || [])
+      .map(fileId => filesById.get(fileId))
+      .filter((file): file is FileRecord => Boolean(file))
+  }
+
   const handleInputChange = (setter: (value: string) => void) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setter(event.target.value)
   }
@@ -221,6 +379,8 @@ export default function TaskManagement() {
   const renderTaskCard = (task: Task) => {
     const isAssigned = user && task.asignadoA.includes(user.id)
     const canChangeStatus = canManageTasks || isAssigned
+    const isOverdue = Boolean(task.fechaLimite) && task.estado !== 'completado' && new Date(task.fechaLimite as string).getTime() < Date.now()
+    const progressUpdates = [...(task.progressUpdates || [])].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
 
     return (
       <Card key={task.id} className="bg-space-700/50 border-space-600 hover:border-space-500 transition-all duration-200">
@@ -253,6 +413,12 @@ export default function TaskManagement() {
                 {task.puntajeImportancia !== undefined && task.puntajeImportancia > 0 && (
                   <span className="flex items-center gap-1 text-orange-400">★ Pto: <span className="text-white">{task.puntajeImportancia}/10</span></span>
                 )}
+                {task.fechaLimite && (
+                  <span className={`flex items-center gap-1 whitespace-nowrap ${isOverdue ? 'text-red-400' : 'text-cyan-400'}`}>
+                    <Calendar className="w-3 h-3" />
+                    Plazo: <span className="text-white">{formatDateTime(task.fechaLimite)}</span>
+                  </span>
+                )}
                 {task.tiempoInvertido && (
                   <span className="flex items-center gap-1 text-cyan-400 whitespace-nowrap"><Clock className="w-3 h-3" /> Tiempo: <span className="text-white">{task.tiempoInvertido}</span></span>
                 )}
@@ -273,6 +439,157 @@ export default function TaskManagement() {
                 {isAssigned && editingTimeTaskId !== task.id && (
                   <Button variant="ghost" size="sm" onClick={() => openTimeTracker(task)} className="text-xs text-cyan-400 hover:text-cyan-300 p-0 h-auto">
                     + Reg. Tiempos
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {(task.hitos?.length || 0) > 0 && (
+            <div className="rounded-xl border border-space-600 bg-space-800/60 p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
+                <ListTodo className="h-4 w-4 text-cyan-400" />
+                Hitos definidos
+              </div>
+              <div className="space-y-2">
+                {task.hitos?.map(hito => (
+                  <div key={hito.id} className="rounded-lg border border-space-600/70 bg-space-700/40 px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm text-white">{hito.titulo}</p>
+                        {hito.descripcion && <p className="text-xs text-muted-foreground">{hito.descripcion}</p>}
+                      </div>
+                      <Badge variant={hito.estado === 'completado' ? 'green' : 'orange'}>
+                        {hito.estado === 'completado' ? 'Completado' : 'Pendiente'}
+                      </Badge>
+                    </div>
+                    {hito.fechaLimite && (
+                      <p className="mt-1 text-xs text-muted-foreground">Plazo: {formatDateTime(hito.fechaLimite)}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(task.deliverables?.length || 0) > 0 && (
+            <div className="rounded-xl border border-space-600 bg-space-800/60 p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
+                <FileText className="h-4 w-4 text-orange-400" />
+                Buzón de entregables
+              </div>
+              <div className="space-y-3">
+                {task.deliverables?.map(deliverable => {
+                  const deliverableFiles = getDeliverableFiles(deliverable)
+                  const currentUploadKey = `${task.id}:${deliverable.id}`
+                  return (
+                    <div key={deliverable.id} className="rounded-lg border border-space-600/70 bg-space-700/40 p-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium text-white">{deliverable.titulo}</p>
+                            <Badge variant={getDeliverableBadge(deliverable.estado) as 'orange' | 'cyan' | 'green'}>
+                              {deliverable.estado === 'aprobado' ? 'Aprobado' : deliverable.estado === 'entregado' ? 'Entregado' : 'Pendiente'}
+                            </Badge>
+                          </div>
+                          {deliverable.descripcion && <p className="mt-1 text-xs text-muted-foreground">{deliverable.descripcion}</p>}
+                          {deliverable.fechaLimite && (
+                            <p className="mt-1 text-xs text-muted-foreground">Plazo: {formatDateTime(deliverable.fechaLimite)}</p>
+                          )}
+                        </div>
+                        {canManageTasks && deliverable.estado === 'entregado' && (
+                          <Button size="sm" onClick={() => handleApproveDeliverable(task.id, deliverable.id)} className="bg-green-500 text-space-900 hover:bg-green-600">
+                            Aprobar
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        {deliverableFiles.length > 0 ? (
+                          deliverableFiles.map(file => (
+                            <a
+                              key={file.id}
+                              href={file.downloadURL}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-2 text-sm text-cyan-300 hover:text-cyan-200"
+                            >
+                              <Upload className="h-3.5 w-3.5" />
+                              <span>{file.name}</span>
+                            </a>
+                          ))
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Aún no hay archivos subidos para este entregable.</p>
+                        )}
+                      </div>
+
+                      {canChangeStatus && (
+                        <div className="mt-3">
+                          <label className="mb-1 flex items-center gap-2 text-xs text-slate-300">
+                            <Upload className="h-3.5 w-3.5 text-cyan-400" />
+                            Subir evidencia o entregable
+                          </label>
+                          <Input
+                            type="file"
+                            className="bg-space-700 border-space-500 text-white"
+                            disabled={uploadingKey === currentUploadKey}
+                            onChange={(event) => handleDeliverableUpload(task, deliverable, event.target.files?.[0] || null)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-space-600 bg-space-800/60 p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
+              <History className="h-4 w-4 text-purple-400" />
+              Historial de avance
+            </div>
+            {progressUpdates.length > 0 ? (
+              <div className="space-y-2">
+                {progressUpdates.slice(0, 3).map(update => (
+                  <div key={update.id} className="rounded-lg border border-space-600/70 bg-space-700/40 px-3 py-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-medium text-white">{getMemberName(update.authorId)}</p>
+                      <span className="text-[11px] text-muted-foreground">{formatDateTime(update.createdAt)}</span>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-200">{update.message}</p>
+                    {update.status && (
+                      <p className="mt-1 text-[11px] text-muted-foreground">Estado reportado: {getStatusLabel(update.status)}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Todavía no hay avances registrados para esta tarea.</p>
+            )}
+
+            {canChangeStatus && (
+              <div className="mt-4 border-t border-space-600/70 pt-4">
+                {activeProgressTaskId === task.id ? (
+                  <div className="space-y-3">
+                    <Textarea
+                      value={progressMessage}
+                      onChange={handleInputChange(setProgressMessage)}
+                      placeholder="Describe qué hiciste, bloqueo actual o próximo paso..."
+                      className="bg-space-700 border-space-500 text-white min-h-[90px]"
+                    />
+                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                      <Button variant="outline" onClick={() => setActiveProgressTaskId(null)} className="border-space-600 text-white hover:bg-space-600">
+                        Cancelar
+                      </Button>
+                      <Button onClick={() => handleSaveProgress(task)} disabled={!progressMessage.trim() || submittingProgress} className="bg-cyan-500 text-space-900 hover:bg-cyan-600">
+                        {submittingProgress ? 'Guardando...' : 'Registrar avance'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button variant="ghost" size="sm" onClick={() => openProgressComposer(task.id)} className="text-cyan-400 hover:text-cyan-300 px-0">
+                    + Registrar avance de usuario
                   </Button>
                 )}
               </div>
@@ -370,6 +687,17 @@ export default function TaskManagement() {
               />
             </div>
 
+            <div className="space-y-2">
+              <label htmlFor="task-deadline" className="text-sm font-medium text-white">Plazo</label>
+              <Input
+                id="task-deadline"
+                type="datetime-local"
+                value={fechaLimite}
+                onChange={handleInputChange(setFechaLimite)}
+                className="bg-space-700 border-space-500 text-white"
+              />
+            </div>
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-2">
                 <label htmlFor="task-project" className="text-sm font-medium text-white">Proyecto</label>
@@ -462,6 +790,100 @@ export default function TaskManagement() {
                   {asignadoA.length} persona{asignadoA.length > 1 ? 's' : ''} seleccionada{asignadoA.length > 1 ? 's' : ''}
                 </p>
               )}
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <div className="space-y-3 rounded-xl border border-space-600 bg-space-800/60 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-medium text-white">Hitos de la tarea</h3>
+                    <p className="text-xs text-muted-foreground">Divide la tarea en pasos internos trazables.</p>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setHitos(prev => [...prev, createMilestone()])} className="text-cyan-400 hover:text-cyan-300">
+                    <Plus className="mr-1 h-4 w-4" /> Agregar
+                  </Button>
+                </div>
+
+                {hitos.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No hay hitos definidos todavía.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {hitos.map(hito => (
+                      <div key={hito.id} className="rounded-lg border border-space-600/70 bg-space-700/40 p-3 space-y-2">
+                        <Input
+                          value={hito.titulo}
+                          onChange={(event) => updateMilestone(hito.id, { titulo: event.target.value })}
+                          placeholder="Nombre del hito"
+                          className="bg-space-700 border-space-500 text-white"
+                        />
+                        <Textarea
+                          value={hito.descripcion || ''}
+                          onChange={(event) => updateMilestone(hito.id, { descripcion: event.target.value })}
+                          placeholder="Detalle opcional del hito"
+                          className="bg-space-700 border-space-500 text-white min-h-[70px]"
+                        />
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <Input
+                            type="datetime-local"
+                            value={hito.fechaLimite || ''}
+                            onChange={(event) => updateMilestone(hito.id, { fechaLimite: event.target.value })}
+                            className="bg-space-700 border-space-500 text-white"
+                          />
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setHitos(prev => prev.filter(item => item.id !== hito.id))} className="text-red-400 hover:text-red-300">
+                            Quitar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-space-600 bg-space-800/60 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-medium text-white">Entregables y evidencias</h3>
+                    <p className="text-xs text-muted-foreground">Define qué archivos o resultados deben entregarse.</p>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setDeliverables(prev => [...prev, createDeliverable()])} className="text-cyan-400 hover:text-cyan-300">
+                    <Plus className="mr-1 h-4 w-4" /> Agregar
+                  </Button>
+                </div>
+
+                {deliverables.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No hay entregables definidos todavía.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {deliverables.map(deliverable => (
+                      <div key={deliverable.id} className="rounded-lg border border-space-600/70 bg-space-700/40 p-3 space-y-2">
+                        <Input
+                          value={deliverable.titulo}
+                          onChange={(event) => updateDeliverableDraft(deliverable.id, { titulo: event.target.value })}
+                          placeholder="Nombre del entregable"
+                          className="bg-space-700 border-space-500 text-white"
+                        />
+                        <Textarea
+                          value={deliverable.descripcion || ''}
+                          onChange={(event) => updateDeliverableDraft(deliverable.id, { descripcion: event.target.value })}
+                          placeholder="Ejemplo: PDF del informe, foto del prototipo, planilla de ensayo..."
+                          className="bg-space-700 border-space-500 text-white min-h-[70px]"
+                        />
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <Input
+                            type="datetime-local"
+                            value={deliverable.fechaLimite || ''}
+                            onChange={(event) => updateDeliverableDraft(deliverable.id, { fechaLimite: event.target.value })}
+                            className="bg-space-700 border-space-500 text-white"
+                          />
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setDeliverables(prev => prev.filter(item => item.id !== deliverable.id))} className="text-red-400 hover:text-red-300">
+                            Quitar
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
