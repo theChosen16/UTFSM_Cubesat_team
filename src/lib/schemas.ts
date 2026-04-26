@@ -56,7 +56,7 @@ export type TaskFormData = z.infer<typeof taskFormSchema>
  */
 export const userRegistrationSchema = z.object({
   email: z.string().email("Correo inválido").regex(
-    /^[a-zA-Z0-9._%+\-]+@(sansano\.)?usm\.cl$/i,
+    /^[a-zA-Z0-9._%+-]+@(sansano\.)?usm\.cl$/i,
     "Debe ser un correo institucional USM (@usm.cl o @sansano.usm.cl)"
   ),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
