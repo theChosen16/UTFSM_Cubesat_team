@@ -165,6 +165,8 @@ export default function Profile() {
     }
   }
 
+  const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+
   const handlePhotoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -177,8 +179,8 @@ export default function Profile() {
       return
     }
 
-    if (!file.type.startsWith('image/')) {
-      setPhotoError('Solo se permiten archivos de imagen (JPG, PNG, etc.).')
+    if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
+      setPhotoError('Solo se permiten imágenes JPG, PNG, GIF o WebP.')
       logger.warn('Invalid file type for photo', { type: file.type })
       return
     }
@@ -188,6 +190,19 @@ export default function Profile() {
       const reader = new FileReader()
       reader.onloadend = async () => {
         const dataUrl = reader.result as string
+        // Verify the data URL prefix matches an allowed image type
+        if (!dataUrl.startsWith('data:image/')) {
+          setPhotoError('Formato de imagen inválido.')
+          logger.warn('Unexpected data URL prefix for photo')
+          setUploadingPhoto(false)
+          return
+        }
+        // Guard against excessively large data URLs (~700 KB base64 ceiling for 500 KB file)
+        if (dataUrl.length > 720 * 1024) {
+          setPhotoError('La imagen procesada excede el tamaño permitido.')
+          setUploadingPhoto(false)
+          return
+        }
         setPhotoURL(dataUrl)
         await updateUserProfile({ photoURL: dataUrl })
         setUploadingPhoto(false)

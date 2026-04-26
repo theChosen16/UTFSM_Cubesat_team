@@ -16,40 +16,54 @@ service cloud.firestore {
       return hasTeam('manager') || hasRole('maestro') || hasRole('admin');
     }
 
+    // Fields a user is allowed to update on their own profile.
+    // Excludes 'rol', 'isActive', 'email', 'createdAt' to prevent privilege escalation.
+    function isAllowedSelfUpdate() {
+      let allowed = ['nombre', 'apellido', 'career', 'year', 'genero', 'photoURL', 'questionnaire', 'equipos'];
+      let changed = request.resource.data.diff(resource.data).changedKeys();
+      // User cannot self-assign to the 'manager' team (grants workspace management rights)
+      let noManagerSelfAssign = !changed.hasAny(['equipos']) ||
+        !('manager' in request.resource.data.equipos);
+      return changed.hasOnly(allowed) && noManagerSelfAssign;
+    }
+
     match /users/{userId} {
-      // Allow creation if the user is authenticated and the ID matches
       allow create: if request.auth != null && request.auth.uid == userId;
-      
-      // Allow read/update if the user is authenticated and:
-      // - Is the owner of the document, OR
-      // - Has 'maestro' role, OR
-      // - Has 'admin' role
-      allow read, update: if request.auth != null && 
-        (request.auth.uid == userId || 
+
+      allow read: if request.auth != null &&
+        (request.auth.uid == userId ||
          hasRole('maestro') ||
          hasRole('admin'));
-      
-      // Only maestro can delete
-      allow delete: if request.auth != null && 
+
+      // Maestro/admin can update any field on any user document.
+      // Regular users can only update their own non-privileged fields.
+      allow update: if request.auth != null && (
+        hasRole('maestro') ||
+        hasRole('admin') ||
+        (request.auth.uid == userId && isAllowedSelfUpdate())
+      );
+
+      // Only maestro can delete user documents
+      allow delete: if request.auth != null &&
         hasRole('maestro');
     }
 
     match /notifications/{notificationId} {
       // Users can read their own notifications
-      allow read: if request.auth != null && 
+      allow read: if request.auth != null &&
         resource.data.recipientId == request.auth.uid;
-      
+
       // Authenticated users can create notifications only if senderId matches their uid
       allow create: if request.auth != null &&
         request.resource.data.senderId == request.auth.uid &&
         request.resource.data.recipientId is string &&
         request.resource.data.recipientId.size() > 0;
-      
+
       // Users can update their own notifications (e.g., mark as read)
-      allow update: if request.auth != null && 
+      allow update: if request.auth != null &&
         resource.data.recipientId == request.auth.uid;
     }
-    
+
     match /projects/{projectId} {
       // All authenticated users can read projects (team collaboration tool, all users are institutional)
       allow read: if request.auth != null;
@@ -86,6 +100,8 @@ service cloud.firestore {
     }
 
     match /activity_log/{entryId} {
+      // All workspace members can read activity logs for performance rankings.
+      // Entry creation is restricted to the authenticated user's own entries.
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
     }
@@ -100,7 +116,9 @@ service cloud.firestore {
     }
 
     match /member_scores/{scoreId} {
-      allow read: if request.auth != null;
+      // Users can read their own score; workspace managers, admins, and maestros can read all.
+      allow read: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || canManageWorkspace());
       allow create, update, delete: if request.auth != null && canManageWorkspace();
     }
   }
