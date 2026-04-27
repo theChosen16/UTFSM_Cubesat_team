@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, collection, getDocs, query, limit } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
-import { User, UserRole, sanitizeGenero, sanitizeUserRole, sanitizeUserTeams, TeamType } from '@/types'
+import { User, UserRole, sanitizeGenero, sanitizeUserRole, sanitizeUserTeams, TeamType, hasRole } from '@/types'
 import { logger } from '@/lib/logger'
 import { COLLECTIONS } from '@/lib/constants'
 import { extractFullNameFromEmail } from '@/lib/utils'
@@ -171,15 +171,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, nombre: string, apellido: string) => {
     const { user: newUser } = await createUserWithEmailAndPassword(auth, email, password)
     
-    // Check if this is the first user by looking for any user document
-    // If the collection is empty, the first user is 'maestro'
+    // Bootstrap: the very first user registered becomes maestro.
+    // This runs inside a try/catch so a Firestore error conservatively
+    // falls through WITHOUT granting the role (fail-closed).
     let isFirstUser = false
     try {
       const usersSnapshot = await getDocs(query(collection(db, COLLECTIONS.USERS), limit(1)))
       isFirstUser = usersSnapshot.empty
+      if (isFirstUser) {
+        logger.warn('First user bootstrap: granting maestro role', { uid: newUser.uid, email })
+      }
     } catch (error) {
-      logger.error('Error checking first user', { error: error instanceof Error ? error : undefined })
-      isFirstUser = false 
+      logger.error('Error checking first user — skipping maestro bootstrap', { error: error instanceof Error ? error : undefined })
+      isFirstUser = false
     }
     
     const userData: Omit<User, 'id'> = {
@@ -214,6 +218,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const updateUserRole = async (userId: string, newRole: UserRole | undefined) => {
+    if (!hasRole(user, 'maestro')) {
+      throw new Error('Unauthorized: solo el maestro puede asignar roles')
+    }
     await UserService.updateRole(userId, newRole)
     if (user && user.id === userId) {
       setUser({ ...user, rol: newRole })
@@ -221,6 +228,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const updateUserTeams = async (userId: string, newTeams: TeamType[]) => {
+    if (!hasRole(user, 'maestro') && !hasRole(user, 'admin')) {
+      throw new Error('Unauthorized: se requiere rol admin o maestro para asignar equipos')
+    }
     await UserService.updateTeams(userId, newTeams)
     if (user && user.id === userId) {
       const limitedTeams = newTeams.slice(0, 2)

@@ -87,6 +87,10 @@ export default function Members() {
   }
 
   const handleTeamToggle = async (userId: string, team: TeamType, currentTeams: TeamType[]) => {
+    if (!hasRole(user, 'maestro') && !hasRole(user, 'admin')) {
+      logger.warn('Unauthorized team update attempt', { userId })
+      return
+    }
     let newTeams: TeamType[]
     if (currentTeams.includes(team)) {
       newTeams = currentTeams.filter(currentTeam => currentTeam !== team)

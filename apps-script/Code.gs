@@ -18,8 +18,22 @@
 
 const FOLDER_ID = 'PUT_YOUR_DRIVE_FOLDER_ID_HERE';
 const SHARED_SECRET = 'PUT_A_LONG_RANDOM_STRING_HERE';
-const ALLOWED_EMAIL_PATTERN = /@(sansano\.)?usm\.cl$/i;
+const ALLOWED_EMAIL_PATTERN = /^[a-zA-Z0-9._%+\-]+@(sansano\.)?usm\.cl$/i;
 const MAX_FILE_BYTES = 35 * 1024 * 1024;
+
+// Allowlist of permitted MIME types to prevent executable file uploads
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain', 'text/csv',
+  'application/zip', 'application/x-zip-compressed',
+];
 
 function doPost(e) {
   try {
@@ -74,6 +88,21 @@ function handleUpload(params) {
     throw new Error('missing fileBase64 or fileName');
   }
 
+  // Sanitize fileName: only allow safe characters to prevent path traversal / injection
+  const sanitizedFileName = String(params.fileName)
+    .replace(/[^a-zA-Z0-9._\-\s]/g, '_')
+    .trim()
+    .substring(0, 255);
+  if (!sanitizedFileName) {
+    throw new Error('invalid fileName');
+  }
+
+  // Validate MIME type against allowlist
+  const mimeType = String(params.mimeType || '').toLowerCase().trim();
+  if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+    throw new Error('file type not allowed: ' + mimeType);
+  }
+
   const root = DriveApp.getFolderById(FOLDER_ID);
   const target = resolveTargetFolder(root, params);
 
@@ -82,7 +111,7 @@ function handleUpload(params) {
     throw new Error('file exceeds 35 MB limit');
   }
 
-  const blob = Utilities.newBlob(decoded, params.mimeType || 'application/octet-stream', params.fileName);
+  const blob = Utilities.newBlob(decoded, mimeType, sanitizedFileName);
   const file = target.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
