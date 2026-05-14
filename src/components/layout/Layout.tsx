@@ -14,7 +14,8 @@ import {
   Crown,
   Shield,
   Bell,
-  Lock
+  Lock,
+  Satellite
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn, extractNameFromEmail } from '@/lib/utils'
@@ -193,6 +194,18 @@ export default function Layout({ children }: LayoutProps) {
                 </Link>
               )
             })}
+
+            <div className="my-4 border-t border-space-600/50" />
+            <a
+              href="https://ground-station-production-596d.up.railway.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setSidebarOpen(false)}
+              className="group relative mb-1 flex min-h-12 items-center gap-3 rounded-xl px-3.5 py-3 text-sm transition-all duration-200 sm:px-4 sm:text-[15px] text-muted-foreground hover:bg-space-700/80 hover:text-white"
+            >
+              <Satellite size={20} className="transition-transform duration-200 group-hover:scale-110" />
+              <span className="flex-1">Estación Terrena</span>
+            </a>
           </nav>
 
           {/* Sign out */}
