@@ -121,5 +121,12 @@ service cloud.firestore {
         (resource.data.userId == request.auth.uid || canManageWorkspace());
       allow create, update, delete: if request.auth != null && canManageWorkspace();
     }
+
+    match /events/{eventId} {
+      // All authenticated users can read calendar events.
+      // Creation, updates and deletions are restricted to workspace managers, admins, and maestros.
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null && canManageWorkspace();
+    }
   }
 }

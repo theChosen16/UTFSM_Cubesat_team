@@ -15,7 +15,8 @@ import {
   Shield,
   Bell,
   Lock,
-  Satellite
+  Satellite,
+  Calendar
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn, extractNameFromEmail } from '@/lib/utils'
@@ -66,6 +67,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, restricted: false },
     { path: '/projects', label: 'Proyectos', icon: FolderKanban, restricted: false },
     { path: '/tasks', label: 'Gestión de Tareas', icon: ListTodo, restricted: false },
+    { path: '/calendar', label: 'Calendario', icon: Calendar, restricted: false },
     { path: '/files', label: 'Repertorio', icon: FolderOpen, restricted: false },
     { path: '/members', label: 'Miembros', icon: Users, restricted: false },
     { path: '/notifications', label: 'Buzón', icon: Bell, restricted: false },

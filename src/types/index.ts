@@ -231,3 +231,19 @@ export interface Notification {
   senderName?: string
   relatedId?: string
 }
+
+export type CalendarEventType = 'reunion' | 'deadline' | 'social' | 'visita' | 'otro'
+
+export interface CalendarEvent {
+  id: string
+  titulo: string
+  descripcion?: string
+  fechaInicio: string // ISO string or Date string
+  fechaFin?: string   // ISO string or Date string
+  todoElDia?: boolean
+  tipo: CalendarEventType
+  creadoPor: string
+  createdAt: Date
+  relatedTaskId?: string
+  relatedProjectId?: string
+}

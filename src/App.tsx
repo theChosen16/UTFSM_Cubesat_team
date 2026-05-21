@@ -17,6 +17,7 @@ const Profile = lazy(() => import('./pages/Profile'))
 const TaskManagement = lazy(() => import('./pages/TaskManagement'))
 const Notifications = lazy(() => import('./pages/Notifications'))
 const FileRepository = lazy(() => import('./pages/FileRepository'))
+const Calendar = lazy(() => import('./pages/Calendar'))
 
 function App() {
   const { user, loading } = useAuth()
@@ -48,6 +49,7 @@ function App() {
                   <Route path="/files" element={<FileRepository />} />
                   <Route path="/members" element={<Members />} />
                   <Route path="/notifications" element={<Notifications />} />
+                  <Route path="/calendar" element={<Calendar />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/profile/:userId" element={<Profile />} />
                 </Routes>

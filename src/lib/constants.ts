@@ -7,6 +7,7 @@ export const COLLECTIONS = {
   ACTIVITY_LOG: 'activity_log',
   MEMBER_SCORES: 'member_scores',
   NOTIFICATIONS: 'notifications',
+  EVENTS: 'events',
 } as const
 
 /** Valid institutional email domains for registration */
