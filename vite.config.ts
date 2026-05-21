@@ -13,6 +13,7 @@ export default defineConfig({
   },
   base: '/UTFSM_Cubesat_team/',
   build: {
+    outDir: 'docs',
     rollupOptions: {
       output: {
         manualChunks: {

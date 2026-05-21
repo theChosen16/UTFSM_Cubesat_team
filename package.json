@@ -12,8 +12,7 @@
     "test:watch": "vitest",
     "emulators": "firebase emulators:start",
     "test:e2e": "firebase emulators:exec \"vitest run --config vitest.e2e.config.ts\"",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "npm run build && git add docs && git commit -m \"deploy: actualizar compilado de produccion en main\" && git push"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
