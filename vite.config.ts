@@ -29,5 +29,6 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     css: true,
     exclude: ['src/test/e2e/**', 'node_modules/**'],
+    maxWorkers: 1,
   },
 })

@@ -36,6 +36,16 @@ vi.mock('firebase/firestore', () => ({
   getFirestore: vi.fn(() => ({})),
   collection: vi.fn(),
   getDocs: (...args: unknown[]) => mockGetDocs(...args),
+  onSnapshot: vi.fn((q, onNext, onError) => {
+    mockGetDocs(q)
+      .then((snap) => {
+        if (onNext) onNext(snap)
+      })
+      .catch((err) => {
+        if (onError) onError(err)
+      })
+    return vi.fn()
+  }),
   doc: vi.fn(),
   updateDoc: (...args: unknown[]) => mockUpdateDoc(...args),
   addDoc: (...args: unknown[]) => mockAddDoc(...args),

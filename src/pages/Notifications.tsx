@@ -50,43 +50,45 @@ export default function Notifications() {
     }
   }, [location.state])
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
-    try {
-      await Promise.all([loadNotifications(), loadUsers()])
-    } finally {
-      setLoading(false)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id])
-
+  // Carga de usuarios y suscripción en tiempo real a notificaciones
   useEffect(() => {
-    loadData()
-  }, [loadData])
-
-  const loadNotifications = async () => {
-    if (!user) return
-    try {
-      const loaded = await NotificationService.getByUser(user.id)
-      setNotifications(loaded)
-    } catch (error) {
-      logger.error('Error loading notifications', { error })
+    if (!user) {
+      setLoading(false)
+      return
     }
-  }
 
-  const loadUsers = async () => {
-    try {
-      const users = await getAllUsers()
-      setAllUsers(users.reduce<{ id: string; nombre: string; apellido: string; email: string }[]>((acc, u) => {
-        if (u.id !== user?.id) {
-          acc.push({ id: u.id, nombre: u.nombre, apellido: u.apellido, email: u.email })
-        }
-        return acc
-      }, []))
-    } catch (error) {
-      logger.error('Error loading users for compose', { error })
+    setLoading(true)
+    const unsubscribe = NotificationService.subscribeByUser(
+      user.id,
+      (loaded) => {
+        setNotifications(loaded)
+        setLoading(false)
+      },
+      (error) => {
+        logger.error('Error subscribing to notifications', { error })
+        setLoading(false)
+      }
+    )
+
+    const loadUsers = async () => {
+      try {
+        const users = await getAllUsers()
+        setAllUsers(users.reduce<{ id: string; nombre: string; apellido: string; email: string }[]>((acc, u) => {
+          if (u.id !== user?.id) {
+            acc.push({ id: u.id, nombre: u.nombre, apellido: u.apellido, email: u.email })
+          }
+          return acc
+        }, []))
+      } catch (error) {
+        logger.error('Error loading users for compose', { error })
+      }
     }
-  }
+    loadUsers()
+
+    return () => {
+      unsubscribe()
+    }
+  }, [user, getAllUsers])
 
   const handleMarkAsRead = async (notificationId: string) => {
     try {

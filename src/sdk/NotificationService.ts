@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, Timestamp, limit } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, Timestamp, limit, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { COLLECTIONS } from '@/lib/constants'
 import { Notification as NotificationType, Task } from '@/types'
@@ -94,6 +94,59 @@ export class NotificationService {
       return notifications
     } catch (error) {
       logger.error('Error in NotificationService.getByUser', { error: error instanceof Error ? error : undefined, userId })
+      throw error
+    }
+  }
+
+  /**
+   * Se suscribe a las notificaciones de un usuario en tiempo real
+   */
+  static subscribeByUser(
+    userId: string,
+    onNext: (notifications: NotificationType[]) => void,
+    onError?: (error: Error) => void
+  ): () => void {
+    try {
+      const q = query(
+        collection(db, COLLECTIONS.NOTIFICATIONS),
+        where('recipientId', '==', userId)
+      )
+
+      return onSnapshot(
+        q,
+        (snapshot) => {
+          const notifications = snapshot.docs.map(d => {
+            const data = d.data()
+            return {
+              id: d.id,
+              recipientId: data.recipientId || '',
+              type: data.type || 'system',
+              title: data.title || '',
+              message: data.message || '',
+              read: data.read || false,
+              createdAt: data.createdAt?.toDate?.() || new Date(),
+              senderId: data.senderId || undefined,
+              senderName: data.senderName || undefined,
+              relatedId: data.relatedId || undefined,
+            } as NotificationType
+          })
+
+          // Ordenar: no leídas primero, luego por fecha descendente
+          notifications.sort((a, b) => {
+            if (!a.read && b.read) return -1
+            if (a.read && !b.read) return 1
+            return b.createdAt.getTime() - a.createdAt.getTime()
+          })
+
+          onNext(notifications)
+        },
+        (error) => {
+          logger.error('Error in NotificationService.subscribeByUser', { error: error instanceof Error ? error : undefined, userId })
+          if (onError) onError(error)
+        }
+      )
+    } catch (error) {
+      logger.error('Error starting subscription in NotificationService.subscribeByUser', { error: error instanceof Error ? error : undefined, userId })
       throw error
     }
   }
