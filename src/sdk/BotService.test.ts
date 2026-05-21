@@ -21,6 +21,20 @@ vi.mock('@/sdk/TaskService', () => ({
   },
 }))
 
+const crearTareaMock = vi.fn()
+const crearEventoMock = vi.fn()
+const sincronizarProyectoMock = vi.fn()
+const obtenerMetricasMock = vi.fn()
+
+vi.mock('@/sdk/AdminActionsService', () => ({
+  AdminActionsService: {
+    crearTarea: (...args: unknown[]) => crearTareaMock(...args),
+    crearEvento: (...args: unknown[]) => crearEventoMock(...args),
+    sincronizarProyecto: (...args: unknown[]) => sincronizarProyectoMock(...args),
+    obtenerMetricas: (...args: unknown[]) => obtenerMetricasMock(...args),
+  }
+}))
+
 vi.mock('@/lib/logger', () => ({
   logger: loggerMock,
 }))
@@ -46,6 +60,10 @@ describe('BotService', () => {
     import.meta.env.VITE_GOOGLE_AI_KEY = 'test-google-key'
     getProjectListMock.mockResolvedValue([])
     getTaskListMock.mockResolvedValue([])
+    crearTareaMock.mockResolvedValue({ success: true, message: 'Mocked task success' })
+    crearEventoMock.mockResolvedValue({ success: true, message: 'Mocked event success' })
+    sincronizarProyectoMock.mockResolvedValue({ success: true, message: 'Mocked sync success' })
+    obtenerMetricasMock.mockResolvedValue({ success: true, message: 'Mocked metrics success' })
   })
 
   it('falls back to the next Gemini model when the primary one is unavailable', async () => {
@@ -53,6 +71,7 @@ describe('BotService', () => {
     const fallbackSendMessage = vi.fn().mockResolvedValue({
       response: {
         text: () => 'Resumen táctico listo.',
+        functionCalls: () => undefined
       },
     })
 
@@ -69,7 +88,53 @@ describe('BotService', () => {
     expect(response).toBe('Resumen táctico listo.')
     expect(getGenerativeModelMock).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-2.5-flash' }))
     expect(getGenerativeModelMock).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-flash-latest' }))
-    expect(primarySendMessage).toHaveBeenCalledWith('Dame un resumen de los proyectos')
-    expect(fallbackSendMessage).toHaveBeenCalledWith('Dame un resumen de los proyectos')
+  })
+
+  it('securely intercepts and executes function calls for administrators', async () => {
+    const firstResponse = {
+      response: {
+        text: () => 'Iniciando acción ejecutiva...',
+        functionCalls: () => [{ name: 'sincronizarProyecto', args: {} }]
+      }
+    }
+    const secondResponse = {
+      response: {
+        text: () => 'La sincronización orbital de la base de datos se completó con éxito.',
+        functionCalls: () => undefined
+      }
+    }
+
+    const sendMessageMock = vi.fn()
+      .mockResolvedValueOnce(firstResponse)
+      .mockResolvedValueOnce(secondResponse)
+
+    getGenerativeModelMock.mockImplementation(() => ({
+      startChat: vi.fn(() => ({
+        sendMessage: sendMessageMock,
+      })),
+    }))
+
+    const { BotService } = await import('@/sdk/BotService')
+
+    // Reinicia la sesión estática para asegurarse de usar la nueva configuración
+    BotService.resetSession()
+
+    const response = await BotService.sendMessage('Sincronizar base de datos del equipo', 'admin-user-id', 'admin')
+
+    expect(response).toBe('La sincronización orbital de la base de datos se completó con éxito.')
+    expect(sincronizarProyectoMock).toHaveBeenCalledWith('admin-user-id')
+    expect(sendMessageMock).toHaveBeenCalledTimes(2)
+    
+    // El segundo mensaje enviado al modelo debe contener el resultado de la función
+    expect(sendMessageMock).toHaveBeenLastCalledWith([
+      {
+        functionResponse: {
+          name: 'sincronizarProyecto',
+          response: {
+            result: { success: true, message: 'Mocked sync success' }
+          }
+        }
+      }
+    ])
   })
 })

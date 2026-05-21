@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, ChatSession, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { ProjectService } from './ProjectService'
 import { TaskService } from './TaskService'
+import { AdminActionsService } from './AdminActionsService'
 import { logger } from '@/lib/logger'
 
 // Obtiene la API Key con prefijo VITE para Vite localmente.
@@ -15,6 +16,7 @@ if (API_KEY) {
 export class BotService {
   private static chatSession: ChatSession | null = null
   private static activeModelIndex = 0
+  private static activeSessionRole: string | null = null
 
   private static isRecoverableModelError(error: unknown): boolean {
     const status = (error as { status?: number })?.status
@@ -26,10 +28,10 @@ export class BotService {
       message.includes('model') && message.includes('not') && (message.includes('available') || message.includes('found') || message.includes('supported'))
   }
 
-  private static async createChatSession(modelName: string): Promise<ChatSession> {
+  private static async createChatSession(modelName: string, userRole?: string): Promise<ChatSession> {
     const domainContext = await this.getDomainContext()
 
-    const systemInstruction = `Eres "Cubesat Bot", el asistente de inteligencia artificial oficial del equipo USM Cubesat Team (Universidad Técnica Federico Santa María).
+    let systemInstruction = `Eres "Cubesat Bot", el asistente de inteligencia artificial oficial del equipo USM Cubesat Team (Universidad Técnica Federico Santa María).
 Tus reglas son estrictas e inquebrantables:
 1. DEBES enfocarte NETAMENTE en fines de proyectos aeroespaciales atingentes al Cubesat. Si te preguntan sobre temas no relacionados a programación, aeronáutica, ciencia espacial, robótica, gestión de misión, o tareas actuales del equipo, debes amablemente negar la respuesta indicando tu propósito.
 2. Tienes una perspectiva crítica y evalúas las opciones de desarrollo y diseño de componentes o arquitectura considerando múltiples variables (peso, radiación estelar, redundancia, estrés mecánico, consumo energético, software constraints).
@@ -40,17 +42,87 @@ ${domainContext}
 
 Usa este contexto para referenciar, cuando te pregunten qué hay que hacer o cómo ayudar, tareas pendientes de los miembros, etc. Sé breve y estructurado en tus respuestas. Trata al usuario con respeto y estilo ingenieril.`
 
+    const isAdmin = userRole === 'admin' || userRole === 'maestro' || userRole === 'manager'
+    if (isAdmin) {
+      systemInstruction += `\n\n[MODO ADMINISTRADOR ACTIVO]: Cuentas con herramientas especiales para interactuar con la base de datos viva del equipo. Tienes permisos para ejecutar acciones operativas en tiempo real cuando el usuario te lo solicite.
+Herramientas disponibles:
+- crearTarea: Si te piden crear o agendar una tarea técnica/gestión, invoca la herramienta 'crearTarea'.
+- crearEvento: Si te piden agendar una reunión, cita, visita o hito en el calendario, invoca la herramienta 'crearEvento'.
+- sincronizarProyecto: Si te piden sincronizar la base de datos, memoria o Drive, invoca 'sincronizarProyecto'.
+- obtenerMetricas: Si te piden métricas, reportes de avance o resúmenes de rendimiento de tareas, invoca 'obtenerMetricas'.
+
+IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del administrador. Explica amablemente qué acción ejecutiva estás realizando y confirma el éxito basándote en la respuesta de la función.`
+    }
+
+    const tools = isAdmin
+      ? [
+          {
+            functionDeclarations: [
+              {
+                name: 'crearTarea',
+                description: 'Crea una nueva tarea de desarrollo o gestión para el equipo USM Cubesat.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {
+                    titulo: { type: 'STRING', description: 'El título o resumen de la tarea.' },
+                    descripcion: { type: 'STRING', description: 'Detalle o instrucciones de la tarea (opcional).' },
+                    prioridad: { type: 'STRING', enum: ['alta', 'media', 'baja'], description: 'Prioridad de la tarea.' },
+                    equipo: { type: 'STRING', enum: ['manager', 'relaciones_publicas', 'tecnico'], description: 'El subsistema o equipo responsable.' },
+                    fechaLimite: { type: 'STRING', description: 'La fecha límite en formato YYYY-MM-DD (opcional).' },
+                    projectId: { type: 'STRING', description: 'El ID del proyecto al que pertenece la tarea (opcional).' }
+                  },
+                  required: ['titulo', 'prioridad', 'equipo']
+                }
+              },
+              {
+                name: 'crearEvento',
+                description: 'Agenda una nueva reunión, hito o evento en el calendario de actividades del equipo.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {
+                    titulo: { type: 'STRING', description: 'El nombre o motivo del evento.' },
+                    descripcion: { type: 'STRING', description: 'Detalles adicionales o enlace de reunión (opcional).' },
+                    tipo: { type: 'STRING', enum: ['reunion', 'deadline', 'visita', 'social', 'otro'], description: 'Categoría o tipo de evento.' },
+                    fechaInicio: { type: 'STRING', description: 'Fecha y hora de inicio en formato ISO o YYYY-MM-DD.' },
+                    fechaFin: { type: 'STRING', description: 'Fecha y hora de término (opcional).' },
+                    todoElDia: { type: 'BOOLEAN', description: 'Indica si dura todo el día (opcional).' }
+                  },
+                  required: ['titulo', 'tipo', 'fechaInicio']
+                }
+              },
+              {
+                name: 'sincronizarProyecto',
+                description: 'Sincroniza los activos de la plataforma, base de datos y archivos de Google Drive.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {}
+                }
+              },
+              {
+                name: 'obtenerMetricas',
+                description: 'Muestra un reporte consolidado con las métricas actuales del desarrollo de proyectos y tareas pendientes.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {}
+                }
+              }
+            ]
+          }
+        ]
+      : undefined
+
     const model = genAI!.getGenerativeModel({
       model: modelName,
       systemInstruction,
       safetySettings: [
         { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE }
-      ]
+      ],
+      tools: tools as any
     })
 
     return model.startChat({
       generationConfig: {
-        temperature: 0.5,
+        temperature: 0.4,
         maxOutputTokens: 1000,
       }
     })
@@ -90,20 +162,30 @@ Usa este contexto para referenciar, cuando te pregunten qué hay que hacer o có
   }
 
   /**
-   * Inicializa la sesión de Chat con las instrucciones y reglas estrcitas del modelo.
+   * Inicializa la sesión de Chat con las instrucciones y reglas estrictas del modelo.
    */
-  static async startSession(): Promise<boolean> {
+  static async startSession(userRole?: string): Promise<boolean> {
     if (!genAI) {
       logger.error('Google AI API Key no está configurada o es inválida.')
       return false
+    }
+
+    // Reinicia la sesión si cambia el rol del usuario para refrescar la inyección de herramientas
+    if (this.chatSession && userRole !== this.activeSessionRole) {
+      this.resetSession()
+    }
+
+    if (this.chatSession) {
+      return true
     }
 
     for (let index = 0; index < MODEL_CANDIDATES.length; index++) {
       const modelName = MODEL_CANDIDATES[index]
 
       try {
-        this.chatSession = await this.createChatSession(modelName)
+        this.chatSession = await this.createChatSession(modelName, userRole)
         this.activeModelIndex = index
+        this.activeSessionRole = userRole || null
         return true
       } catch (error) {
         logger.warn('Error initializing AI session with candidate model', {
@@ -119,22 +201,58 @@ Usa este contexto para referenciar, cuando te pregunten qué hay que hacer o có
 
   /**
    * Envía un mensaje al modelo y retorna la respuesta procesada.
+   * Soporta de forma transparente la ejecución recursiva de Function Calling (Llamada a Funciones).
    */
-  static async sendMessage(message: string): Promise<string> {
-    if (!this.chatSession) {
-      const initSuccess = await this.startSession()
-      if (!initSuccess || !this.chatSession) return "Error crítico: El núcleo de IA no pudo ser inicializado. Verifica la configuración de la clave en el entorno local."
+  static async sendMessage(message: string, userId?: string, userRole?: string): Promise<string> {
+    if (!this.chatSession || userRole !== this.activeSessionRole) {
+      const initSuccess = await this.startSession(userRole)
+      if (!initSuccess || !this.chatSession) {
+        return "Error crítico: El núcleo de IA no pudo ser inicializado. Verifica la configuración de la clave en el entorno local."
+      }
     }
+
+    const activeUserId = userId || 'bot_admin_fallback'
 
     for (let attempt = this.activeModelIndex; attempt < MODEL_CANDIDATES.length; attempt++) {
       try {
         if (!this.chatSession || attempt !== this.activeModelIndex) {
-          this.chatSession = await this.createChatSession(MODEL_CANDIDATES[attempt])
+          this.chatSession = await this.createChatSession(MODEL_CANDIDATES[attempt], userRole)
           this.activeModelIndex = attempt
+          this.activeSessionRole = userRole || null
         }
 
-        const result = await this.chatSession.sendMessage(message)
-        return result.response.text()
+        let response = await this.chatSession.sendMessage(message)
+        let functionCalls = response.response.functionCalls()
+        let iterations = 0
+
+        // Bucle para resolver Function Calling (soporta hasta 3 llamadas encadenadas por petición)
+        while (functionCalls && functionCalls.length > 0 && iterations < 3) {
+          iterations++
+          const functionCall = functionCalls[0]
+          
+          let functionResult: any
+          try {
+            functionResult = await this.executeAdminAction(functionCall.name, functionCall.args, activeUserId, userRole)
+          } catch (err) {
+            functionResult = { 
+              success: false, 
+              message: `Error local de ejecución: ${err instanceof Error ? err.message : String(err)}` 
+            }
+          }
+
+          // Inyectamos la respuesta de la función para que el modelo redacte su texto final
+          const responsePart = {
+            functionResponse: {
+              name: functionCall.name,
+              response: { result: functionResult }
+            }
+          }
+
+          response = await this.chatSession.sendMessage([responsePart])
+          functionCalls = response.response.functionCalls()
+        }
+
+        return response.response.text()
       } catch (error) {
         const modelName = MODEL_CANDIDATES[attempt]
 
@@ -160,9 +278,40 @@ Usa este contexto para referenciar, cuando te pregunten qué hay que hacer o có
   }
 
   /**
+   * Resuelve y ejecuta localmente la acción de administración solicitada de forma segura.
+   */
+  private static async executeAdminAction(name: string, args: any, userId: string, userRole?: string): Promise<any> {
+    const isAuthorized = userRole === 'admin' || userRole === 'maestro' || userRole === 'manager'
+    
+    if (!isAuthorized) {
+      return { 
+        success: false, 
+        message: 'Acceso Denegado: No cuentas con roles autorizados para realizar modificaciones.' 
+      }
+    }
+
+    switch (name) {
+      case 'crearTarea':
+        return AdminActionsService.crearTarea(args, userId)
+      case 'crearEvento':
+        return AdminActionsService.crearEvento(args, userId)
+      case 'sincronizarProyecto':
+        return AdminActionsService.sincronizarProyecto(userId)
+      case 'obtenerMetricas':
+        return AdminActionsService.obtenerMetricas()
+      default:
+        return { 
+          success: false, 
+          message: `Acción ejecutiva "${name}" no está mapeada en el núcleo del sistema.` 
+        }
+    }
+  }
+
+  /**
    * Limpia el chat actual.
    */
   static resetSession() {
     this.chatSession = null
+    this.activeSessionRole = null
   }
 }

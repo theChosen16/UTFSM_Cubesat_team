@@ -3,6 +3,7 @@ import { Bot, X, Send, User as UserIcon, Loader2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 import { BotService } from '@/sdk/BotService'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface Message {
   role: 'user' | 'model'
@@ -10,6 +11,7 @@ interface Message {
 }
 
 export function Chatbot() {
+  const { user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -21,7 +23,46 @@ export function Chatbot() {
   const [isTyping, setIsTyping] = useState(false)
   const endOfMessagesRef = useRef<HTMLDivElement>(null)
 
-  // Scroll al ultimo mensaje automáticamente
+  const isManager = user?.equipos?.includes('manager') || user?.rol === 'maestro' || user?.rol === 'admin'
+
+  const adminSuggestions = [
+    { label: '📊 Ver Métricas', prompt: 'Muestra un reporte consolidado con las métricas actuales del desarrollo de proyectos' },
+    { label: '🛠️ Crear Tarea', prompt: 'Crear una tarea de prioridad media para el subsistema tecnico titulada "Revisión de telemetría"' },
+    { label: '📅 Agendar Reunión', prompt: 'Agenda una reunión de subsistema para mañana a las 15:00 titulada "Reunión de Sincronización"' },
+    { label: '🔄 Sincronizar Base', prompt: 'Sincronizar base de datos y memoria de proyectos del equipo' }
+  ]
+
+  // Actualizar el saludo inicial dinámicamente cuando cambie el usuario o rol
+  useEffect(() => {
+    if (user) {
+      const name = user.nombre || 'Administrador'
+      const activeIsManager = user.equipos?.includes('manager') || user.rol === 'maestro' || user.rol === 'admin'
+      if (activeIsManager) {
+        setMessages([
+          {
+            role: 'model',
+            content: `¡Hola, ${name}! Sistemas de gestión y organización online. Detecto privilegios ejecutivos activos en tu firma digital.\n\nPuedo asistirte en tiempo real a delegar tareas, agendar reuniones en el calendario orbital, sincronizar la base de datos viva o generar resúmenes de rendimiento. ¿Qué directiva deseas ejecutar hoy?`
+          }
+        ])
+      } else {
+        setMessages([
+          {
+            role: 'model',
+            content: `¡Hola, ${name}! Soy Cubesat Bot, el núcleo táctico de inteligencia del equipo USM Cubesat.\n\nEstoy aquí para mantenerte enfocado en la misión, asistir con análisis ingenieril y revisar el contexto crítico de nuestros proyectos espaciales. ¿En qué parámetro te asisto hoy?`
+          }
+        ])
+      }
+    } else {
+      setMessages([
+        {
+          role: 'model',
+          content: '¡Hola! Soy Cubesat Bot, el núcleo táctico de inteligencia del equipo USM Cubesat.\n\nEstoy aquí para mantenerte enfocado en la misión, asistir con análisis ingenieril y revisar el contexto crítico de nuestros proyectos espaciales. ¿En qué parámetro te asisto hoy?'
+        }
+      ])
+    }
+  }, [user])
+
+  // Scroll al último mensaje automáticamente
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping, isOpen])
@@ -50,8 +91,21 @@ export function Chatbot() {
     setMessages(prev => [...prev, { role: 'user', content: userMessage }])
     setIsTyping(true)
 
-    // Llamar motor del BotService
-    const aiResponse = await BotService.sendMessage(userMessage)
+    // Llamar motor del BotService con telemetría de usuario
+    const aiResponse = await BotService.sendMessage(userMessage, user?.id, user?.rol)
+
+    setMessages(prev => [...prev, { role: 'model', content: aiResponse }])
+    setIsTyping(false)
+  }
+
+  const handleSuggestionClick = async (prompt: string) => {
+    if (isTyping) return
+    setInput('')
+    
+    setMessages(prev => [...prev, { role: 'user', content: prompt }])
+    setIsTyping(true)
+
+    const aiResponse = await BotService.sendMessage(prompt, user?.id, user?.rol)
 
     setMessages(prev => [...prev, { role: 'model', content: aiResponse }])
     setIsTyping(false)
@@ -151,6 +205,23 @@ export function Chatbot() {
           )}
           <div ref={endOfMessagesRef} />
         </div>
+
+        {/* Chips de sugerencias administrativas */}
+        {isManager && (
+          <div className="flex gap-2 overflow-x-auto px-4 py-2 bg-space-900/30 border-t border-space-600/50 scrollbar-none">
+            {adminSuggestions.map((sug, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSuggestionClick(sug.prompt)}
+                disabled={isTyping}
+                className="flex-shrink-0 rounded-full border border-cyan-500/30 bg-cyan-950/20 px-3 py-1 text-xs text-cyan-400 hover:bg-cyan-500/20 hover:text-white transition-all disabled:opacity-50"
+              >
+                {sug.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Input box */}
         <div className="mobile-safe-bottom rounded-b-[1.75rem] border-t border-space-600 bg-space-900/50 p-3 sm:rounded-b-2xl">
