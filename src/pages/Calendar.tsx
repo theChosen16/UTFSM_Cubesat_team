@@ -19,12 +19,11 @@ import {
   Sparkles,
   Inbox,
   AlertTriangle,
-  UserCheck
 } from 'lucide-react'
 import { logger } from '@/lib/logger'
 import { EventService } from '@/sdk/EventService'
 import { TaskService } from '@/sdk/TaskService'
-import { CalendarEvent, CalendarEventType, Task, TeamType } from '@/types'
+import { CalendarEvent, CalendarEventType, Task } from '@/types'
 import { cn } from '@/lib/utils'
 
 type ViewType = 'month' | 'agenda'
