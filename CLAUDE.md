@@ -41,7 +41,9 @@ Las constantes de colección están en `src/lib/constants.ts` (`COLLECTIONS`).
 - `ActivityLogService` — `create`, `getAll`, `getByUser`.
 - `FileService` — `upload` (Apps Script + Drive + Firestore metadata), `getAll`, `delete`. Lee `VITE_DRIVE_UPLOAD_URL` y `VITE_DRIVE_UPLOAD_SECRET`. `isConfigured()` indica si el bridge está disponible.
 - `NotificationService` — `create` (con deduplicación opcional), `ensureDeadlineReminder`, `notifyDeliverableUploaded`.
-- `UserService`, `ProjectService`, `BotService` — servicios pre-existentes.
+- `BotService` — servicio del chatbot IA con soporte recursivo de **Gemini Function Calling** (hasta 3 niveles) para administradores y conmutación de modelos por fallo.
+- `AdminActionsService` — servicio puente seguro que resuelve las llamadas ejecutivas de IA sobre Firestore (tareas, eventos, métricas y sincronizaciones) validando privilegios en caliente.
+- `UserService`, `ProjectService` — servicios pre-existentes.
 
 ### Tipos clave (`src/types/index.ts`)
 

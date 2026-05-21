@@ -73,6 +73,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 - **Redirección automática**: usuarios autenticados son redirigidos al dashboard si visitan login/registro
 - **Error Boundary** global que captura errores de React y muestra una pantalla de recuperación
 - **Logger de producción** para captura de errores y diagnóstico
+- **Asistente IA Inteligente con Function Calling (`Cubesat Bot`)**: Un bot de inteligencia artificial integrado usando el SDK oficial `@google/generative-ai`. Resuelve consultas aeroespaciales específicas y, para administradores autorizados (`admin`, `maestro`, `manager`), incorpora un mecanismo seguro de **Function Calling** recursivo (de hasta 3 niveles) para crear tareas, agendar reuniones, generar métricas e iniciar sincronizaciones en tiempo real mediante comandos directos de lenguaje natural, con interfaz de sugerencias tácticas (*suggestion chips*) y saludo adaptado.
 
 ## Roles y permisos
 
@@ -176,6 +177,51 @@ Los usuarios pueden seleccionar los equipos a los que desean pertenecer desde su
 | **Equipo Técnico** | Desarrollo de software, hardware, estructura, simulación y cálculos |
 | **Manager** | Coordinación de proyectos y equipos |
 | **Relaciones Públicas** | Redes sociales, difusión y contactos universitarios |
+
+## Asistente de IA (Cubesat Bot) y Function Calling 🤖🛰️
+
+El **Cubesat Bot** es el centro de asistencia de inteligencia artificial del UTFSM CubeSat Team. Integrado directamente en la interfaz del portal web mediante el SDK oficial `@google/generative-ai` y motorizado por la serie de modelos `gemini-2.5-flash` y `gemini-flash-latest`.
+
+### 1. Reglas y Comportamiento Aeroespacial Estricto
+El bot está configurado con instrucciones de sistema rigurosas que garantizan el foco de la misión:
+1. **Foco Espacial Obligatorio**: Responde únicamente consultas relacionadas con ciencia espacial, ingeniería de nanosatélites, diseño de componentes orbitales (radiación, redundancia, estrés mecánico, consumo energético, órbitas, comunicaciones) y gestión interna del equipo. Niega amablemente cualquier otra respuesta no atingente.
+2. **Filosofía de Sencillez**: Evalúa opciones con perspectiva crítica e ingenieril, priorizando siempre los sistemas sencillos y robustos por sobre el sobre-diseño.
+3. **Contexto Vivo**: En cada inicialización de chat, el servicio recopila el estado actual de los proyectos y tareas directamente desde Firestore, permitiendo que el bot conozca y referencie metas pendientes reales del equipo.
+
+### 2. Capacidad Ejecutiva (Function Calling)
+Para los usuarios autenticados con privilegios de gestión (roles `admin`, `maestro` o pertenecientes al equipo `manager`), el bot activa sus **capacidades ejecutivas** (*Gemini Function Calling*), permitiéndoles operar el portal web mediante comandos conversacionales fluidos.
+
+#### Herramientas Mapeadas (Tools)
+* `crearTarea(titulo, prioridad, equipo, descripcion, fechaLimite, projectId)`: Crea y delega una tarea en el sistema Firestore asignando puntaje de importancia respectivo.
+* `crearEvento(titulo, tipo, fechaInicio, descripcion, fechaFin, todoElDia)`: Registra y agenda reuniones, visitas o plazos límite de entrega en el Calendario oficial.
+* `sincronizarProyecto()`: Actualiza y sincroniza los activos del equipo, guardando el evento en la bitácora (`ActivityLogService`).
+* `obtenerMetricas()`: Genera un reporte analítico del progreso en tiempo real de todos los proyectos y tareas del equipo.
+
+#### Bucle de Resolución Recursivo (Deep Execution Loop)
+El servicio `BotService` implementa un interceptor dinámico que:
+1. Lee la respuesta del modelo Gemini. Si contiene un objeto `functionCall`, detiene la conversación.
+2. Extrae los argumentos e invoca el método correspondiente del servicio seguro [AdminActionsService.ts](file:///c:/Users/alean/Desktop/Cubesat%20team%20page/src/sdk/AdminActionsService.ts).
+3. Obtiene el resultado de base de datos y lo re-inyecta recursivamente (hasta 3 niveles encadenados) de vuelta al chat en curso en la parte de respuesta (`functionResponse`).
+4. Deja que Gemini redacte una confirmación contextualizada e ingenieril al usuario.
+
+### 3. Seguridad y Control de Privilegios
+Para salvaguardar la base de datos de accesos fraudulentos o inyecciones de prompts:
+* **Filtro de Inyección de SDK**: Las herramientas (*tools*) y el System Prompt ejecutivo **jamás** se le envían al SDK de Gemini si el usuario autenticado no posee permisos demostrables de gestión. El bot actúa en modo pasivo puramente conversacional para miembros estándar.
+* **Verificación de Rol en Caliente**: En el momento en que se intercepta una llamada a función en el cliente, `BotService` ejecuta una validación local síncrona en caliente del rol activo antes de invocar a `AdminActionsService`, asegurando máxima robustez frente a ataques que intenten simular llamadas de sistema.
+
+### 4. Interfaz UI/UX de Gestión Rápida
+* **Saludo Dinámico**: El chatbot reconoce la firma del administrador y cambia su mensaje inicial a un saludo ejecutivo detallando sus herramientas activas.
+* **Suggestion Chips**: Muestra una barra superior sobre el input con accesos rápidos interactivos (`📊 Ver Métricas`, `🛠️ Crear Tarea`, `📅 Agendar Reunión`, `🔄 Sincronizar Base`) para guiar al usuario e ilustrar el potencial ejecutivo del bot de manera visual.
+
+### 5. Ideas de Expansión y Gestión Operativa
+Para optimizar el orden, la coordinación interna del equipo y potenciar el portal, se han mapeado las siguientes extensiones estratégicas listas para ser incorporadas en `AdminActionsService`:
+* **Gestión de Cumpleaños 🎉**: Recopilación conversacional de cumpleaños de los miembros para calendarización automática y generación de borradores de posts en Instagram.
+* **Planificador CubeDesign 2026 🇨🇱📦**: Seguimiento de hitos, verificación de nóminas técnicas y agendamiento de simulaciones previas a la competencia (del 24 al 27 de noviembre de 2026).
+* **Asignación Predictiva y Balanceo de Carga ⚖️**: Auditoría en tiempo real de tareas activas por subsistema técnico para sugerir asignaciones equilibradas al crear nuevas asignaciones.
+* **Generación de Sub-Hitos Aeroespaciales 🚀**: Desglose automático de tareas técnicas complejas en micro-hitos basados en especificaciones espaciales de diseño robusto.
+* **Auditoría de Actas y Enlaces a Drive 📂**: Vinculación de minutas de reuniones semanales (ej. en el Drive `2026 > Reuniones > 18-05`) con las tareas e hitos de Firestore.
+
+---
 
 ## Requisitos previos
 
