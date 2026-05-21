@@ -180,7 +180,7 @@ Los usuarios pueden seleccionar los equipos a los que desean pertenecer desde su
 
 ## Asistente de IA (Cubesat Bot) y Function Calling 🤖🛰️
 
-El **Cubesat Bot** es el centro de asistencia de inteligencia artificial del UTFSM CubeSat Team. Integrado directamente en la interfaz del portal web mediante el SDK oficial `@google/generative-ai` y motorizado por la serie de modelos `gemini-2.5-flash` y `gemini-flash-latest`.
+El **Cubesat Bot** es el centro de asistencia de inteligencia artificial del UTFSM CubeSat Team. Integrado directamente en la interfaz del portal web mediante el SDK oficial `@google/generative-ai` y motorizado de forma inteligente por la familia de modelos de última generación `gemini-3.5-flash`, `gemini-2.5-flash` y `gemini-flash-latest` (con soporte para conmutación automática por fallo).
 
 ### 1. Reglas y Comportamiento Aeroespacial Estricto
 El bot está configurado con instrucciones de sistema rigurosas que garantizan el foco de la misión:
@@ -191,11 +191,16 @@ El bot está configurado con instrucciones de sistema rigurosas que garantizan e
 ### 2. Capacidad Ejecutiva (Function Calling)
 Para los usuarios autenticados con privilegios de gestión (roles `admin`, `maestro` o pertenecientes al equipo `manager`), el bot activa sus **capacidades ejecutivas** (*Gemini Function Calling*), permitiéndoles operar el portal web mediante comandos conversacionales fluidos.
 
-#### Herramientas Mapeadas (Tools)
-* `crearTarea(titulo, prioridad, equipo, descripcion, fechaLimite, projectId)`: Crea y delega una tarea en el sistema Firestore asignando puntaje de importancia respectivo.
+#### Herramientas Mapeadas Activas (Tools)
+* `crearTarea(titulo, prioridad, equipo, descripcion, fechaLimite, projectId, generarHitosAeroespaciales)`: Crea y delega una tarea en el sistema Firestore asignando puntaje de importancia respectivo. Si `generarHitosAeroespaciales` es verdadero, autogenera micro-hitos técnicos aeroespaciales en Firestore basados en el tipo de tarea (firmware/software, termodinámica, estructura, etc.).
 * `crearEvento(titulo, tipo, fechaInicio, descripcion, fechaFin, todoElDia)`: Registra y agenda reuniones, visitas o plazos límite de entrega en el Calendario oficial.
 * `sincronizarProyecto()`: Actualiza y sincroniza los activos del equipo, guardando el evento en la bitácora (`ActivityLogService`).
 * `obtenerMetricas()`: Genera un reporte analítico del progreso en tiempo real de todos los proyectos y tareas del equipo.
+* `registrarCumpleanos(miembroId, fecha)`: Registra o actualiza de manera conversacional la fecha de cumpleaños de un integrante del equipo en Firestore (útil para felicitaciones automatizadas).
+* `gestionarCubeDesign(accion, miembroId)`: Permite confirmar/desconfirmar la nómina técnica oficial, auditar el avance técnico frente a los plazos, o sembrar los 4 hitos preparatorios críticos en el calendario para el evento de competencia de CubeDesign 2026.
+* `auditarActaDrive(fechaActa, acuerdosResumen)`: Procesa un acta o minuta de reunión de Google Drive de manera masiva, parseando acuerdos para poblar automáticamente Firestore con tareas e hitos clasificados según subsistema y prioridad.
+* `obtenerEstadoNoticiario()`: Obtiene el estado de despacho y log del último envío del noticiario o boletín semanal del equipo Cubesat.
+* `forzarEnvioNoticiario()`: Despacha de manera inmediata el noticiario o boletín semanal "Boletín de la Órbita" a todos los miembros activos por correo electrónico.
 
 #### Bucle de Resolución Recursivo (Deep Execution Loop)
 El servicio `BotService` implementa un interceptor dinámico que:
@@ -213,13 +218,20 @@ Para salvaguardar la base de datos de accesos fraudulentos o inyecciones de prom
 * **Saludo Dinámico**: El chatbot reconoce la firma del administrador y cambia su mensaje inicial a un saludo ejecutivo detallando sus herramientas activas.
 * **Suggestion Chips**: Muestra una barra superior sobre el input con accesos rápidos interactivos (`📊 Ver Métricas`, `🛠️ Crear Tarea`, `📅 Agendar Reunión`, `🔄 Sincronizar Base`) para guiar al usuario e ilustrar el potencial ejecutivo del bot de manera visual.
 
-### 5. Ideas de Expansión y Gestión Operativa
-Para optimizar el orden, la coordinación interna del equipo y potenciar el portal, se han mapeado las siguientes extensiones estratégicas listas para ser incorporadas en `AdminActionsService`:
-* **Gestión de Cumpleaños 🎉**: Recopilación conversacional de cumpleaños de los miembros para calendarización automática y generación de borradores de posts en Instagram.
-* **Planificador CubeDesign 2026 🇨🇱📦**: Seguimiento de hitos, verificación de nóminas técnicas y agendamiento de simulaciones previas a la competencia (del 24 al 27 de noviembre de 2026).
-* **Asignación Predictiva y Balanceo de Carga ⚖️**: Auditoría en tiempo real de tareas activas por subsistema técnico para sugerir asignaciones equilibradas al crear nuevas asignaciones.
-* **Generación de Sub-Hitos Aeroespaciales 🚀**: Desglose automático de tareas técnicas complejas en micro-hitos basados en especificaciones espaciales de diseño robusto.
-* **Auditoría de Actas y Enlaces a Drive 📂**: Vinculación de minutas de reuniones semanales (ej. en el Drive `2026 > Reuniones > 18-05`) con las tareas e hitos de Firestore.
+### 5. Lectura Multi-modal y de Documentos 📄🖼️
+Los usuarios con permisos de gestión (`admin`, `manager`, `maestro`) pueden adjuntar imágenes y documentos de diversos formatos en el Cubesat Bot y solicitarle análisis, resúmenes, auditorías u otras acciones.
+* **Procesamiento de Archivos**:
+  * **Visual y Multi-modal Nativo**: Las imágenes (PNG, JPEG, WEBP) y documentos PDF se codifican a Base64 y se envían de forma nativa al modelo de Gemini usando `inlineData`, permitiendo que el bot use visión computacional de alta fidelidad.
+  * **Compresión y Parsing de Oficina**: Los archivos de Microsoft Word (`.docx`) y PowerPoint (`.pptx`) son parseados en caliente en el navegador mediante `jszip`. El sistema extrae dinámicamente el texto de párrafos y diapositivas y los inyecta de forma estructurada como contexto del prompt, ahorrando procesamiento del servidor.
+  * **Formatos de Texto Plano**: Archivos `.txt`, `.csv`, `.json` y `.md` son leídos en texto plano e incorporados directamente en el cuerpo del mensaje.
+* **UI/UX Segura y Envolvente**:
+  * Solo los roles autorizados ven el botón de clip (📎) de adjuntar archivos en el chat.
+  * Cuenta con previsualizaciones flotantes de tipo glassmorphic con barra de carga, peso del archivo y alertas de error.
+  * Los mensajes enviados en el chat que contienen archivos adjuntos muestran un badge estilizado con el nombre e ícono correspondiente en su burbuja de chat.
+
+### 6. Ideas de Expansión
+Para optimizar el orden, la coordinación interna del equipo y potenciar el portal, se ha mapeado la siguiente extensión estratégica para incorporar a futuro:
+* **Asignación Predictiva y Balanceo de Carga ⚖️**: Auditoría en tiempo real de tareas activas por subsistema técnico para sugerir asignaciones equilibradas al crear nuevas tareas.
 
 ---
 

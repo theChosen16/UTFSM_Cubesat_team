@@ -41,8 +41,8 @@ Las constantes de colección están en `src/lib/constants.ts` (`COLLECTIONS`).
 - `ActivityLogService` — `create`, `getAll`, `getByUser`.
 - `FileService` — `upload` (Apps Script + Drive + Firestore metadata), `getAll`, `delete`. Lee `VITE_DRIVE_UPLOAD_URL` y `VITE_DRIVE_UPLOAD_SECRET`. `isConfigured()` indica si el bridge está disponible.
 - `NotificationService` — `create` (con deduplicación opcional), `ensureDeadlineReminder`, `notifyDeliverableUploaded`.
-- `BotService` — servicio del chatbot IA con soporte recursivo de **Gemini Function Calling** (hasta 3 niveles) para administradores y conmutación de modelos por fallo.
-- `AdminActionsService` — servicio puente seguro que resuelve las llamadas ejecutivas de IA sobre Firestore (tareas, eventos, métricas y sincronizaciones) validando privilegios en caliente.
+- `BotService` — servicio del chatbot IA con soporte recursivo de **Gemini Function Calling** (hasta 3 niveles) para administradores, conmutación de modelos por fallo (`gemini-3.5-flash`, `gemini-2.5-flash`, etc.) y procesamiento/lectura de archivos adjuntos (imágenes, PDFs, DOCX, PPTX, TXT, CSV, JSON, MD).
+- `AdminActionsService` — servicio puente seguro que resuelve las llamadas ejecutivas de IA sobre Firestore (creación de tareas/eventos, sincronizaciones, consulta/despacho de noticiarios semanales, gestión de CubeDesign 2026, auditoría de actas de reunión e ingreso de cumpleaños) validando privilegios en caliente.
 - `UserService`, `ProjectService` — servicios pre-existentes.
 
 ### Tipos clave (`src/types/index.ts`)
@@ -52,6 +52,10 @@ Las constantes de colección están en `src/lib/constants.ts` (`COLLECTIONS`).
 `ActivityLogEntry` usa `ActivityLogType`: `task_created | task_status_changed | task_progress_logged | task_completed | deliverable_uploaded | deliverable_status_changed`.
 
 `NotificationType` incluye: `task_assigned | deliverable_uploaded | deadline_reminder | message | system`.
+
+`ProcessedBotFile` contiene metadatos y datos codificados o texto extraído para el bot: `name`, `mimeType`, `size`, `inlineData` (base64) y `extractedText` (texto parseado de DOCX/PPTX/etc.).
+
+`MailDigestLog` registra los envíos del noticiario o boletín semanal con `triggeredBy`, `recipientCount`, `eventsCount`, `tasksCount` y lista de destinatarios.
 
 ### Páginas (todas lazy-loaded)
 

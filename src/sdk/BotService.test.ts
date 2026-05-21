@@ -317,4 +317,86 @@ describe('BotService', () => {
     expect(response).toBe('Noticiario enviado exitosamente a todos.')
     expect(forzarEnvioNoticiarioMock).toHaveBeenCalledWith('admin-user-id')
   })
+
+  it('correctly sends inlineData (images/PDFs) to Gemini', async () => {
+    const sendMessageMock = vi.fn().mockResolvedValue({
+      response: {
+        text: () => 'He analizado el archivo PDF que enviaste.',
+        functionCalls: () => undefined
+      }
+    })
+
+    getGenerativeModelMock.mockImplementation(() => ({
+      startChat: vi.fn(() => ({
+        sendMessage: sendMessageMock,
+      })),
+    }))
+
+    const { BotService } = await import('@/sdk/BotService')
+    BotService.resetSession()
+
+    const fileData = {
+      name: 'documento.pdf',
+      mimeType: 'application/pdf',
+      size: 1024,
+      inlineData: {
+        data: 'base64encodedpdfcontent',
+        mimeType: 'application/pdf'
+      }
+    }
+
+    const response = await BotService.sendMessage(
+      '¿Qué dice el documento?',
+      'admin-user-id',
+      'admin',
+      fileData
+    )
+
+    expect(response).toBe('He analizado el archivo PDF que enviaste.')
+    expect(sendMessageMock).toHaveBeenCalledWith([
+      {
+        inlineData: {
+          data: 'base64encodedpdfcontent',
+          mimeType: 'application/pdf'
+        }
+      },
+      '¿Qué dice el documento?'
+    ])
+  })
+
+  it('correctly handles and injects extractedText (Word/PPTX/Text) into the prompt', async () => {
+    const sendMessageMock = vi.fn().mockResolvedValue({
+      response: {
+        text: () => 'He procesado el archivo Word adjunto.',
+        functionCalls: () => undefined
+      }
+    })
+
+    getGenerativeModelMock.mockImplementation(() => ({
+      startChat: vi.fn(() => ({
+        sendMessage: sendMessageMock,
+      })),
+    }))
+
+    const { BotService } = await import('@/sdk/BotService')
+    BotService.resetSession()
+
+    const fileData = {
+      name: 'acta.docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      size: 2048,
+      extractedText: 'Acuerdos de la reunion: Tarea 1 para tecnico. Tarea 2 para PR.'
+    }
+
+    const response = await BotService.sendMessage(
+      'Resume las tareas del acta',
+      'admin-user-id',
+      'admin',
+      fileData
+    )
+
+    expect(response).toBe('He procesado el archivo Word adjunto.')
+    const expectedPrompt = `[DOCUMENTO ADJUNTO: "acta.docx"]\n---\nAcuerdos de la reunion: Tarea 1 para tecnico. Tarea 2 para PR.\n---\n\nConsulta sobre el documento: Resume las tareas del acta`
+    expect(sendMessageMock).toHaveBeenCalledWith(expectedPrompt)
+  })
 })

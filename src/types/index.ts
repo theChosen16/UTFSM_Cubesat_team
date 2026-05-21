@@ -259,3 +259,15 @@ export interface MailDigestLog {
   tasksCount: number
   recipients: string[]
 }
+
+export interface ProcessedBotFile {
+  name: string
+  mimeType: string
+  size: number
+  inlineData?: {
+    data: string // base64
+    mimeType: string
+  }
+  extractedText?: string
+}
+

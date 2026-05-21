@@ -3,6 +3,7 @@ import { ProjectService } from './ProjectService'
 import { TaskService } from './TaskService'
 import { AdminActionsService } from './AdminActionsService'
 import { logger } from '@/lib/logger'
+import { ProcessedBotFile } from '@/types'
 
 // Obtiene la API Key con prefijo VITE para Vite localmente.
 const API_KEY = import.meta.env.VITE_GOOGLE_AI_KEY
@@ -258,7 +259,12 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
    * Envía un mensaje al modelo y retorna la respuesta procesada.
    * Soporta de forma transparente la ejecución recursiva de Function Calling (Llamada a Funciones).
    */
-  static async sendMessage(message: string, userId?: string, userRole?: string): Promise<string> {
+  static async sendMessage(
+    message: string, 
+    userId?: string, 
+    userRole?: string,
+    fileData?: ProcessedBotFile | null
+  ): Promise<string> {
     if (!this.chatSession || userRole !== this.activeSessionRole) {
       const initSuccess = await this.startSession(userRole)
       if (!initSuccess || !this.chatSession) {
@@ -276,7 +282,28 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
           this.activeSessionRole = userRole || null
         }
 
-        let response = await this.chatSession.sendMessage(message)
+        let response
+        if (fileData) {
+          if (fileData.inlineData) {
+            const promptParts = [
+              {
+                inlineData: {
+                  data: fileData.inlineData.data,
+                  mimeType: fileData.inlineData.mimeType
+                }
+              },
+              message
+            ]
+            response = await this.chatSession.sendMessage(promptParts)
+          } else if (fileData.extractedText) {
+            const formattedMessage = `[DOCUMENTO ADJUNTO: "${fileData.name}"]\n---\n${fileData.extractedText}\n---\n\nConsulta sobre el documento: ${message}`
+            response = await this.chatSession.sendMessage(formattedMessage)
+          } else {
+            response = await this.chatSession.sendMessage(message)
+          }
+        } else {
+          response = await this.chatSession.sendMessage(message)
+        }
         let functionCalls = response.response.functionCalls()
         let iterations = 0
 
