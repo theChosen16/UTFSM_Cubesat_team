@@ -86,7 +86,7 @@ const mockTasks: Task[] = [
   },
 ]
 
-const mockSubscribeAll = vi.fn((onNext) => {
+const mockSubscribeAll = vi.fn((onNext: any, _onError?: any) => {
   onNext(mockEvents)
   return () => {}
 })
