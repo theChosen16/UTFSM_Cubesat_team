@@ -28,6 +28,8 @@ const obtenerMetricasMock = vi.fn()
 const registrarCumpleanosMock = vi.fn()
 const gestionarCubeDesignMock = vi.fn()
 const auditarActaDriveMock = vi.fn()
+const obtenerEstadoNoticiarioMock = vi.fn()
+const forzarEnvioNoticiarioMock = vi.fn()
 
 vi.mock('@/sdk/AdminActionsService', () => ({
   AdminActionsService: {
@@ -38,6 +40,8 @@ vi.mock('@/sdk/AdminActionsService', () => ({
     registrarCumpleanos: (...args: unknown[]) => registrarCumpleanosMock(...args),
     gestionarCubeDesign: (...args: unknown[]) => gestionarCubeDesignMock(...args),
     auditarActaDrive: (...args: unknown[]) => auditarActaDriveMock(...args),
+    obtenerEstadoNoticiario: (...args: unknown[]) => obtenerEstadoNoticiarioMock(...args),
+    forzarEnvioNoticiario: (...args: unknown[]) => forzarEnvioNoticiarioMock(...args),
   }
 }))
 
@@ -73,6 +77,8 @@ describe('BotService', () => {
     registrarCumpleanosMock.mockResolvedValue({ success: true, message: 'Mocked birthday success' })
     gestionarCubeDesignMock.mockResolvedValue({ success: true, message: 'Mocked CubeDesign success' })
     auditarActaDriveMock.mockResolvedValue({ success: true, message: 'Mocked Drive audit success' })
+    obtenerEstadoNoticiarioMock.mockResolvedValue({ success: true, message: 'Mocked newsletter status success' })
+    forzarEnvioNoticiarioMock.mockResolvedValue({ success: true, message: 'Mocked newsletter forced success' })
   })
 
   it('falls back to the next Gemini model when the primary one is unavailable', async () => {
@@ -86,7 +92,7 @@ describe('BotService', () => {
 
     getGenerativeModelMock.mockImplementation(({ model }: { model: string }) => ({
       startChat: vi.fn(() => ({
-        sendMessage: model === 'gemini-2.5-flash' ? primarySendMessage : fallbackSendMessage,
+        sendMessage: model === 'gemini-3.5-flash' ? primarySendMessage : fallbackSendMessage,
       })),
     }))
 
@@ -95,8 +101,8 @@ describe('BotService', () => {
     const response = await BotService.sendMessage('Dame un resumen de los proyectos')
 
     expect(response).toBe('Resumen táctico listo.')
+    expect(getGenerativeModelMock).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-3.5-flash' }))
     expect(getGenerativeModelMock).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-2.5-flash' }))
-    expect(getGenerativeModelMock).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-flash-latest' }))
   })
 
   it('securely intercepts and executes function calls for administrators', async () => {
@@ -244,5 +250,71 @@ describe('BotService', () => {
 
     expect(response).toBe('El acta ha sido procesada con éxito y se crearon las tareas.')
     expect(auditarActaDriveMock).toHaveBeenCalledWith({ fechaActa: '2026-05-18', acuerdosResumen: '- Tarea 1\n- Tarea 2' }, 'admin-user-id')
+  })
+
+  it('correctly executes obtenerEstadoNoticiario function call', async () => {
+    const firstResponse = {
+      response: {
+        text: () => 'Consultando el estado del noticiario...',
+        functionCalls: () => [{ name: 'obtenerEstadoNoticiario', args: {} }]
+      }
+    }
+    const secondResponse = {
+      response: {
+        text: () => 'El último noticiario fue enviado hace 2 días.',
+        functionCalls: () => undefined
+      }
+    }
+
+    const sendMessageMock = vi.fn()
+      .mockResolvedValueOnce(firstResponse)
+      .mockResolvedValueOnce(secondResponse)
+
+    getGenerativeModelMock.mockImplementation(() => ({
+      startChat: vi.fn(() => ({
+        sendMessage: sendMessageMock,
+      })),
+    }))
+
+    const { BotService } = await import('@/sdk/BotService')
+    BotService.resetSession()
+
+    const response = await BotService.sendMessage('Dime el estado del noticiario semanal', 'admin-user-id', 'admin')
+
+    expect(response).toBe('El último noticiario fue enviado hace 2 días.')
+    expect(obtenerEstadoNoticiarioMock).toHaveBeenCalled()
+  })
+
+  it('correctly executes forzarEnvioNoticiario function call', async () => {
+    const firstResponse = {
+      response: {
+        text: () => 'Despachando noticiario semanal...',
+        functionCalls: () => [{ name: 'forzarEnvioNoticiario', args: {} }]
+      }
+    }
+    const secondResponse = {
+      response: {
+        text: () => 'Noticiario enviado exitosamente a todos.',
+        functionCalls: () => undefined
+      }
+    }
+
+    const sendMessageMock = vi.fn()
+      .mockResolvedValueOnce(firstResponse)
+      .mockResolvedValueOnce(secondResponse)
+
+    getGenerativeModelMock.mockImplementation(() => ({
+      startChat: vi.fn(() => ({
+        sendMessage: sendMessageMock,
+      })),
+    }))
+
+    const { BotService } = await import('@/sdk/BotService')
+    BotService.resetSession()
+
+    const response = await BotService.sendMessage('Envía el noticiario semanal ahora mismo', 'admin-user-id', 'admin')
+
+    expect(response).toBe('Noticiario enviado exitosamente a todos.')
+    expect(forzarEnvioNoticiarioMock).toHaveBeenCalledWith('admin-user-id')
   })
 })

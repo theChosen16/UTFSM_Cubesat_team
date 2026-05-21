@@ -16,8 +16,9 @@ import {
   History,
   Trophy,
 } from 'lucide-react'
-import { ActivityLogEntry, TeamType, User as UserType } from '@/types'
+import { ActivityLogEntry, TeamType, User as UserType, hasTeam, hasRole } from '@/types'
 import { ROLE_LABELS, TEAM_LABELS } from '@/lib/ui-constants'
+import { WeeklyDigestWidget } from '@/components/dashboard/WeeklyDigestWidget'
 import { UserService } from '@/sdk/UserService'
 import { ProjectService } from '@/sdk/ProjectService'
 import { TaskService } from '@/sdk/TaskService'
@@ -336,6 +337,12 @@ export default function Dashboard() {
           )
         })}
       </div>
+
+      {(hasTeam(user, 'manager') || hasRole(user, 'admin') || hasRole(user, 'maestro')) && (
+        <div className="mt-4 sm:mt-6">
+          <WeeklyDigestWidget />
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
         <Card className="bg-space-700/50 border-space-600">

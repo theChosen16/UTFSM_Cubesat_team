@@ -249,3 +249,13 @@ export interface CalendarEvent {
   relatedTaskId?: string
   relatedProjectId?: string
 }
+
+export interface MailDigestLog {
+  id: string
+  createdAt: Date
+  triggeredBy: string
+  recipientCount: number
+  eventsCount: number
+  tasksCount: number
+  recipients: string[]
+}

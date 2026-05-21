@@ -3,6 +3,7 @@ import { EventService } from './EventService'
 import { ProjectService } from './ProjectService'
 import { ActivityLogService } from './ActivityLogService'
 import { UserService } from './UserService'
+import { EmailNotificationService } from './EmailNotificationService'
 import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { COLLECTIONS } from '@/lib/constants'
@@ -574,6 +575,55 @@ export class AdminActionsService {
       return {
         success: false,
         message: `Error al auditar acta: ${error instanceof Error ? error.message : 'Error desconocido'}`
+      }
+    }
+  }
+
+  static async obtenerEstadoNoticiario() {
+    try {
+      const log = await EmailNotificationService.getLastDigestLog()
+      if (!log) {
+        return {
+          success: true,
+          message: "No se registran envíos previos del noticiario semanal en la base de datos."
+        }
+      }
+      const fecha = log.createdAt.toLocaleString('es-CL', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+      const dias = Math.floor((Date.now() - log.createdAt.getTime()) / (24 * 60 * 60 * 1000))
+      return {
+        success: true,
+        message: `El último noticiario semanal ("Boletín de la Órbita") fue enviado el **${fecha}** (hace **${dias}** días) por el usuario **${log.triggeredBy === 'sistema_automatico' ? 'Sistema Automático' : 'Administrador'}**.\n\n` +
+          `- **Destinatarios**: ${log.recipientCount} miembros activos del equipo.\n` +
+          `- **Eventos incluidos**: ${log.eventsCount} eventos programados para los siguientes 7 días.\n` +
+          `- **Tareas y avances resumidos**: ${log.tasksCount} tareas modificadas/completadas en el período.`
+      }
+    } catch (error) {
+      logger.error('Error in AdminActionsService.obtenerEstadoNoticiario', { error })
+      return {
+        success: false,
+        message: `Error al obtener estado del noticiario: ${error instanceof Error ? error.message : 'Error desconocido'}`
+      }
+    }
+  }
+
+  static async forzarEnvioNoticiario(actorId: string) {
+    try {
+      const log = await EmailNotificationService.sendWeeklyDigest(actorId)
+      return {
+        success: true,
+        message: `¡Noticiario semanal ("Boletín de la Órbita") despachado con éxito! Se han enviado correos individuales con los próximos eventos y avances del proyecto a **${log.recipientCount} miembros activos** del equipo.`
+      }
+    } catch (error) {
+      logger.error('Error in AdminActionsService.forzarEnvioNoticiario', { error, actorId })
+      return {
+        success: false,
+        message: `Error al despachar el noticiario: ${error instanceof Error ? error.message : 'Error desconocido'}`
       }
     }
   }

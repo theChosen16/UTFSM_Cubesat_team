@@ -50,6 +50,8 @@ Herramientas disponibles:
 - crearEvento: Si te piden agendar una reunión, cita, visita o hito en el calendario, invoca la herramienta 'crearEvento'.
 - sincronizarProyecto: Si te piden sincronizar la base de datos, memoria o Drive, invoca 'sincronizarProyecto'.
 - obtenerMetricas: Si te piden métricas, reportes de avance o resúmenes de rendimiento de tareas, invoca 'obtenerMetricas'.
+- obtenerEstadoNoticiario: Si te piden verificar o consultar el estado de envío del noticiario o boletín semanal de avances del equipo, invoca la herramienta 'obtenerEstadoNoticiario'.
+- forzarEnvioNoticiario: Si te piden despachar, enviar, forzar o gatillar el noticiario o boletín semanal de avances del equipo a todos por correo, invoca la herramienta 'forzarEnvioNoticiario'.
 
 IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del administrador. Explica amablemente qué acción ejecutiva estás realizando y confirma el éxito basándote en la respuesta de la función.`
     }
@@ -141,6 +143,22 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
                     acuerdosResumen: { type: 'STRING', description: 'El bloque de texto con los acuerdos de la reunión del Drive para procesar.' }
                   },
                   required: ['fechaActa', 'acuerdosResumen']
+                }
+              },
+              {
+                name: 'obtenerEstadoNoticiario',
+                description: 'Obtiene el estado de despacho y log del último envío del noticiario o boletín semanal del equipo Cubesat.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {}
+                }
+              },
+              {
+                name: 'forzarEnvioNoticiario',
+                description: 'Fuerza de forma inmediata el despacho del noticiario o boletín semanal de avances y próximos eventos a todos los miembros activos.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {}
                 }
               }
             ]
@@ -342,6 +360,10 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
         return AdminActionsService.gestionarCubeDesign(args, userId)
       case 'auditarActaDrive':
         return AdminActionsService.auditarActaDrive(args, userId)
+      case 'obtenerEstadoNoticiario':
+        return AdminActionsService.obtenerEstadoNoticiario()
+      case 'forzarEnvioNoticiario':
+        return AdminActionsService.forzarEnvioNoticiario(userId)
       default:
         return { 
           success: false, 

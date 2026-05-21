@@ -128,5 +128,14 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create, update, delete: if request.auth != null && canManageWorkspace();
     }
+
+    match /mail/{mailId} {
+      allow create: if request.auth != null;
+    }
+
+    match /mail_digests/{digestId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && canManageWorkspace();
+    }
   }
 }
