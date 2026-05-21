@@ -6,7 +6,7 @@ import { logger } from '@/lib/logger'
 
 // Obtiene la API Key con prefijo VITE para Vite localmente.
 const API_KEY = import.meta.env.VITE_GOOGLE_AI_KEY
-const MODEL_CANDIDATES = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite'] as const
+const MODEL_CANDIDATES = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite'] as const
 
 let genAI: GoogleGenerativeAI | null = null
 if (API_KEY) {
@@ -69,7 +69,8 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
                     prioridad: { type: 'STRING', enum: ['alta', 'media', 'baja'], description: 'Prioridad de la tarea.' },
                     equipo: { type: 'STRING', enum: ['manager', 'relaciones_publicas', 'tecnico'], description: 'El subsistema o equipo responsable.' },
                     fechaLimite: { type: 'STRING', description: 'La fecha límite en formato YYYY-MM-DD (opcional).' },
-                    projectId: { type: 'STRING', description: 'El ID del proyecto al que pertenece la tarea (opcional).' }
+                    projectId: { type: 'STRING', description: 'El ID del proyecto al que pertenece la tarea (opcional).' },
+                    generarHitosAeroespaciales: { type: 'BOOLEAN', description: 'Si es verdadero y la tarea es técnica (firmware, simulación térmica, estructural, etc.), autogenera sub-hitos técnicos aeroespaciales en Firestore (opcional).' }
                   },
                   required: ['titulo', 'prioridad', 'equipo']
                 }
@@ -104,6 +105,42 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
                 parameters: {
                   type: 'OBJECT',
                   properties: {}
+                }
+              },
+              {
+                name: 'registrarCumpleanos',
+                description: 'Registra o actualiza la fecha de cumpleaños de un miembro del equipo en Firestore.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {
+                    miembroId: { type: 'STRING', description: 'El ID único del usuario/miembro.' },
+                    fecha: { type: 'STRING', description: 'La fecha de cumpleaños en formato MM-DD (ej: "11-14").' }
+                  },
+                  required: ['miembroId', 'fecha']
+                }
+              },
+              {
+                name: 'gestionarCubeDesign',
+                description: 'Gestiona la participación de la nómina técnica y el sembrado de hitos del evento CubeDesign 2026.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {
+                    accion: { type: 'STRING', enum: ['confirmar_miembro', 'desconfirmar_miembro', 'auditar_preparacion', 'crear_hitos'], description: 'La acción de gestión a ejecutar.' },
+                    miembroId: { type: 'STRING', description: 'El ID del miembro a confirmar o desconfirmar (requerido solo si la acción es confirmar_miembro o desconfirmar_miembro).' }
+                  },
+                  required: ['accion']
+                }
+              },
+              {
+                name: 'auditarActaDrive',
+                description: 'Audita y procesa un acta o minuta de reunión resumida del equipo de Google Drive para poblar Firestore con tareas y reuniones masivas.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: {
+                    fechaActa: { type: 'STRING', description: 'La fecha de la reunión o acta en formato YYYY-MM-DD.' },
+                    acuerdosResumen: { type: 'STRING', description: 'El bloque de texto con los acuerdos de la reunión del Drive para procesar.' }
+                  },
+                  required: ['fechaActa', 'acuerdosResumen']
                 }
               }
             ]
@@ -299,6 +336,12 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
         return AdminActionsService.sincronizarProyecto(userId)
       case 'obtenerMetricas':
         return AdminActionsService.obtenerMetricas()
+      case 'registrarCumpleanos':
+        return AdminActionsService.registrarCumpleanos(args, userId)
+      case 'gestionarCubeDesign':
+        return AdminActionsService.gestionarCubeDesign(args, userId)
+      case 'auditarActaDrive':
+        return AdminActionsService.auditarActaDrive(args, userId)
       default:
         return { 
           success: false, 

@@ -25,6 +25,9 @@ const crearTareaMock = vi.fn()
 const crearEventoMock = vi.fn()
 const sincronizarProyectoMock = vi.fn()
 const obtenerMetricasMock = vi.fn()
+const registrarCumpleanosMock = vi.fn()
+const gestionarCubeDesignMock = vi.fn()
+const auditarActaDriveMock = vi.fn()
 
 vi.mock('@/sdk/AdminActionsService', () => ({
   AdminActionsService: {
@@ -32,6 +35,9 @@ vi.mock('@/sdk/AdminActionsService', () => ({
     crearEvento: (...args: unknown[]) => crearEventoMock(...args),
     sincronizarProyecto: (...args: unknown[]) => sincronizarProyectoMock(...args),
     obtenerMetricas: (...args: unknown[]) => obtenerMetricasMock(...args),
+    registrarCumpleanos: (...args: unknown[]) => registrarCumpleanosMock(...args),
+    gestionarCubeDesign: (...args: unknown[]) => gestionarCubeDesignMock(...args),
+    auditarActaDrive: (...args: unknown[]) => auditarActaDriveMock(...args),
   }
 }))
 
@@ -64,6 +70,9 @@ describe('BotService', () => {
     crearEventoMock.mockResolvedValue({ success: true, message: 'Mocked event success' })
     sincronizarProyectoMock.mockResolvedValue({ success: true, message: 'Mocked sync success' })
     obtenerMetricasMock.mockResolvedValue({ success: true, message: 'Mocked metrics success' })
+    registrarCumpleanosMock.mockResolvedValue({ success: true, message: 'Mocked birthday success' })
+    gestionarCubeDesignMock.mockResolvedValue({ success: true, message: 'Mocked CubeDesign success' })
+    auditarActaDriveMock.mockResolvedValue({ success: true, message: 'Mocked Drive audit success' })
   })
 
   it('falls back to the next Gemini model when the primary one is unavailable', async () => {
@@ -136,5 +145,104 @@ describe('BotService', () => {
         }
       }
     ])
+  })
+
+  it('correctly executes registrarCumpleanos function call', async () => {
+    const firstResponse = {
+      response: {
+        text: () => 'Registrando cumpleaños...',
+        functionCalls: () => [{ name: 'registrarCumpleanos', args: { miembroId: 'user123', fecha: '11-14' } }]
+      }
+    }
+    const secondResponse = {
+      response: {
+        text: () => 'El cumpleaños de user123 ha sido registrado para el 11-14.',
+        functionCalls: () => undefined
+      }
+    }
+
+    const sendMessageMock = vi.fn()
+      .mockResolvedValueOnce(firstResponse)
+      .mockResolvedValueOnce(secondResponse)
+
+    getGenerativeModelMock.mockImplementation(() => ({
+      startChat: vi.fn(() => ({
+        sendMessage: sendMessageMock,
+      })),
+    }))
+
+    const { BotService } = await import('@/sdk/BotService')
+    BotService.resetSession()
+
+    const response = await BotService.sendMessage('Registra el cumpleaños de user123 para el 11-14', 'admin-user-id', 'admin')
+
+    expect(response).toBe('El cumpleaños de user123 ha sido registrado para el 11-14.')
+    expect(registrarCumpleanosMock).toHaveBeenCalledWith({ miembroId: 'user123', fecha: '11-14' }, 'admin-user-id')
+  })
+
+  it('correctly executes gestionarCubeDesign function call', async () => {
+    const firstResponse = {
+      response: {
+        text: () => 'Gestionando CubeDesign...',
+        functionCalls: () => [{ name: 'gestionarCubeDesign', args: { accion: 'crear_hitos' } }]
+      }
+    }
+    const secondResponse = {
+      response: {
+        text: () => 'Los hitos preparatorios de CubeDesign han sido creados.',
+        functionCalls: () => undefined
+      }
+    }
+
+    const sendMessageMock = vi.fn()
+      .mockResolvedValueOnce(firstResponse)
+      .mockResolvedValueOnce(secondResponse)
+
+    getGenerativeModelMock.mockImplementation(() => ({
+      startChat: vi.fn(() => ({
+        sendMessage: sendMessageMock,
+      })),
+    }))
+
+    const { BotService } = await import('@/sdk/BotService')
+    BotService.resetSession()
+
+    const response = await BotService.sendMessage('Crea los hitos de CubeDesign en el calendario', 'admin-user-id', 'admin')
+
+    expect(response).toBe('Los hitos preparatorios de CubeDesign han sido creados.')
+    expect(gestionarCubeDesignMock).toHaveBeenCalledWith({ accion: 'crear_hitos' }, 'admin-user-id')
+  })
+
+  it('correctly executes auditarActaDrive function call', async () => {
+    const firstResponse = {
+      response: {
+        text: () => 'Procesando acta de Drive...',
+        functionCalls: () => [{ name: 'auditarActaDrive', args: { fechaActa: '2026-05-18', acuerdosResumen: '- Tarea 1\n- Tarea 2' } }]
+      }
+    }
+    const secondResponse = {
+      response: {
+        text: () => 'El acta ha sido procesada con éxito y se crearon las tareas.',
+        functionCalls: () => undefined
+      }
+    }
+
+    const sendMessageMock = vi.fn()
+      .mockResolvedValueOnce(firstResponse)
+      .mockResolvedValueOnce(secondResponse)
+
+    getGenerativeModelMock.mockImplementation(() => ({
+      startChat: vi.fn(() => ({
+        sendMessage: sendMessageMock,
+      })),
+    }))
+
+    const { BotService } = await import('@/sdk/BotService')
+    BotService.resetSession()
+
+    const response = await BotService.sendMessage('Audita el acta del 18 de mayo del Drive', 'admin-user-id', 'admin')
+
+    expect(response).toBe('El acta ha sido procesada con éxito y se crearon las tareas.')
+    expect(auditarActaDriveMock).toHaveBeenCalledWith({ fechaActa: '2026-05-18', acuerdosResumen: '- Tarea 1\n- Tarea 2' }, 'admin-user-id')
   })
 })

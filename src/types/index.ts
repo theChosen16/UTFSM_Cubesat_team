@@ -97,6 +97,8 @@ export interface User {
   career?: string
   year?: string
   questionnaire?: Questionnaire
+  fechaCumpleanos?: string
+  confirmadoCubeDesign?: boolean
 }
 
 export interface Project {

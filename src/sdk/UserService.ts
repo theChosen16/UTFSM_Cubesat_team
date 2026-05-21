@@ -109,6 +109,8 @@ export class UserService {
       career: typeof rawData.career === 'string' ? rawData.career : undefined,
       year: typeof rawData.year === 'string' ? rawData.year : undefined,
       questionnaire: sanitizeQuestionnaire(rawData.questionnaire),
+      fechaCumpleanos: typeof rawData.fechaCumpleanos === 'string' ? rawData.fechaCumpleanos : undefined,
+      confirmadoCubeDesign: typeof rawData.confirmadoCubeDesign === 'boolean' ? rawData.confirmadoCubeDesign : undefined,
     }
   }
 }
