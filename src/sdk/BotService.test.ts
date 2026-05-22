@@ -399,4 +399,97 @@ describe('BotService', () => {
     const expectedPrompt = `[DOCUMENTO ADJUNTO: "acta.docx"]\n---\nAcuerdos de la reunion: Tarea 1 para tecnico. Tarea 2 para PR.\n---\n\nConsulta sobre el documento: Resume las tareas del acta`
     expect(sendMessageMock).toHaveBeenCalledWith(expectedPrompt)
   })
+
+  describe('Proxy Mode', () => {
+    let fetchMock: any
+
+    beforeEach(() => {
+      import.meta.env.VITE_GOOGLE_AI_KEY = 'your-google-ai-key' // Force proxy mode
+      import.meta.env.VITE_DRIVE_UPLOAD_URL = 'https://script.google.com/macros/s/proxy-url/exec'
+      import.meta.env.VITE_DRIVE_UPLOAD_SECRET = 'mock-shared-secret'
+
+      fetchMock = vi.fn()
+      global.fetch = fetchMock
+    })
+
+    it('correctly sends user messages via Google Apps Script proxy', async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  { text: 'Hola, soy Cubesat Bot por Proxy.' }
+                ]
+              }
+            }
+          ]
+        })
+      })
+
+      const { BotService } = await import('@/sdk/BotService')
+      BotService.resetSession()
+
+      const response = await BotService.sendMessage('Hola Bot', 'user-id', 'admin')
+
+      expect(response).toBe('Hola, soy Cubesat Bot por Proxy.')
+      expect(fetchMock).toHaveBeenCalledWith('https://script.google.com/macros/s/proxy-url/exec', expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+      }))
+    })
+
+    it('handles function calling over proxy recursively', async () => {
+      const firstResponse = {
+        candidates: [
+          {
+            content: {
+              role: 'model',
+              parts: [
+                {
+                  functionCall: {
+                    name: 'sincronizarProyecto',
+                    args: {}
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+
+      const secondResponse = {
+        candidates: [
+          {
+            content: {
+              role: 'model',
+              parts: [
+                { text: 'Sincronización completada vía proxy.' }
+              ]
+            }
+          }
+        ]
+      }
+
+      fetchMock
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => firstResponse
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => secondResponse
+        })
+
+      const { BotService } = await import('@/sdk/BotService')
+      BotService.resetSession()
+
+      const response = await BotService.sendMessage('Sincroniza la base de datos', 'admin-id', 'admin')
+
+      expect(response).toBe('Sincronización completada vía proxy.')
+      expect(sincronizarProyectoMock).toHaveBeenCalledWith('admin-id')
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+  })
 })
