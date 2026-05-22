@@ -356,26 +356,45 @@ Los tests E2E cubren: autenticación (registro, roles, sign in/out), proyectos, 
 
 ## Despliegue
 
-El proyecto se despliega automáticamente en **GitHub Pages** mediante GitHub Actions:
+El proyecto se publica de manera estática y gratuita en **GitHub Pages**. Dado que la facturación de GitHub (Actions Billing) en repositorios privados puede restringir la ejecución de workflows automáticos en la nube, el despliegue se realiza **manualmente desde el entorno local**, compilando la aplicación en la carpeta `/docs` directamente en la rama principal (`main`).
 
-1. Cada push o pull request a `main` ejecuta el pipeline de CI (lint + tests + build).
-2. Si el CI pasa en `main`, el workflow de despliegue publica la aplicación en GitHub Pages. Si el workflow `CI` falla, `Deploy to GitHub Pages` queda automáticamente **skipped**.
-3. Tras el despliegue, un smoke test verifica que la página es accesible (HTTP 200).
+Para desplegar y actualizar el sitio web productivo:
 
-La URL pública es: `https://thechosen16.github.io/UTFSM_Cubesat_team/`
+1. Asegúrate de tener configurado tu archivo `.env.local` con las variables de Firebase.
+2. Ejecuta el script de despliegue automatizado:
+   ```bash
+   npm run deploy
+   ```
+   Este comando compilará síncronamente el proyecto en modo de producción (`npm run build`), añadirá los cambios generados en `/docs`, confirmará el commit en Git y los subirá de forma segura a la rama remota `main`.
+3. Tu sitio se actualizará automáticamente y sin costo alguno en la URL pública: `https://thechosen16.github.io/UTFSM_Cubesat_team/`
 
-Para que el deploy publique la versión productiva correctamente, configura estos **GitHub Secrets** en el repositorio o entorno de Pages:
+---
 
-- `VITE_FIREBASE_API_KEY`
-- `VITE_FIREBASE_AUTH_DOMAIN`
-- `VITE_FIREBASE_PROJECT_ID`
-- `VITE_FIREBASE_STORAGE_BUCKET`
-- `VITE_FIREBASE_MESSAGING_SENDER_ID`
-- `VITE_FIREBASE_APP_ID`
-- `VITE_FIREBASE_MEASUREMENT_ID` (opcional)
-- `VITE_GOOGLE_AI_KEY` (opcional)
-- `VITE_DRIVE_UPLOAD_URL` (requerida para habilitar el repertorio de archivos)
-- `VITE_DRIVE_UPLOAD_SECRET` (requerida para habilitar el repertorio de archivos)
+## Zero-Trust y Gestión de Secretos
+
+Para evitar la fuga de credenciales críticas en este repositorio público y eliminar la necesidad de configurar variables de entorno en sistemas externos, el portal implementa un modelo de **Zero-Trust**:
+
+1. **Sin Secretos en el Cliente**:
+   * **Gemini API Key**: Se almacena exclusivamente en las propiedades de entorno privadas de tu Google Apps Script (`Script Properties`), actuando como un Backend Proxy seguro (`handleChat`). La web del cliente nunca carga ni expone la API Key.
+   * **Drive Bridge Secrets**: La URL y el token secreto de subida se recuperan dinámicamente en caliente desde Firestore (`/system_config/keys`) una vez que el usuario institucional (`@usm.cl` o `@sansano.usm.cl`) inicia sesión.
+2. **Siembra de Credenciales**:
+   Para registrar o actualizar tus credenciales del Drive Bridge en producción, abre la Consola de Desarrollador del navegador en el portal autenticado con tu cuenta de Administrador o Maestro, y ejecuta el siguiente script:
+   ```javascript
+   const db = window.firebaseDb;
+   const { doc, setDoc } = window.firebaseFirestore;
+
+   await setDoc(doc(db, 'system_config', 'keys'), {
+     driveUploadUrl: "TU_GOOGLE_APPS_SCRIPT_EXEC_URL",
+     driveUploadSecret: "TU_SHARED_SECRET"
+   });
+   console.log("¡Credenciales del Drive Bridge guardadas exitosamente!");
+   ```
+3. **Reglas de Seguridad de Firebase**:
+   Para proteger el acceso a estos secretos y auditar el noticiario masivo, el archivo [firestore.rules](file:///c:/Users/alean/Desktop/Cubesat%20team%20page/firestore.rules) restringe los accesos. Puesto que tienes instalado `firebase-tools` localmente, puedes desplegar cualquier cambio en las reglas de forma instantánea ejecutando:
+   ```bash
+   firebase deploy --only firestore:rules
+   ```
+   *(También puedes administrarlas copiando el contenido de `firestore.rules` y pegándolo en la sección de Reglas del Firebase Console)*
 
 ## CI/CD
 
