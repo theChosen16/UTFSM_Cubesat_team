@@ -205,16 +205,22 @@ export default function Layout({ children }: LayoutProps) {
             })}
 
             <div className="my-4 border-t border-space-600/50" />
-            <a
-              href="https://ground-station-production-596d.up.railway.app"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setSidebarOpen(false)}
-              className="group relative mb-1 flex min-h-12 items-center gap-3 rounded-xl px-3.5 py-3 text-sm transition-all duration-200 sm:px-4 sm:text-[15px] text-muted-foreground hover:bg-space-700/80 hover:text-white"
-            >
-              <Satellite size={20} className="transition-transform duration-200 group-hover:scale-110" />
-              <span className="flex-1">Estación Terrena</span>
-            </a>
+            <div className="px-3 sm:px-4 mb-2">
+              <a
+                href="https://ground-station-production-596d.up.railway.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setSidebarOpen(false)}
+                className="group relative flex min-h-12 items-center gap-3 rounded-xl border border-cyan-500/25 bg-gradient-to-r from-cyan-500/10 to-purple-500/5 px-3.5 py-3 text-sm transition-all duration-300 hover:border-cyan-500/40 hover:bg-cyan-500/15 shadow-[0_0_15px_rgba(6,182,212,0.05)] hover:shadow-[0_0_20px_rgba(6,182,212,0.1)] text-cyan-400 hover:text-cyan-300"
+              >
+                <Satellite size={20} className="transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110 text-cyan-400 group-hover:text-cyan-300" />
+                <span className="flex-1 font-semibold">Estación Terrena</span>
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              </a>
+            </div>
           </nav>
 
           {/* Sign out */}
