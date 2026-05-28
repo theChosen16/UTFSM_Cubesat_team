@@ -7,11 +7,14 @@ import { logger } from '@/lib/logger'
 import { ProcessedBotFile } from '@/types'
 import { auth } from '@/lib/firebase'
 
-// Obtiene la API Key con prefijo VITE para Vite localmente solo en desarrollo para evitar compilarla en produccion.
-const API_KEY = import.meta.env.DEV ? import.meta.env.VITE_GOOGLE_AI_KEY : undefined
+// En producción siempre se usa el proxy seguro (Apps Script). En desarrollo, solo se usa modo directo
+// si se configura explícitamente VITE_ENABLE_DIRECT_AI=true (NO exponer la key por defecto).
+const API_KEY = (import.meta.env.DEV && import.meta.env.VITE_ENABLE_DIRECT_AI === 'true')
+  ? import.meta.env.VITE_GOOGLE_AI_KEY
+  : undefined
 const MODEL_CANDIDATES = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite'] as const
 
-// Only use direct SDK mode if a real, valid API Key is provided on the client
+// Only use direct SDK mode if explicitly enabled AND a real, valid API Key is provided
 const isDirectMode = Boolean(API_KEY && API_KEY !== 'your-google-ai-key' && !API_KEY.includes('placeholder'))
 
 let genAI: GoogleGenerativeAI | null = null
@@ -528,7 +531,7 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
       : undefined
 
     // Build the user turn in the chat history
-    let newParts: any[] = []
+    const newParts: any[] = []
     if (fileData) {
       if (fileData.inlineData) {
         newParts.push({

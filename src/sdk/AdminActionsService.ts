@@ -482,7 +482,7 @@ export class AdminActionsService {
         return undefined
       }
 
-      for (let rawLine of lines) {
+      for (const rawLine of lines) {
         let line = rawLine.trim()
         if (!line || line.toLowerCase().includes('acuerdo') || line.toLowerCase().includes('reunión') && line.includes(':')) {
           continue

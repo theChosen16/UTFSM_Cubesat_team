@@ -28,12 +28,17 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow create: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && (
+        request.auth.uid == userId ||
+        (userId == '_bootstrap_lock' && !exists(/databases/$(database)/documents/users/_bootstrap_lock))
+      );
 
-      allow read: if request.auth != null &&
-        (request.auth.uid == userId ||
-         hasRole('maestro') ||
-         hasRole('admin'));
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        userId == '_bootstrap_lock' ||
+        hasRole('maestro') ||
+        hasRole('admin')
+      );
 
       // Maestro/admin can update any field on any user document.
       // Regular users can only update their own non-privileged fields.

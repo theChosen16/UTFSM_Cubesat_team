@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { getFirestore, doc, setDoc } from 'firebase/firestore'
+import { getFirestore } from 'firebase/firestore'
 import { getAnalytics, Analytics } from 'firebase/analytics'
 import { logger } from './logger'
 
@@ -26,8 +26,3 @@ try {
 }
 export const analytics = analyticsInstance
 
-// Expose Firestore globally to allow admin keys seeding from the developer console
-if (typeof window !== 'undefined') {
-  (window as any).firebaseDb = db;
-  (window as any).firebaseFirestore = { doc, setDoc };
-}

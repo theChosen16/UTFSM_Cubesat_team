@@ -135,7 +135,7 @@ describe('EmailNotificationService', () => {
 
     getAllUsersMock.mockResolvedValue([
       { id: 'u1', nombre: 'Ignacio', email: 'ignacio@usm.cl', isActive: true },
-      { id: 'u2', nombre: 'Javiera', email: 'javiera@sansano.usm.cl', isActive: true },
+      { id: 'u2', nombre: 'Javiera', email: 'test.notif@sansano.usm.cl', isActive: true },
       { id: 'u3', nombre: 'Inactivo', email: 'inactivo@usm.cl', isActive: false },
     ])
 
@@ -147,7 +147,7 @@ describe('EmailNotificationService', () => {
     expect(result.recipientCount).toBe(2)
     expect(result.triggeredBy).toBe('admin-actor')
     expect(result.recipients).toContain('ignacio@usm.cl')
-    expect(result.recipients).toContain('javiera@sansano.usm.cl')
+    expect(result.recipients).toContain('test.notif@sansano.usm.cl')
     expect(result.recipients).not.toContain('inactivo@usm.cl')
 
     // Added 2 emails to /mail collection + 1 log to /mail_digests = 3 addDocs

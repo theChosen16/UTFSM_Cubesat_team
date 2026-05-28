@@ -21,7 +21,7 @@ This project implements the following security practices:
 
 - **Dependency scanning**: Automated via Dependabot
 - **Code scanning**: Automated via CodeQL
-- **Secrets protection**: Firebase credentials stored as GitHub Secrets, never committed to the repository
+- **Secrets protection**: Firebase credentials stored as GitHub Secrets for CI/CD. Local development uses `.env.local` (git-ignored). Production builds never embed secrets directly.
 - **Branch protection**: Main branch requires pull request reviews before merging
 
 ## Response Time

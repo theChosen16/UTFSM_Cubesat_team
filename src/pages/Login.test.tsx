@@ -54,18 +54,18 @@ describe('Login', () => {
 
   it('navigates to dashboard on successful login', async () => {
     mockSignIn.mockImplementationOnce(async () => {
-      mockAuthUser = { id: 'user-1', email: 'alejandro.hernandeza@sansano.usm.cl' }
+      mockAuthUser = { id: 'user-1', email: 'test.usuario@sansano.usm.cl' }
     })
     const user = userEvent.setup()
 
     renderLogin()
 
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
-    await user.type(screen.getByPlaceholderText('••••••••'), 'Falopa123')
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test.usuario@sansano.usm.cl')
+    await user.type(screen.getByPlaceholderText('••••••••'), 'TestPassword123!')
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
     await waitFor(() => {
-      expect(mockSignIn).toHaveBeenCalledWith('alejandro.hernandeza@sansano.usm.cl', 'Falopa123')
+      expect(mockSignIn).toHaveBeenCalledWith('test.usuario@sansano.usm.cl', 'TestPassword123!')
       expect(screen.getByText('Dashboard')).toBeInTheDocument()
     })
   })
@@ -76,12 +76,12 @@ describe('Login', () => {
 
     renderLogin()
 
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), '  Alejandro.Hernandeza@Sansano.USM.CL  ')
-    await user.type(screen.getByPlaceholderText('••••••••'), 'Falopa123')
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), '  Test.Usuario@Sansano.USM.CL  ')
+    await user.type(screen.getByPlaceholderText('••••••••'), 'TestPassword123!')
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
     await waitFor(() => {
-      expect(mockSignIn).toHaveBeenCalledWith('alejandro.hernandeza@sansano.usm.cl', 'Falopa123')
+      expect(mockSignIn).toHaveBeenCalledWith('test.usuario@sansano.usm.cl', 'TestPassword123!')
     })
   })
 
@@ -104,7 +104,7 @@ describe('Login', () => {
 
     renderLogin()
 
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test.usuario@sansano.usm.cl')
     await user.type(screen.getByPlaceholderText('••••••••'), 'wrongpassword')
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
@@ -138,7 +138,7 @@ describe('Login', () => {
 
     renderLogin()
 
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test.usuario@sansano.usm.cl')
     await user.type(screen.getByPlaceholderText('••••••••'), 'wrongpassword')
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
@@ -155,7 +155,7 @@ describe('Login', () => {
 
     renderLogin()
 
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test.usuario@sansano.usm.cl')
     await user.type(screen.getByPlaceholderText('••••••••'), 'somepassword')
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
@@ -172,7 +172,7 @@ describe('Login', () => {
 
     renderLogin()
 
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test.usuario@sansano.usm.cl')
     await user.type(screen.getByPlaceholderText('••••••••'), 'somepassword')
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
@@ -188,7 +188,7 @@ describe('Login', () => {
 
     renderLogin()
 
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test.usuario@sansano.usm.cl')
     await user.type(screen.getByPlaceholderText('••••••••'), 'somepassword')
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
@@ -205,7 +205,7 @@ describe('Login', () => {
 
     renderLogin()
 
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test.usuario@sansano.usm.cl')
     await user.type(screen.getByPlaceholderText('••••••••'), 'somepassword')
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
@@ -218,7 +218,7 @@ describe('Login', () => {
     let resolveSignIn: () => void
     mockSignIn.mockReturnValueOnce(new Promise<void>((resolve) => {
       resolveSignIn = () => {
-        mockAuthUser = { id: 'user-1', email: 'alejandro.hernandeza@sansano.usm.cl' }
+        mockAuthUser = { id: 'user-1', email: 'test.usuario@sansano.usm.cl' }
         resolve()
       }
     }))
@@ -226,8 +226,8 @@ describe('Login', () => {
 
     renderLogin()
 
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
-    await user.type(screen.getByPlaceholderText('••••••••'), 'Falopa123')
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test.usuario@sansano.usm.cl')
+    await user.type(screen.getByPlaceholderText('••••••••'), 'TestPassword123!')
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
     expect(screen.getByText('Iniciando sesión...')).toBeInTheDocument()
@@ -248,7 +248,7 @@ describe('Login', () => {
 
     renderLogin()
 
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test.usuario@sansano.usm.cl')
     await user.type(screen.getByPlaceholderText('••••••••'), 'wrongpassword')
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
