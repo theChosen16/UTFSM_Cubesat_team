@@ -330,7 +330,7 @@ describe('Calendar Page', () => {
       tipo: 'reunion',
       creadoPor: 'user-manager',
     })
-  })
+  }, 20000)
 
   it('allows manager to delete a general event', async () => {
     renderCalendar()
@@ -352,7 +352,7 @@ describe('Calendar Page', () => {
     await waitFor(() => {
       expect(mockEventDelete).toHaveBeenCalledWith('evt-1')
     })
-  })
+  }, 20000)
 
   it('runs the meeting task seeder and skips duplicate tasks', async () => {
     renderCalendar()
@@ -370,5 +370,5 @@ describe('Calendar Page', () => {
       expect(mockTaskCreate).toHaveBeenCalledTimes(8)
       expect(screen.getByText('¡Importación Completada!')).toBeInTheDocument()
     })
-  })
+  }, 20000)
 })

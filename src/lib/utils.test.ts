@@ -3,7 +3,7 @@ import { extractNameFromEmail, extractFullNameFromEmail } from '@/lib/utils'
 
 describe('extractNameFromEmail', () => {
   it('extracts first name from standard email', () => {
-    expect(extractNameFromEmail('alejandro.hernandeza@sansano.usm.cl')).toBe('Alejandro')
+    expect(extractNameFromEmail('test.usuario@sansano.usm.cl')).toBe('Test')
   })
 
   it('returns ? for null/undefined', () => {
@@ -14,8 +14,8 @@ describe('extractNameFromEmail', () => {
 
 describe('extractFullNameFromEmail', () => {
   it('extracts nombre and apellido from dotted email', () => {
-    const result = extractFullNameFromEmail('alejandro.hernandeza@sansano.usm.cl')
-    expect(result).toEqual({ nombre: 'Alejandro', apellido: 'Hernandeza' })
+    const result = extractFullNameFromEmail('test.usuario@sansano.usm.cl')
+    expect(result).toEqual({ nombre: 'Test', apellido: 'Usuario' })
   })
 
   it('returns only nombre when no dot in local part', () => {
@@ -24,8 +24,8 @@ describe('extractFullNameFromEmail', () => {
   })
 
   it('capitalizes names correctly', () => {
-    const result = extractFullNameFromEmail('MARIA.gonzalez@sansano.usm.cl')
-    expect(result).toEqual({ nombre: 'Maria', apellido: 'Gonzalez' })
+    const result = extractFullNameFromEmail('MOCK.estudiante@sansano.usm.cl')
+    expect(result).toEqual({ nombre: 'Mock', apellido: 'Estudiante' })
   })
 
   it('handles empty string', () => {

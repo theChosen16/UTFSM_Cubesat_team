@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -15,9 +16,12 @@ import {
   Calendar,
   History,
   Trophy,
+  Satellite,
+  ArrowRight,
 } from 'lucide-react'
-import { ActivityLogEntry, TeamType, User as UserType } from '@/types'
+import { ActivityLogEntry, TeamType, User as UserType, hasTeam, hasRole } from '@/types'
 import { ROLE_LABELS, TEAM_LABELS } from '@/lib/ui-constants'
+import { WeeklyDigestWidget } from '@/components/dashboard/WeeklyDigestWidget'
 import { UserService } from '@/sdk/UserService'
 import { ProjectService } from '@/sdk/ProjectService'
 import { TaskService } from '@/sdk/TaskService'
@@ -80,6 +84,7 @@ const formatDateTime = (value?: string | Date) => {
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [memberCount, setMemberCount] = useState<MemberCount>({ total: 0, byRole: {}, byTeam: {} })
   const [stats, setStats] = useState<DashboardStats>({ activeProjects: 0, pendingTasks: 0, completedTasks: 0 })
   const [recentProjects, setRecentProjects] = useState<DashboardProject[]>([])
@@ -204,28 +209,32 @@ export default function Dashboard() {
       value: loadingStats ? '…' : String(stats.activeProjects),
       icon: FolderKanban,
       color: 'text-cyan-400',
-      bg: 'bg-cyan-500/20'
+      bg: 'bg-cyan-500/20',
+      path: '/projects'
     },
     {
       title: 'Tareas Activas',
       value: loadingStats ? '…' : String(stats.pendingTasks),
       icon: Clock,
       color: 'text-orange-400',
-      bg: 'bg-orange-500/20'
+      bg: 'bg-orange-500/20',
+      path: '/tasks'
     },
     {
       title: 'Completadas',
       value: loadingStats ? '…' : String(stats.completedTasks),
       icon: CheckCircle2,
       color: 'text-green-400',
-      bg: 'bg-green-500/20'
+      bg: 'bg-green-500/20',
+      path: '/tasks'
     },
     {
       title: 'Miembros',
       value: loadingStats ? '…' : String(memberCount.total),
       icon: Users,
       color: 'text-purple-400',
-      bg: 'bg-purple-500/20'
+      bg: 'bg-purple-500/20',
+      path: '/members'
     },
   ]
 
@@ -312,11 +321,64 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Módulo de Telemetría Satelital / Estación Terrena Premium */}
+      <div className="mb-6 animate-fade-in-up">
+        <div className="relative overflow-hidden rounded-2xl border border-cyan-500/20 bg-gradient-to-r from-space-850 via-space-800 to-purple-950/20 p-5 sm:p-6 shadow-[0_0_30px_rgba(6,182,212,0.05)] transition-all duration-300 hover:border-cyan-500/30">
+          {/* Background ambient glows */}
+          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
+          <div className="absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-purple-500/5 blur-3xl pointer-events-none" />
+          
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              {/* Satellite Icon Container with Rotating Animation */}
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 relative group overflow-hidden">
+                <Satellite className="h-7 w-7 animate-[spin_40s_linear_infinite] group-hover:text-cyan-300" />
+                <div className="absolute inset-0 rounded-xl bg-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 animate-pulse" />
+              </div>
+              
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h2 className="text-base sm:text-lg font-bold text-white uppercase tracking-wider">Centro de Control y Telemetría</h2>
+                  <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 px-2.5 py-0.5 text-xs font-semibold flex items-center gap-1.5 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    ESTACIÓN ONLINE
+                  </Badge>
+                </div>
+                <p className="text-sm text-slate-300 max-w-3xl leading-relaxed">
+                  Consola de seguimiento y enlace en tiempo real para nuestros nanosatélites CubeSat en órbita. Monitorea trayectorias, estado de salud de subsistemas clave (EPS, OBC, ADCS) y recibe descargas de telemetría directo desde nuestra antena de tierra.
+                </p>
+              </div>
+            </div>
+            
+            <div className="shrink-0">
+              <a 
+                href="https://ground-station-production-596d.up.railway.app" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-block w-full sm:w-auto"
+              >
+                <button className="group relative flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 px-5 py-3 text-sm font-bold text-space-900 shadow-lg shadow-cyan-500/10 transition-all duration-300 hover:from-cyan-400 hover:to-cyan-500 hover:shadow-cyan-400/25 active:scale-[0.98] sm:w-auto">
+                  <span>Conectar Estación</span>
+                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                </button>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4" role="region" aria-label="Estadísticas del equipo" aria-live="polite">
         {statCards.map((stat) => {
           const Icon = stat.icon
           return (
-            <Card key={stat.title} className="bg-space-700/50 border-space-600 hover:bg-space-700/70 transition-all duration-300">
+            <Card 
+              key={stat.title} 
+              onClick={() => stat.path && navigate(stat.path)}
+              className="bg-space-700/50 border-space-600 hover:bg-space-700/70 hover:border-cyan-500/30 cursor-pointer transition-all duration-300 group"
+            >
               <CardContent className="p-6">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0 flex-1">
@@ -336,6 +398,12 @@ export default function Dashboard() {
           )
         })}
       </div>
+
+      {(hasTeam(user, 'manager') || hasRole(user, 'admin') || hasRole(user, 'maestro')) && (
+        <div className="mt-4 sm:mt-6">
+          <WeeklyDigestWidget />
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
         <Card className="bg-space-700/50 border-space-600">

@@ -8,6 +8,8 @@ export const COLLECTIONS = {
   MEMBER_SCORES: 'member_scores',
   NOTIFICATIONS: 'notifications',
   EVENTS: 'events',
+  MAIL: 'mail',
+  MAIL_DIGESTS: 'mail_digests',
 } as const
 
 /** Valid institutional email domains for registration */

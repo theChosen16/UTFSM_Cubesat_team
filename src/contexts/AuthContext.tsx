@@ -7,7 +7,7 @@ import {
   sendPasswordResetEmail,
   signOut as firebaseSignOut
 } from 'firebase/auth'
-import { doc, getDoc, setDoc, collection, getDocs, query, limit } from 'firebase/firestore'
+import { doc, getDoc, setDoc, runTransaction } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
 import { User, UserRole, sanitizeGenero, sanitizeUserRole, sanitizeUserTeams, TeamType, hasRole } from '@/types'
 import { logger } from '@/lib/logger'
@@ -172,12 +172,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { user: newUser } = await createUserWithEmailAndPassword(auth, email, password)
     
     // Bootstrap: the very first user registered becomes maestro.
-    // This runs inside a try/catch so a Firestore error conservatively
-    // falls through WITHOUT granting the role (fail-closed).
+    // Uses a secure Firestore transaction and write lock to prevent race conditions.
+    // Falls through conservatively (fail-closed) if any error occurs.
     let isFirstUser = false
     try {
-      const usersSnapshot = await getDocs(query(collection(db, COLLECTIONS.USERS), limit(1)))
-      isFirstUser = usersSnapshot.empty
+      await runTransaction(db, async (transaction) => {
+        const lockRef = doc(db, COLLECTIONS.USERS, '_bootstrap_lock')
+        const lockDoc = await transaction.get(lockRef)
+        if (!lockDoc.exists()) {
+          transaction.set(lockRef, { 
+            maestroUid: newUser.uid,
+            email: email,
+            createdAt: new Date()
+          })
+          isFirstUser = true
+        }
+      })
       if (isFirstUser) {
         logger.warn('First user bootstrap: granting maestro role', { uid: newUser.uid, email })
       }

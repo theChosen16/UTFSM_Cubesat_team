@@ -25,3 +25,4 @@ try {
   logger.warn('Firebase Analytics no pudo inicializarse. Puede estar bloqueado por un bloqueador de anuncios.')
 }
 export const analytics = analyticsInstance
+

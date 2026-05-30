@@ -94,15 +94,15 @@ describe('AuthProvider', () => {
     act(() => {
       void authStateHandler?.({
         uid: 'user-1',
-        email: 'jane.doe@sansano.usm.cl',
+        email: 'test.miembro@sansano.usm.cl',
         displayName: null,
       })
     })
 
     await waitFor(() => {
-      expect(screen.getByTestId('email')).toHaveTextContent('jane.doe@sansano.usm.cl')
-      expect(screen.getByTestId('nombre')).toHaveTextContent('Jane')
-      expect(screen.getByTestId('apellido')).toHaveTextContent('Doe')
+      expect(screen.getByTestId('email')).toHaveTextContent('test.miembro@sansano.usm.cl')
+      expect(screen.getByTestId('nombre')).toHaveTextContent('Test')
+      expect(screen.getByTestId('apellido')).toHaveTextContent('Miembro')
       expect(screen.getByTestId('loading')).toHaveTextContent('loading')
     })
 
@@ -110,9 +110,9 @@ describe('AuthProvider', () => {
       resolveUserDoc?.({
         exists: () => true,
         data: () => ({
-          email: 'jane.doe@sansano.usm.cl',
-          nombre: 'Jane',
-          apellido: 'Doe',
+          email: 'test.miembro@sansano.usm.cl',
+          nombre: 'Test',
+          apellido: 'Miembro',
           createdAt: new Date(),
           isActive: true,
         }),
@@ -121,8 +121,8 @@ describe('AuthProvider', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('loading')).toHaveTextContent('ready')
-      expect(screen.getByTestId('nombre')).toHaveTextContent('Jane')
-      expect(screen.getByTestId('apellido')).toHaveTextContent('Doe')
+      expect(screen.getByTestId('nombre')).toHaveTextContent('Test')
+      expect(screen.getByTestId('apellido')).toHaveTextContent('Miembro')
     })
   })
 })

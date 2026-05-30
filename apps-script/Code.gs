@@ -49,6 +49,7 @@ function doPost(e) {
 
     if (params.action === 'upload') return jsonResponse(handleUpload(params));
     if (params.action === 'delete') return jsonResponse(handleDelete(params));
+    if (params.action === 'chat') return jsonResponse(handleChat(params));
 
     return jsonResponse({ error: 'invalid action' });
   } catch (err) {
@@ -135,3 +136,56 @@ function handleDelete(params) {
   file.setTrashed(true);
   return { ok: true };
 }
+
+function handleChat(params) {
+  if (!params.model || !params.contents) {
+    throw new Error('missing model or contents');
+  }
+
+  // Retrieve API Key securely from Script Properties
+  const apiKey = PropertiesService.getScriptProperties().getProperty('GOOGLE_AI_KEY');
+  if (!apiKey) {
+    throw new Error('Google AI API Key not configured in Apps Script properties.');
+  }
+
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + params.model + ':generateContent?key=' + apiKey;
+
+  const payload = {
+    contents: params.contents
+  };
+
+  if (params.systemInstruction) {
+    payload.systemInstruction = {
+      parts: [{ text: params.systemInstruction }]
+    };
+  }
+
+  if (params.tools) {
+    payload.tools = params.tools;
+  }
+
+  if (params.generationConfig) {
+    payload.generationConfig = params.generationConfig;
+  }
+
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+
+  const response = UrlFetchApp.fetch(url, options);
+  const responseCode = response.getResponseCode();
+  const responseText = response.getContentText();
+
+  if (responseCode !== 200) {
+    return {
+      error: 'Gemini API returned status ' + responseCode,
+      details: responseText
+    };
+  }
+
+  return JSON.parse(responseText);
+}
+

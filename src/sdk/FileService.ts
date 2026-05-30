@@ -1,12 +1,11 @@
 import { addDoc, collection, deleteDoc, doc, getDocs, Timestamp } from 'firebase/firestore'
 import { COLLECTIONS } from '@/lib/constants'
-import { db } from '@/lib/firebase'
+import { db, auth } from '@/lib/firebase'
 import { FileRecord } from '@/types'
 import { logger } from '@/lib/logger'
 import { ActivityLogService } from '@/sdk/ActivityLogService'
+import { SecretsService } from './SecretsService'
 
-const DRIVE_UPLOAD_URL = import.meta.env.VITE_DRIVE_UPLOAD_URL as string | undefined
-const DRIVE_UPLOAD_SECRET = import.meta.env.VITE_DRIVE_UPLOAD_SECRET as string | undefined
 const MAX_UPLOAD_BYTES = 35 * 1024 * 1024
 
 const toDate = (value: unknown): Date => {
@@ -47,14 +46,15 @@ interface DriveBridgeResponse {
 }
 
 const callBridge = async (payload: Record<string, unknown>): Promise<DriveBridgeResponse> => {
-  if (!DRIVE_UPLOAD_URL || !DRIVE_UPLOAD_SECRET) {
+  const secrets = await SecretsService.getSecrets()
+  if (!secrets.driveUploadUrl || !secrets.driveUploadSecret) {
     throw new Error('drive-bridge-not-configured')
   }
   // Use text/plain to avoid CORS preflight on Apps Script web apps
-  const response = await fetch(DRIVE_UPLOAD_URL, {
+  const response = await fetch(secrets.driveUploadUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ secret: DRIVE_UPLOAD_SECRET, ...payload }),
+    body: JSON.stringify({ secret: secrets.driveUploadSecret, ...payload }),
   })
   if (!response.ok) {
     throw new Error(`drive-bridge-http-${response.status}`)
@@ -68,7 +68,7 @@ const callBridge = async (payload: Record<string, unknown>): Promise<DriveBridge
 
 export class FileService {
   static isConfigured(): boolean {
-    return Boolean(DRIVE_UPLOAD_URL && DRIVE_UPLOAD_SECRET)
+    return Boolean(auth.currentUser || (import.meta.env.VITE_DRIVE_UPLOAD_URL && import.meta.env.VITE_DRIVE_UPLOAD_SECRET))
   }
 
   static async getAll(): Promise<FileRecord[]> {

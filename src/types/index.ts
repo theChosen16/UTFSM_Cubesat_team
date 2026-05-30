@@ -97,6 +97,8 @@ export interface User {
   career?: string
   year?: string
   questionnaire?: Questionnaire
+  fechaCumpleanos?: string
+  confirmadoCubeDesign?: boolean
 }
 
 export interface Project {
@@ -247,3 +249,25 @@ export interface CalendarEvent {
   relatedTaskId?: string
   relatedProjectId?: string
 }
+
+export interface MailDigestLog {
+  id: string
+  createdAt: Date
+  triggeredBy: string
+  recipientCount: number
+  eventsCount: number
+  tasksCount: number
+  recipients: string[]
+}
+
+export interface ProcessedBotFile {
+  name: string
+  mimeType: string
+  size: number
+  inlineData?: {
+    data: string // base64
+    mimeType: string
+  }
+  extractedText?: string
+}
+

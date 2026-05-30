@@ -11,6 +11,13 @@ vi.mock('@/sdk/BotService', () => ({
   },
 }))
 
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({
+    user: { id: 'user-id', nombre: 'Test User', rol: 'member', equipos: [] }
+  })
+}))
+
+
 describe('Chatbot', () => {
   beforeEach(() => {
     sendMessageMock.mockReset()

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Rocket, Cpu, Users, Globe, ArrowRight, Award, Flame, Building2, Trophy, Flag, Sparkles } from 'lucide-react'
+import { Rocket, Cpu, Users, Globe, ArrowRight, Award, Flame, Building2, Trophy, Flag, Sparkles, Satellite } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useEffect, useRef } from 'react'
 
@@ -165,6 +165,21 @@ export default function Landing() {
                   <ArrowRight className="ml-2 w-5 h-5" />
                 </Button>
               </Link>
+              <a 
+                href="https://ground-station-production-596d.up.railway.app" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="w-full sm:w-auto"
+              >
+                <Button size="lg" variant="outline" className="group w-full border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300 sm:w-auto flex items-center justify-center gap-2.5 relative overflow-hidden shadow-[0_0_15px_rgba(6,182,212,0.15)] hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all duration-300">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                  </span>
+                  <Satellite className="w-5 h-5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+                  <span>Estación Terrena</span>
+                </Button>
+              </a>
               <Link to="/login" className="w-full sm:w-auto">
                 <Button size="lg" variant="outline" className="w-full border-space-600 text-white hover:bg-space-700 sm:w-auto">
                   Ya tengo cuenta

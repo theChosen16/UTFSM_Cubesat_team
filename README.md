@@ -73,6 +73,7 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 - **Redirección automática**: usuarios autenticados son redirigidos al dashboard si visitan login/registro
 - **Error Boundary** global que captura errores de React y muestra una pantalla de recuperación
 - **Logger de producción** para captura de errores y diagnóstico
+- **Asistente IA Inteligente con Function Calling (`Cubesat Bot`)**: Un bot de inteligencia artificial integrado usando el SDK oficial `@google/generative-ai`. Resuelve consultas aeroespaciales específicas y, para administradores autorizados (`admin`, `maestro`, `manager`), incorpora un mecanismo seguro de **Function Calling** recursivo (de hasta 3 niveles) para crear tareas, agendar reuniones, generar métricas e iniciar sincronizaciones en tiempo real mediante comandos directos de lenguaje natural, con interfaz de sugerencias tácticas (*suggestion chips*) y saludo adaptado.
 
 ## Roles y permisos
 
@@ -176,6 +177,63 @@ Los usuarios pueden seleccionar los equipos a los que desean pertenecer desde su
 | **Equipo Técnico** | Desarrollo de software, hardware, estructura, simulación y cálculos |
 | **Manager** | Coordinación de proyectos y equipos |
 | **Relaciones Públicas** | Redes sociales, difusión y contactos universitarios |
+
+## Asistente de IA (Cubesat Bot) y Function Calling 🤖🛰️
+
+El **Cubesat Bot** es el centro de asistencia de inteligencia artificial del UTFSM CubeSat Team. Integrado directamente en la interfaz del portal web mediante el SDK oficial `@google/generative-ai` y motorizado de forma inteligente por la familia de modelos de última generación `gemini-3.5-flash`, `gemini-2.5-flash` y `gemini-flash-latest` (con soporte para conmutación automática por fallo).
+
+### 1. Reglas y Comportamiento Aeroespacial Estricto
+El bot está configurado con instrucciones de sistema rigurosas que garantizan el foco de la misión:
+1. **Foco Espacial Obligatorio**: Responde únicamente consultas relacionadas con ciencia espacial, ingeniería de nanosatélites, diseño de componentes orbitales (radiación, redundancia, estrés mecánico, consumo energético, órbitas, comunicaciones) y gestión interna del equipo. Niega amablemente cualquier otra respuesta no atingente.
+2. **Filosofía de Sencillez**: Evalúa opciones con perspectiva crítica e ingenieril, priorizando siempre los sistemas sencillos y robustos por sobre el sobre-diseño.
+3. **Contexto Vivo**: En cada inicialización de chat, el servicio recopila el estado actual de los proyectos y tareas directamente desde Firestore, permitiendo que el bot conozca y referencie metas pendientes reales del equipo.
+
+### 2. Capacidad Ejecutiva (Function Calling)
+Para los usuarios autenticados con privilegios de gestión (roles `admin`, `maestro` o pertenecientes al equipo `manager`), el bot activa sus **capacidades ejecutivas** (*Gemini Function Calling*), permitiéndoles operar el portal web mediante comandos conversacionales fluidos.
+
+#### Herramientas Mapeadas Activas (Tools)
+* `crearTarea(titulo, prioridad, equipo, descripcion, fechaLimite, projectId, generarHitosAeroespaciales)`: Crea y delega una tarea en el sistema Firestore asignando puntaje de importancia respectivo. Si `generarHitosAeroespaciales` es verdadero, autogenera micro-hitos técnicos aeroespaciales en Firestore basados en el tipo de tarea (firmware/software, termodinámica, estructura, etc.).
+* `crearEvento(titulo, tipo, fechaInicio, descripcion, fechaFin, todoElDia)`: Registra y agenda reuniones, visitas o plazos límite de entrega en el Calendario oficial.
+* `sincronizarProyecto()`: Actualiza y sincroniza los activos del equipo, guardando el evento en la bitácora (`ActivityLogService`).
+* `obtenerMetricas()`: Genera un reporte analítico del progreso en tiempo real de todos los proyectos y tareas del equipo.
+* `registrarCumpleanos(miembroId, fecha)`: Registra o actualiza de manera conversacional la fecha de cumpleaños de un integrante del equipo en Firestore (útil para felicitaciones automatizadas).
+* `gestionarCubeDesign(accion, miembroId)`: Permite confirmar/desconfirmar la nómina técnica oficial, auditar el avance técnico frente a los plazos, o sembrar los 4 hitos preparatorios críticos en el calendario para el evento de competencia de CubeDesign 2026.
+* `auditarActaDrive(fechaActa, acuerdosResumen)`: Procesa un acta o minuta de reunión de Google Drive de manera masiva, parseando acuerdos para poblar automáticamente Firestore con tareas e hitos clasificados según subsistema y prioridad.
+* `obtenerEstadoNoticiario()`: Obtiene el estado de despacho y log del último envío del noticiario o boletín semanal del equipo Cubesat.
+* `forzarEnvioNoticiario()`: Despacha de manera inmediata el noticiario o boletín semanal "Boletín de la Órbita" a todos los miembros activos por correo electrónico.
+
+#### Bucle de Resolución Recursivo (Deep Execution Loop)
+El servicio `BotService` implementa un interceptor dinámico que:
+1. Lee la respuesta del modelo Gemini. Si contiene un objeto `functionCall`, detiene la conversación.
+2. Extrae los argumentos e invoca el método correspondiente del servicio seguro [AdminActionsService.ts](file:///c:/Users/alean/Desktop/Cubesat%20team%20page/src/sdk/AdminActionsService.ts).
+3. Obtiene el resultado de base de datos y lo re-inyecta recursivamente (hasta 3 niveles encadenados) de vuelta al chat en curso en la parte de respuesta (`functionResponse`).
+4. Deja que Gemini redacte una confirmación contextualizada e ingenieril al usuario.
+
+### 3. Seguridad y Control de Privilegios
+Para salvaguardar la base de datos de accesos fraudulentos o inyecciones de prompts:
+* **Filtro de Inyección de SDK**: Las herramientas (*tools*) y el System Prompt ejecutivo **jamás** se le envían al SDK de Gemini si el usuario autenticado no posee permisos demostrables de gestión. El bot actúa en modo pasivo puramente conversacional para miembros estándar.
+* **Verificación de Rol en Caliente**: En el momento en que se intercepta una llamada a función en el cliente, `BotService` ejecuta una validación local síncrona en caliente del rol activo antes de invocar a `AdminActionsService`, asegurando máxima robustez frente a ataques que intenten simular llamadas de sistema.
+
+### 4. Interfaz UI/UX de Gestión Rápida
+* **Saludo Dinámico**: El chatbot reconoce la firma del administrador y cambia su mensaje inicial a un saludo ejecutivo detallando sus herramientas activas.
+* **Suggestion Chips**: Muestra una barra superior sobre el input con accesos rápidos interactivos (`📊 Ver Métricas`, `🛠️ Crear Tarea`, `📅 Agendar Reunión`, `🔄 Sincronizar Base`) para guiar al usuario e ilustrar el potencial ejecutivo del bot de manera visual.
+
+### 5. Lectura Multi-modal y de Documentos 📄🖼️
+Los usuarios con permisos de gestión (`admin`, `manager`, `maestro`) pueden adjuntar imágenes y documentos de diversos formatos en el Cubesat Bot y solicitarle análisis, resúmenes, auditorías u otras acciones.
+* **Procesamiento de Archivos**:
+  * **Visual y Multi-modal Nativo**: Las imágenes (PNG, JPEG, WEBP) y documentos PDF se codifican a Base64 y se envían de forma nativa al modelo de Gemini usando `inlineData`, permitiendo que el bot use visión computacional de alta fidelidad.
+  * **Compresión y Parsing de Oficina**: Los archivos de Microsoft Word (`.docx`) y PowerPoint (`.pptx`) son parseados en caliente en el navegador mediante `jszip`. El sistema extrae dinámicamente el texto de párrafos y diapositivas y los inyecta de forma estructurada como contexto del prompt, ahorrando procesamiento del servidor.
+  * **Formatos de Texto Plano**: Archivos `.txt`, `.csv`, `.json` y `.md` son leídos en texto plano e incorporados directamente en el cuerpo del mensaje.
+* **UI/UX Segura y Envolvente**:
+  * Solo los roles autorizados ven el botón de clip (📎) de adjuntar archivos en el chat.
+  * Cuenta con previsualizaciones flotantes de tipo glassmorphic con barra de carga, peso del archivo y alertas de error.
+  * Los mensajes enviados en el chat que contienen archivos adjuntos muestran un badge estilizado con el nombre e ícono correspondiente en su burbuja de chat.
+
+### 6. Ideas de Expansión
+Para optimizar el orden, la coordinación interna del equipo y potenciar el portal, se ha mapeado la siguiente extensión estratégica para incorporar a futuro:
+* **Asignación Predictiva y Balanceo de Carga ⚖️**: Auditoría en tiempo real de tareas activas por subsistema técnico para sugerir asignaciones equilibradas al crear nuevas tareas.
+
+---
 
 ## Requisitos previos
 
@@ -298,26 +356,45 @@ Los tests E2E cubren: autenticación (registro, roles, sign in/out), proyectos, 
 
 ## Despliegue
 
-El proyecto se despliega automáticamente en **GitHub Pages** mediante GitHub Actions:
+El proyecto se publica de manera estática y gratuita en **GitHub Pages**. Dado que la facturación de GitHub (Actions Billing) en repositorios privados puede restringir la ejecución de workflows automáticos en la nube, el despliegue se realiza **manualmente desde el entorno local**, compilando la aplicación en la carpeta `/docs` directamente en la rama principal (`main`).
 
-1. Cada push o pull request a `main` ejecuta el pipeline de CI (lint + tests + build).
-2. Si el CI pasa en `main`, el workflow de despliegue publica la aplicación en GitHub Pages. Si el workflow `CI` falla, `Deploy to GitHub Pages` queda automáticamente **skipped**.
-3. Tras el despliegue, un smoke test verifica que la página es accesible (HTTP 200).
+Para desplegar y actualizar el sitio web productivo:
 
-La URL pública es: `https://thechosen16.github.io/UTFSM_Cubesat_team/`
+1. Asegúrate de tener configurado tu archivo `.env.local` con las variables de Firebase.
+2. Ejecuta el script de despliegue automatizado:
+   ```bash
+   npm run deploy
+   ```
+   Este comando compilará síncronamente el proyecto en modo de producción (`npm run build`), añadirá los cambios generados en `/docs`, confirmará el commit en Git y los subirá de forma segura a la rama remota `main`.
+3. Tu sitio se actualizará automáticamente y sin costo alguno en la URL pública: `https://thechosen16.github.io/UTFSM_Cubesat_team/`
 
-Para que el deploy publique la versión productiva correctamente, configura estos **GitHub Secrets** en el repositorio o entorno de Pages:
+---
 
-- `VITE_FIREBASE_API_KEY`
-- `VITE_FIREBASE_AUTH_DOMAIN`
-- `VITE_FIREBASE_PROJECT_ID`
-- `VITE_FIREBASE_STORAGE_BUCKET`
-- `VITE_FIREBASE_MESSAGING_SENDER_ID`
-- `VITE_FIREBASE_APP_ID`
-- `VITE_FIREBASE_MEASUREMENT_ID` (opcional)
-- `VITE_GOOGLE_AI_KEY` (opcional)
-- `VITE_DRIVE_UPLOAD_URL` (requerida para habilitar el repertorio de archivos)
-- `VITE_DRIVE_UPLOAD_SECRET` (requerida para habilitar el repertorio de archivos)
+## Zero-Trust y Gestión de Secretos
+
+Para evitar la fuga de credenciales críticas en este repositorio público y eliminar la necesidad de configurar variables de entorno en sistemas externos, el portal implementa un modelo de **Zero-Trust**:
+
+1. **Sin Secretos en el Cliente**:
+   * **Gemini API Key**: Se almacena exclusivamente en las propiedades de entorno privadas de tu Google Apps Script (`Script Properties`), actuando como un Backend Proxy seguro (`handleChat`). La web del cliente nunca carga ni expone la API Key.
+   * **Drive Bridge Secrets**: La URL y el token secreto de subida se recuperan dinámicamente en caliente desde Firestore (`/system_config/keys`) una vez que el usuario institucional (`@usm.cl` o `@sansano.usm.cl`) inicia sesión.
+2. **Siembra de Credenciales**:
+   Para registrar o actualizar tus credenciales del Drive Bridge en producción, abre la Consola de Desarrollador del navegador en el portal autenticado con tu cuenta de Administrador o Maestro, y ejecuta el siguiente script:
+   ```javascript
+   const db = window.firebaseDb;
+   const { doc, setDoc } = window.firebaseFirestore;
+
+   await setDoc(doc(db, 'system_config', 'keys'), {
+     driveUploadUrl: "TU_GOOGLE_APPS_SCRIPT_EXEC_URL",
+     driveUploadSecret: "TU_SHARED_SECRET"
+   });
+   console.log("¡Credenciales del Drive Bridge guardadas exitosamente!");
+   ```
+3. **Reglas de Seguridad de Firebase**:
+   Para proteger el acceso a estos secretos y auditar el noticiario masivo, el archivo [firestore.rules](file:///c:/Users/alean/Desktop/Cubesat%20team%20page/firestore.rules) restringe los accesos. Puesto que tienes instalado `firebase-tools` localmente, puedes desplegar cualquier cambio en las reglas de forma instantánea ejecutando:
+   ```bash
+   firebase deploy --only firestore:rules
+   ```
+   *(También puedes administrarlas copiando el contenido de `firestore.rules` y pegándolo en la sección de Reglas del Firebase Console)*
 
 ## CI/CD
 

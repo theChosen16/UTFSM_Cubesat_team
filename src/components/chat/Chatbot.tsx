@@ -1,15 +1,21 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bot, X, Send, User as UserIcon, Loader2 } from 'lucide-react'
+import { Bot, X, Send, User as UserIcon, Loader2, Paperclip, FileText, CheckCircle2, AlertCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 import { BotService } from '@/sdk/BotService'
+import { useAuth } from '@/contexts/AuthContext'
+import { FileParser } from '@/utils/fileParser'
+import { ProcessedBotFile } from '@/types'
 
 interface Message {
   role: 'user' | 'model'
   content: string
+  fileName?: string
+  fileMimeType?: string
 }
 
 export function Chatbot() {
+  const { user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -21,7 +27,52 @@ export function Chatbot() {
   const [isTyping, setIsTyping] = useState(false)
   const endOfMessagesRef = useRef<HTMLDivElement>(null)
 
-  // Scroll al ultimo mensaje automáticamente
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isParsingFile, setIsParsingFile] = useState(false)
+  const [processedFile, setProcessedFile] = useState<ProcessedBotFile | null>(null)
+  const [fileError, setFileError] = useState<string | null>(null)
+
+  const isManager = user?.equipos?.includes('manager') || user?.rol === 'maestro' || user?.rol === 'admin'
+
+  const adminSuggestions = [
+    { label: '📊 Ver Métricas', prompt: 'Muestra un reporte consolidado con las métricas actuales del desarrollo de proyectos' },
+    { label: '🛠️ Crear Tarea', prompt: 'Crear una tarea de prioridad media para el subsistema tecnico titulada "Revisión de telemetría"' },
+    { label: '📅 Agendar Reunión', prompt: 'Agenda una reunión de subsistema para mañana a las 15:00 titulada "Reunión de Sincronización"' },
+    { label: '🔄 Sincronizar Base', prompt: 'Sincronizar base de datos y memoria de proyectos del equipo' }
+  ]
+
+  // Actualizar el saludo inicial dinámicamente cuando cambie el usuario o rol
+  useEffect(() => {
+    if (user) {
+      const name = user.nombre || 'Administrador'
+      const activeIsManager = user.equipos?.includes('manager') || user.rol === 'maestro' || user.rol === 'admin'
+      if (activeIsManager) {
+        setMessages([
+          {
+            role: 'model',
+            content: `¡Hola, ${name}! Sistemas de gestión y organización online. Detecto privilegios ejecutivos activos en tu firma digital.\n\nPuedo asistirte en tiempo real a delegar tareas, agendar reuniones en el calendario orbital, sincronizar la base de datos viva o generar resúmenes de rendimiento. ¿Qué directiva deseas ejecutar hoy?`
+          }
+        ])
+      } else {
+        setMessages([
+          {
+            role: 'model',
+            content: `¡Hola, ${name}! Soy Cubesat Bot, el núcleo táctico de inteligencia del equipo USM Cubesat.\n\nEstoy aquí para mantenerte enfocado en la misión, asistir con análisis ingenieril y revisar el contexto crítico de nuestros proyectos espaciales. ¿En qué parámetro te asisto hoy?`
+          }
+        ])
+      }
+    } else {
+      setMessages([
+        {
+          role: 'model',
+          content: '¡Hola! Soy Cubesat Bot, el núcleo táctico de inteligencia del equipo USM Cubesat.\n\nEstoy aquí para mantenerte enfocado en la misión, asistir con análisis ingenieril y revisar el contexto crítico de nuestros proyectos espaciales. ¿En qué parámetro te asisto hoy?'
+        }
+      ])
+    }
+  }, [user])
+
+  // Scroll al último mensaje automáticamente
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping, isOpen])
@@ -39,19 +90,87 @@ export function Chatbot() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen])
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    const file = files[0]
+    setFileError(null)
+
+    // Límite de 10 MB para evitar saturación de memoria del navegador y límites de Gemini
+    const MAX_SIZE = 10 * 1024 * 1024
+    if (file.size > MAX_SIZE) {
+      setFileError('El archivo supera el límite permitido de 10 MB.')
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    setSelectedFile(file)
+    setIsParsingFile(true)
+
+    try {
+      const parsed = await FileParser.processFile(file)
+      setProcessedFile(parsed)
+    } catch (err) {
+      setFileError(err instanceof Error ? err.message : 'Error al procesar el archivo.')
+      setSelectedFile(null)
+      setProcessedFile(null)
+    } finally {
+      setIsParsingFile(false)
+    }
+  }
+
+  const handleRemoveFile = () => {
+    setSelectedFile(null)
+    setProcessedFile(null)
+    setFileError(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault()
-    if (!input.trim() || isTyping) return
+    if (!input.trim() || isTyping || isParsingFile) return
 
     const userMessage = input.trim()
     setInput('')
     
+    // Guardamos referencia al archivo procesado antes de limpiar los estados
+    const fileToSend = processedFile
+
+    // Limpiamos los estados de subida inmediatamente
+    setSelectedFile(null)
+    setProcessedFile(null)
+    setFileError(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+
     // Add user message immediately
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }])
+    setMessages(prev => [...prev, { 
+      role: 'user', 
+      content: userMessage,
+      fileName: fileToSend?.name,
+      fileMimeType: fileToSend?.mimeType
+    }])
     setIsTyping(true)
 
-    // Llamar motor del BotService
-    const aiResponse = await BotService.sendMessage(userMessage)
+    // Llamar motor del BotService con telemetría de usuario y archivo procesado
+    const aiResponse = await BotService.sendMessage(userMessage, user?.id, user?.rol, fileToSend)
+
+    setMessages(prev => [...prev, { role: 'model', content: aiResponse }])
+    setIsTyping(false)
+  }
+
+  const handleSuggestionClick = async (prompt: string) => {
+    if (isTyping) return
+    setInput('')
+    
+    setMessages(prev => [...prev, { role: 'user', content: prompt }])
+    setIsTyping(true)
+
+    const aiResponse = await BotService.sendMessage(prompt, user?.id, user?.rol, null)
 
     setMessages(prev => [...prev, { role: 'model', content: aiResponse }])
     setIsTyping(false)
@@ -128,7 +247,16 @@ export function Chatbot() {
               </div>
               <div className={`p-3 rounded-2xl text-sm ${msg.role === 'user' ? 'bg-purple-500/20 text-white rounded-tr-sm' : 'bg-space-700/80 text-gray-200 rounded-tl-sm'}`}>
                 {msg.role === 'user' ? (
-                  <p>{msg.content}</p>
+                  <div className="space-y-2">
+                    {msg.fileName && (
+                      <div className="flex items-center gap-2 rounded-lg bg-black/45 border border-purple-500/20 px-2.5 py-1.5 text-xs text-purple-200">
+                        <FileText size={14} className="text-purple-400 flex-shrink-0" />
+                        <span className="truncate max-w-[140px] font-medium" title={msg.fileName}>{msg.fileName}</span>
+                        <span className="text-[9px] text-purple-400/60 font-mono flex-shrink-0 bg-purple-500/10 px-1.5 py-0.5 rounded">adjunto</span>
+                      </div>
+                    )}
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  </div>
                 ) : (
                   <div className="prose prose-invert prose-p:leading-snug prose-sm max-w-none">
                     <ReactMarkdown>{msg.content}</ReactMarkdown>
@@ -152,22 +280,115 @@ export function Chatbot() {
           <div ref={endOfMessagesRef} />
         </div>
 
+        {/* Chips de sugerencias administrativas */}
+        {isManager && (
+          <div className="flex gap-2 overflow-x-auto px-4 py-2 bg-space-900/30 border-t border-space-600/50 scrollbar-none">
+            {adminSuggestions.map((sug, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSuggestionClick(sug.prompt)}
+                disabled={isTyping}
+                className="flex-shrink-0 rounded-full border border-cyan-500/30 bg-cyan-950/20 px-3 py-1 text-xs text-cyan-400 hover:bg-cyan-500/20 hover:text-white transition-all disabled:opacity-50"
+              >
+                {sug.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Input box */}
         <div className="mobile-safe-bottom rounded-b-[1.75rem] border-t border-space-600 bg-space-900/50 p-3 sm:rounded-b-2xl">
+          {/* File input (oculto) */}
+          {isManager && (
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              disabled={isTyping || isParsingFile}
+              accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.csv,.json,.md,.docx,.pptx"
+              className="hidden"
+            />
+          )}
+
+          {/* Previsualización del archivo adjunto */}
+          {selectedFile && (
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-cyan-500/25 bg-cyan-950/20 px-3 py-2 text-xs text-cyan-200 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-center gap-2 truncate">
+                {isParsingFile ? (
+                  <Loader2 size={15} className="animate-spin text-cyan-400" />
+                ) : (
+                  <CheckCircle2 size={15} className="text-emerald-400" />
+                )}
+                <FileText size={15} className="text-cyan-400 flex-shrink-0" />
+                <span className="truncate font-medium max-w-[200px]" title={selectedFile.name}>
+                  {selectedFile.name}
+                </span>
+                <span className="text-[10px] text-cyan-400/50 font-mono">
+                  ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                </span>
+                {isParsingFile && (
+                  <span className="text-[10px] text-cyan-400/70 animate-pulse">
+                    Analizando...
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleRemoveFile}
+                disabled={isTyping}
+                className="rounded-full p-1 hover:bg-cyan-500/20 text-cyan-400 hover:text-white transition-colors"
+                title="Quitar archivo"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
+          {/* Previsualización de errores de archivo */}
+          {fileError && (
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-red-500/25 bg-red-950/20 px-3 py-2 text-xs text-red-200 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={15} className="text-red-400" />
+                <span className="font-medium">{fileError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleRemoveFile}
+                className="rounded-full p-1 hover:bg-red-500/20 text-red-400 hover:text-white transition-colors"
+                title="Cerrar error"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+
           <form onSubmit={handleSendMessage} className="flex items-end gap-2">
+            {isManager && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isTyping || isParsingFile}
+                title="Adjuntar archivo"
+                aria-label="Adjuntar archivo"
+                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-space-600 bg-space-800 text-cyan-400 transition-all hover:bg-space-700 disabled:opacity-30 disabled:pointer-events-none"
+              >
+                <Paperclip size={18} />
+              </button>
+            )}
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Envía una consulta táctica..."
-              disabled={isTyping}
+              disabled={isTyping || isParsingFile}
               className="min-h-11 flex-1 bg-space-700 border border-space-600 rounded-xl px-4 py-2.5 text-base text-white placeholder-muted-foreground focus:outline-none focus:border-cyan-500 disabled:opacity-50 sm:text-sm"
             />
             <button
               type="submit"
-              disabled={!input.trim() || isTyping}
+              disabled={!input.trim() || isTyping || isParsingFile}
               aria-label="Enviar mensaje"
-              className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-600 text-white transition-colors hover:bg-cyan-500 disabled:opacity-50 disabled:hover:bg-cyan-600"
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-cyan-600 text-white transition-colors hover:bg-cyan-500 disabled:opacity-50 disabled:hover:bg-cyan-600"
             >
               <Send size={18} className="translate-x-0.5" />
             </button>

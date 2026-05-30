@@ -41,10 +41,10 @@ function renderRegister() {
 }
 
 /** Fill step 1 with valid data and advance to step 2 */
-async function advanceToNameStep(user: ReturnType<typeof userEvent.setup>, email = 'alejandro.hernandeza@sansano.usm.cl') {
+async function advanceToNameStep(user: ReturnType<typeof userEvent.setup>, email = 'test.usuario@sansano.usm.cl') {
   await user.type(screen.getByPlaceholderText('nombre@usm.cl'), email)
-  await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'Falopa123')
-  await user.type(screen.getAllByPlaceholderText('••••••••')[1], 'Falopa123')
+  await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'TestPassword123!')
+  await user.type(screen.getAllByPlaceholderText('••••••••')[1], 'TestPassword123!')
   await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
 }
 
@@ -69,8 +69,8 @@ describe('Register', () => {
     renderRegister()
 
     await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test@gmail.com')
-    await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'Falopa123')
-    await user.type(screen.getAllByPlaceholderText('••••••••')[1], 'Falopa123')
+    await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'TestPassword123!')
+    await user.type(screen.getAllByPlaceholderText('••••••••')[1], 'TestPassword123!')
     await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
 
     expect(screen.getByText(/correo institucional de la USM/i)).toBeInTheDocument()
@@ -81,8 +81,8 @@ describe('Register', () => {
     const user = userEvent.setup()
     renderRegister()
 
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
-    await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'Falopa123')
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test.usuario@sansano.usm.cl')
+    await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'TestPassword123!')
     await user.type(screen.getAllByPlaceholderText('••••••••')[1], 'DifferentPass')
     await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
 
@@ -94,7 +94,7 @@ describe('Register', () => {
     const user = userEvent.setup()
     renderRegister()
 
-    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'alejandro.hernandeza@sansano.usm.cl')
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test.usuario@sansano.usm.cl')
     await user.type(screen.getAllByPlaceholderText('••••••••')[0], '123')
     await user.type(screen.getAllByPlaceholderText('••••••••')[1], '123')
     await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
@@ -133,8 +133,8 @@ describe('Register', () => {
 
     await waitFor(() => {
       expect(mockSignUp).toHaveBeenCalledWith(
-        'alejandro.hernandeza@sansano.usm.cl',
-        'Falopa123',
+        'test.usuario@sansano.usm.cl',
+        'TestPassword123!',
         'Alejandro',
         'Hernandez'
       )
@@ -189,11 +189,11 @@ describe('Register', () => {
     const user = userEvent.setup()
     renderRegister()
 
-    await advanceToNameStep(user, 'alejandro.hernandeza@sansano.usm.cl')
+    await advanceToNameStep(user, 'test.usuario@sansano.usm.cl')
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Juan')).toHaveValue('Alejandro')
-      expect(screen.getByPlaceholderText('Pérez')).toHaveValue('Hernandeza')
+      expect(screen.getByPlaceholderText('Juan')).toHaveValue('Test')
+      expect(screen.getByPlaceholderText('Pérez')).toHaveValue('Usuario')
     })
   })
 
