@@ -6,11 +6,11 @@ import { ProcessedBotFile } from '@/types'
  */
 function decodeXmlEntities(str: string): string {
   return str
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
 }
 
 /**
@@ -69,7 +69,7 @@ async function parseDocx(file: File): Promise<string> {
 
   const extracted = matches
     .map(match => {
-      const content = match.replace(/<[^>]+>/g, '') // Eliminar etiquetas XML
+      const content = match.replace(/^<w:t[^>]*>/, '').replace(/<\/w:t>$/, '')
       return decodeXmlEntities(content)
     })
     .join(' ')
@@ -115,7 +115,7 @@ async function parsePptx(file: File): Promise<string> {
     const slideText = matches
       ? matches
           .map(match => {
-            const content = match.replace(/<[^>]+>/g, '') // Eliminar etiquetas XML
+            const content = match.replace(/^<a:t[^>]*>/, '').replace(/<\/a:t>$/, '')
             return decodeXmlEntities(content)
           })
           .join(' ')
