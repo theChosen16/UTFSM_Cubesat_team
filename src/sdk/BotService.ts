@@ -22,6 +22,8 @@ if (isDirectMode && API_KEY) {
   genAI = new GoogleGenerativeAI(API_KEY)
 }
 
+const MAX_CHAT_HISTORY_TURNS = 20
+
 export class BotService {
   private static chatSession: ChatSession | null = null
   private static chatHistory: any[] = []
@@ -555,6 +557,11 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
       role: 'user',
       parts: newParts
     })
+
+    // Trim history to avoid unbounded memory growth and oversized API payloads
+    if (this.chatHistory.length > MAX_CHAT_HISTORY_TURNS * 2) {
+      this.chatHistory = this.chatHistory.slice(-MAX_CHAT_HISTORY_TURNS * 2)
+    }
 
     const activeUserId = userId || 'bot_admin_fallback'
 

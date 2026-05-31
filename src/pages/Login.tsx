@@ -60,11 +60,7 @@ export default function Login() {
       } else {
         switch (firebaseError.code) {
           case 'auth/user-not-found':
-            setError('No existe una cuenta con este correo electrónico.')
-            break
           case 'auth/wrong-password':
-            setError('La contraseña es incorrecta.')
-            break
           case 'auth/invalid-credential':
             setError('Credenciales inválidas. Verifica tu email y contraseña.')
             break

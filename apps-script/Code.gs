@@ -21,6 +21,16 @@ const SHARED_SECRET = 'PUT_A_LONG_RANDOM_STRING_HERE';
 const ALLOWED_EMAIL_PATTERN = /^[a-zA-Z0-9._%+\-]+@(sansano\.)?usm\.cl$/i;
 const MAX_FILE_BYTES = 35 * 1024 * 1024;
 
+// Allowlist of Gemini model identifiers accepted by handleChat
+const ALLOWED_MODELS = [
+  'gemini-3.5-flash',
+  'gemini-2.5-flash',
+  'gemini-flash-latest',
+  'gemini-2.5-flash-lite',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
+];
+
 // Allowlist of permitted MIME types to prevent executable file uploads
 const ALLOWED_MIME_TYPES = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
@@ -116,7 +126,10 @@ function handleUpload(params) {
   const file = target.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-  if (params.deliverableId) file.setDescription('deliverable:' + params.deliverableId);
+  // Store uploader email and deliverableId in description for ownership verification on delete
+  const descParts = ['uploader:' + params.userEmail];
+  if (params.deliverableId) descParts.push('deliverable:' + params.deliverableId);
+  file.setDescription(descParts.join(';'));
 
   return {
     id: file.getId(),
@@ -133,6 +146,20 @@ function handleDelete(params) {
     throw new Error('missing fileId');
   }
   const file = DriveApp.getFileById(params.fileId);
+
+  // Verify ownership: only the original uploader may delete via the bridge.
+  // Files uploaded before this check was added (no uploader tag) are allowed
+  // through for backward compatibility.
+  const description = file.getDescription() || '';
+  const uploaderMatch = description.match(/uploader:([^;]+)/);
+  if (uploaderMatch) {
+    const uploaderEmail = uploaderMatch[1].trim().toLowerCase();
+    const requesterEmail = (params.userEmail || '').trim().toLowerCase();
+    if (uploaderEmail !== requesterEmail) {
+      return { error: 'unauthorized: you can only delete files you uploaded' };
+    }
+  }
+
   file.setTrashed(true);
   return { ok: true };
 }
@@ -142,13 +169,19 @@ function handleChat(params) {
     throw new Error('missing model or contents');
   }
 
+  // Validate model against allowlist to prevent path injection / unintended API access
+  const modelName = String(params.model);
+  if (!ALLOWED_MODELS.includes(modelName)) {
+    throw new Error('model not allowed: ' + modelName);
+  }
+
   // Retrieve API Key securely from Script Properties
   const apiKey = PropertiesService.getScriptProperties().getProperty('GOOGLE_AI_KEY');
   if (!apiKey) {
     throw new Error('Google AI API Key not configured in Apps Script properties.');
   }
 
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + params.model + ':generateContent?key=' + apiKey;
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent?key=' + apiKey;
 
   const payload = {
     contents: params.contents
