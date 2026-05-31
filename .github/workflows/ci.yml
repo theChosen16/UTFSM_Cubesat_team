@@ -36,6 +36,17 @@ jobs:
 
       - name: Run tests
         run: npm test
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY || 'ci-placeholder' }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN || 'ci-placeholder.firebaseapp.com' }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID || 'ci-placeholder' }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || 'ci-placeholder.appspot.com' }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID || '000000000000' }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID || '1:000000000000:web:ci-placeholder' }}
+          VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID || 'G-CI00000000' }}
+          VITE_GOOGLE_AI_KEY: ${{ secrets.VITE_GOOGLE_AI_KEY || 'AIzaSy-fallback-dummy-ci-key' }}
+          VITE_DRIVE_UPLOAD_URL: ${{ secrets.VITE_DRIVE_UPLOAD_URL || '' }}
+          VITE_DRIVE_UPLOAD_SECRET: ${{ secrets.VITE_DRIVE_UPLOAD_SECRET || '' }}
 
       - name: Build
         run: npm run build
