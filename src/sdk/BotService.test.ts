@@ -67,6 +67,8 @@ describe('BotService', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    import.meta.env.DEV = true
+    import.meta.env.VITE_ENABLE_DIRECT_AI = 'true'
     import.meta.env.VITE_GOOGLE_AI_KEY = 'test-google-key'
     getProjectListMock.mockResolvedValue([])
     getTaskListMock.mockResolvedValue([])
