@@ -8,6 +8,15 @@ import { CalendarEvent, Task, MailDigestLog } from '@/types'
 import { logger } from '@/lib/logger'
 import { ActivityLogService } from '@/sdk/ActivityLogService'
 
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 export class EmailNotificationService {
   /**
    * Compila los datos de los últimos 7 días y los próximos 7 días
@@ -127,8 +136,8 @@ export class EmailNotificationService {
                 ${typeLabel}
               </span>
             </div>
-            <h4 style="margin: 4px 0; color: #ffffff; font-size: 15px; font-weight: 600;">${event.titulo}</h4>
-            <p style="margin: 4px 0 8px 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">${event.descripcion || 'Sin descripción detallada.'}</p>
+            <h4 style="margin: 4px 0; color: #ffffff; font-size: 15px; font-weight: 600;">${escapeHtml(event.titulo)}</h4>
+            <p style="margin: 4px 0 8px 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">${escapeHtml(event.descripcion || 'Sin descripción detallada.')}</p>
             <div style="font-size: 12px; color: #22d3ee; font-weight: bold;">
               📅 ${formatDate(event.fechaInicio)}
             </div>
@@ -147,7 +156,7 @@ export class EmailNotificationService {
       completedTasks.forEach(task => {
         completedHTML += `
           <li style="color: #e5e7eb; font-size: 13px; margin-bottom: 8px; line-height: 1.4;">
-            <strong style="color: #10b981;">✓ ${task.titulo}</strong>
+            <strong style="color: #10b981;">✓ ${escapeHtml(task.titulo)}</strong>
             <span style="color: #9ca3af; font-size: 12px;">(${task.equipo === 'manager' ? 'Gestión' : task.equipo === 'relaciones_publicas' ? 'RRPP' : 'Técnico'})</span>
           </li>
         `
@@ -162,7 +171,7 @@ export class EmailNotificationService {
       inProgressTasks.slice(0, 8).forEach(task => {
         inProgressHTML += `
           <li style="color: #e5e7eb; font-size: 13px; margin-bottom: 8px; line-height: 1.4;">
-            <strong style="color: #a855f7;">✦ ${task.titulo}</strong> 
+            <strong style="color: #a855f7;">✦ ${escapeHtml(task.titulo)}</strong>
             <span style="color: #9ca3af; font-size: 12px;">- asignada a ${task.asignadoA.length} miembro(s)</span>
           </li>
         `
@@ -215,7 +224,7 @@ export class EmailNotificationService {
             <td style="padding: 24px;">
               <!-- GREETING -->
               <p style="margin: 0 0 20px 0; font-size: 15px; line-height: 1.6; color: #e5e7eb;">
-                ¡Hola <strong>${userName}</strong>! 👋
+                ¡Hola <strong>${escapeHtml(userName)}</strong>! 👋
               </p>
               <p style="margin: 0 0 24px 0; font-size: 14px; line-height: 1.6; color: #9ca3af;">
                 Te presentamos el informe de la órbita de esta semana con las actividades más destacadas, los eventos programados del calendario para coordinarnos y los logros del equipo técnico y administrativo de **UTFSM CubeSat**.

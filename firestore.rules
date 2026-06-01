@@ -64,8 +64,8 @@ service cloud.firestore {
         request.resource.data.recipientId is string &&
         request.resource.data.recipientId.size() > 0;
 
-      // Users can update their own notifications (e.g., mark as read)
-      allow update: if request.auth != null &&
+      // Users can update or delete their own notifications (e.g., mark as read / dismiss)
+      allow update, delete: if request.auth != null &&
         resource.data.recipientId == request.auth.uid;
     }
 
@@ -135,7 +135,8 @@ service cloud.firestore {
     }
 
     match /mail/{mailId} {
-      allow create: if request.auth != null;
+      // Only workspace managers/admins/maestros may enqueue mail to prevent spam abuse.
+      allow create: if request.auth != null && canManageWorkspace();
     }
 
     match /mail_digests/{digestId} {

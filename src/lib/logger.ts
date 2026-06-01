@@ -107,8 +107,8 @@ class Logger {
 
 export const logger = new Logger()
 
-// Expose the logger on the global object in non-production builds so it can be inspected
-// from the console during development and staging, being agnostic to browsers/Mobile/Node.
-if (typeof globalThis !== 'undefined') {
+// Expose the logger on the global object only during local development so it can be
+// inspected from DevTools. Never expose internal logs in production builds.
+if (import.meta.env.DEV && typeof globalThis !== 'undefined') {
   ;(globalThis as unknown as Record<string, unknown>).__cubesat_logger = logger
 }

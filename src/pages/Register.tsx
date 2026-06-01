@@ -45,8 +45,8 @@ export default function Register() {
       return
     }
 
-    if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres')
+    if (password.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres')
       return
     }
 
@@ -87,7 +87,7 @@ export default function Register() {
       } else if (firebaseError.code === 'auth/operation-not-allowed') {
         setError('El registro con correo y contraseña no está habilitado en Firebase.')
       } else if (firebaseError.code === 'auth/weak-password') {
-        setError('La contraseña es demasiado débil. Usa al menos 6 caracteres.')
+        setError('La contraseña es demasiado débil. Usa al menos 8 caracteres.')
       } else {
         setError(`Error: ${firebaseError.message || 'No se pudo crear la cuenta'}`)
       }
@@ -239,6 +239,7 @@ export default function Register() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 bg-space-700 border-space-600 text-white placeholder:text-muted-foreground focus:border-cyan-500"
                   autoComplete="new-password"
+                  minLength={8}
                   required
                 />
               </div>

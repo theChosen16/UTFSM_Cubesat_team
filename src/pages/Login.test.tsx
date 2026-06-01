@@ -113,7 +113,7 @@ describe('Login', () => {
     })
   })
 
-  it('shows specific error for user not found', async () => {
+  it('shows generic error for user not found (prevents user enumeration)', async () => {
     const firebaseError = new Error('User not found')
     Object.assign(firebaseError, { code: 'auth/user-not-found' })
     mockSignIn.mockRejectedValueOnce(firebaseError)
@@ -126,11 +126,11 @@ describe('Login', () => {
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
     await waitFor(() => {
-      expect(screen.getByText('No existe una cuenta con este correo electrónico.')).toBeInTheDocument()
+      expect(screen.getByText('Credenciales inválidas. Verifica tu email y contraseña.')).toBeInTheDocument()
     })
   })
 
-  it('shows specific error for wrong password', async () => {
+  it('shows generic error for wrong password (prevents user enumeration)', async () => {
     const firebaseError = new Error('Wrong password')
     Object.assign(firebaseError, { code: 'auth/wrong-password' })
     mockSignIn.mockRejectedValueOnce(firebaseError)
@@ -143,7 +143,7 @@ describe('Login', () => {
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }))
 
     await waitFor(() => {
-      expect(screen.getByText('La contraseña es incorrecta.')).toBeInTheDocument()
+      expect(screen.getByText('Credenciales inválidas. Verifica tu email y contraseña.')).toBeInTheDocument()
     })
   })
 

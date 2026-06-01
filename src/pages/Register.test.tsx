@@ -99,7 +99,7 @@ describe('Register', () => {
     await user.type(screen.getAllByPlaceholderText('••••••••')[1], '123')
     await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
 
-    expect(screen.getByText('La contraseña debe tener al menos 6 caracteres')).toBeInTheDocument()
+    expect(screen.getByText('La contraseña debe tener al menos 8 caracteres')).toBeInTheDocument()
     expect(mockSignUp).not.toHaveBeenCalled()
   })
 
