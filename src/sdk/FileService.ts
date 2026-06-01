@@ -50,11 +50,16 @@ const callBridge = async (payload: Record<string, unknown>): Promise<DriveBridge
   if (!secrets.driveUploadUrl || !secrets.driveUploadSecret) {
     throw new Error('drive-bridge-not-configured')
   }
+  // Send a Firebase ID token so the bridge can derive the trusted uploader/owner email
+  // server-side instead of relying on the spoofable client-supplied email.
+  const idToken = auth.currentUser
+    ? await auth.currentUser.getIdToken().catch(() => undefined)
+    : undefined
   // Use text/plain to avoid CORS preflight on Apps Script web apps
   const response = await fetch(secrets.driveUploadUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ secret: secrets.driveUploadSecret, ...payload }),
+    body: JSON.stringify({ secret: secrets.driveUploadSecret, idToken, ...payload }),
   })
   if (!response.ok) {
     throw new Error(`drive-bridge-http-${response.status}`)

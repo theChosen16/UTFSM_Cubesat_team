@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth'
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import {
   doc,
   setDoc,
@@ -11,11 +11,13 @@ import {
   Timestamp,
   query,
   where,
+  type DocumentReference,
 } from 'firebase/firestore'
 import { getTestFirebase, clearFirestoreData, clearAuthUsers } from '../emulator-config'
 
 describe('Notifications E2E', () => {
   const { auth, db } = getTestFirebase()
+  const PW = 'Pass123!'
   let senderUid: string
   let recipientUid: string
 
@@ -24,7 +26,7 @@ describe('Notifications E2E', () => {
     await clearAuthUsers()
 
     // Create sender
-    const { user: sender } = await createUserWithEmailAndPassword(auth, 'sender@usm.cl', 'Pass123!')
+    const { user: sender } = await createUserWithEmailAndPassword(auth, 'sender@usm.cl', PW)
     senderUid = sender.uid
     await setDoc(doc(db, 'users', senderUid), {
       email: 'sender@usm.cl',
@@ -37,7 +39,7 @@ describe('Notifications E2E', () => {
     await signOut(auth)
 
     // Create recipient
-    const { user: recipient } = await createUserWithEmailAndPassword(auth, 'recipient@usm.cl', 'Pass123!')
+    const { user: recipient } = await createUserWithEmailAndPassword(auth, 'recipient@usm.cl', PW)
     recipientUid = recipient.uid
     await setDoc(doc(db, 'users', recipientUid), {
       email: 'recipient@usm.cl',
@@ -48,11 +50,20 @@ describe('Notifications E2E', () => {
     })
   })
 
+  // The notifications rules require the creator to be the sender (senderId == auth.uid)
+  // and only the recipient may read/update their own notifications. Each test therefore
+  // creates as the sender and reads back as the recipient.
+  beforeEach(async () => {
+    await signInWithEmailAndPassword(auth, 'sender@usm.cl', PW)
+  })
+
   afterAll(async () => {
     await signOut(auth)
     await clearFirestoreData()
     await clearAuthUsers()
   })
+
+  const asRecipient = () => signInWithEmailAndPassword(auth, 'recipient@usm.cl', PW)
 
   it('should send a message notification and store it in Firestore', async () => {
     const notifRef = await addDoc(collection(db, 'notifications'), {
@@ -66,6 +77,7 @@ describe('Notifications E2E', () => {
       senderName: 'Sender User',
     })
 
+    await asRecipient()
     const stored = await getDoc(notifRef)
     expect(stored.exists()).toBe(true)
 
@@ -86,8 +98,10 @@ describe('Notifications E2E', () => {
       message: 'Test system notification',
       read: false,
       createdAt: Timestamp.now(),
+      senderId: senderUid,
     })
 
+    await asRecipient()
     expect((await getDoc(notifRef)).data()!.read).toBe(false)
 
     await updateDoc(notifRef, { read: true })
@@ -97,7 +111,6 @@ describe('Notifications E2E', () => {
   })
 
   it('should query notifications for a specific user', async () => {
-    // Add notifications for recipient
     await addDoc(collection(db, 'notifications'), {
       recipientId: recipientUid,
       type: 'task_assigned',
@@ -105,8 +118,10 @@ describe('Notifications E2E', () => {
       message: 'You have been assigned a task',
       read: false,
       createdAt: Timestamp.now(),
+      senderId: senderUid,
     })
 
+    await asRecipient()
     const snapshot = await getDocs(
       query(collection(db, 'notifications'), where('recipientId', '==', recipientUid))
     )
@@ -118,6 +133,7 @@ describe('Notifications E2E', () => {
   })
 
   it('should support all notification types', async () => {
+    const created: { type: string; ref: DocumentReference }[] = []
     for (const type of ['task_assigned', 'message', 'system'] as const) {
       const ref = await addDoc(collection(db, 'notifications'), {
         recipientId: recipientUid,
@@ -126,8 +142,13 @@ describe('Notifications E2E', () => {
         message: `Testing ${type}`,
         read: false,
         createdAt: Timestamp.now(),
+        senderId: senderUid,
       })
+      created.push({ type, ref })
+    }
 
+    await asRecipient()
+    for (const { type, ref } of created) {
       const stored = await getDoc(ref)
       expect(stored.data()!.type).toBe(type)
     }
@@ -142,9 +163,11 @@ describe('Notifications E2E', () => {
       message: 'New task assigned to you',
       read: false,
       createdAt: Timestamp.now(),
+      senderId: senderUid,
       relatedId: taskId,
     })
 
+    await asRecipient()
     const stored = await getDoc(ref)
     expect(stored.data()!.relatedId).toBe(taskId)
   })

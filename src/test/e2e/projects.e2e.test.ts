@@ -9,7 +9,7 @@ import {
   addDoc,
   Timestamp,
 } from 'firebase/firestore'
-import { getTestFirebase, clearFirestoreData, clearAuthUsers } from '../emulator-config'
+import { getTestFirebase, clearFirestoreData, clearAuthUsers, bootstrapMaestro } from '../emulator-config'
 
 describe('Projects E2E', () => {
   const { auth, db } = getTestFirebase()
@@ -19,17 +19,10 @@ describe('Projects E2E', () => {
     await clearFirestoreData()
     await clearAuthUsers()
 
-    // Create maestro user
+    // Create maestro user (via the secure bootstrap lock)
     const { user } = await createUserWithEmailAndPassword(auth, 'maestro@usm.cl', 'Pass123!')
     maestroUid = user.uid
-    await setDoc(doc(db, 'users', maestroUid), {
-      email: 'maestro@usm.cl',
-      nombre: 'Maestro',
-      apellido: 'User',
-      rol: 'maestro',
-      createdAt: new Date(),
-      isActive: true,
-    })
+    await bootstrapMaestro(db, maestroUid, 'maestro@usm.cl')
   })
 
   afterAll(async () => {

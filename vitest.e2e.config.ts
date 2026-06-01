@@ -15,5 +15,12 @@ export default defineConfig({
     testTimeout: 30000,
     hookTimeout: 30000,
     setupFiles: [],
+    // All e2e files share a single Firebase emulator and each clears Firestore in
+    // before hooks. Running files in parallel races on that shared state, so force
+    // fully serial execution for deterministic results.
+    fileParallelism: false,
+    poolOptions: {
+      forks: { singleFork: true },
+    },
   },
 })

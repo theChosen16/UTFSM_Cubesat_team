@@ -40,12 +40,14 @@ describe('Profile E2E', () => {
   })
 
   it('should update teams selection', async () => {
+    // A user may self-assign non-privileged teams but NOT the 'manager' team
+    // (that grants workspace management and is reserved for maestro/admin to assign).
     await setDoc(doc(db, 'users', userUid), {
-      equipos: ['tecnico', 'manager'],
+      equipos: ['tecnico', 'relaciones_publicas'],
     }, { merge: true })
 
     const updated = await getDoc(doc(db, 'users', userUid))
-    expect(updated.data()!.equipos).toEqual(['tecnico', 'manager'])
+    expect(updated.data()!.equipos).toEqual(['tecnico', 'relaciones_publicas'])
   })
 
   it('should update genero', async () => {
@@ -95,24 +97,24 @@ describe('Profile E2E', () => {
   })
 
   it('should read another users profile data', async () => {
-    // Create a second user
+    // Create a second user. A user self-creates only a non-privileged profile
+    // (rol cannot be self-assigned on create under the hardened rules).
     await signOut(auth)
     const { user: other } = await createUserWithEmailAndPassword(auth, 'other.profile@usm.cl', 'Pass123!')
     await setDoc(doc(db, 'users', other.uid), {
       email: 'other.profile@usm.cl',
       nombre: 'Other',
       apellido: 'Person',
-      rol: 'admin',
       equipos: ['relaciones_publicas'],
       createdAt: new Date(),
       isActive: true,
     })
 
-    // Read the other user's profile
+    // Read the profile back.
     const otherDoc = await getDoc(doc(db, 'users', other.uid))
     expect(otherDoc.exists()).toBe(true)
     expect(otherDoc.data()!.nombre).toBe('Other')
-    expect(otherDoc.data()!.rol).toBe('admin')
+    expect(otherDoc.data()!.rol).toBeUndefined()
     expect(otherDoc.data()!.equipos).toContain('relaciones_publicas')
   })
 })

@@ -28,8 +28,27 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
+      // A user may create ONLY their own profile and may NOT self-assign privileged
+      // fields. Setting 'rol'/'roles' is rejected, 'isActive' can only be true, and the
+      // 'manager' team (which grants workspace management) cannot be self-assigned.
+      // The single exception is the genuine first registrant, who is allowed to bootstrap
+      // as 'maestro' — but only if they are the uid recorded in the bootstrap lock that
+      // the signup transaction created moments earlier. This closes the privilege-
+      // escalation hole where any authenticated user could create their own doc as maestro.
       allow create: if request.auth != null && (
-        request.auth.uid == userId ||
+        (request.auth.uid == userId && (
+          (
+            !request.resource.data.keys().hasAny(['rol', 'roles']) &&
+            (!('isActive' in request.resource.data) || request.resource.data.isActive == true) &&
+            (!('equipos' in request.resource.data) || !('manager' in request.resource.data.equipos))
+          ) ||
+          (
+            exists(/databases/$(database)/documents/users/_bootstrap_lock) &&
+            get(/databases/$(database)/documents/users/_bootstrap_lock).data.maestroUid == request.auth.uid &&
+            request.resource.data.rol == 'maestro' &&
+            (!('equipos' in request.resource.data) || !('manager' in request.resource.data.equipos))
+          )
+        )) ||
         (userId == '_bootstrap_lock' && !exists(/databases/$(database)/documents/users/_bootstrap_lock))
       );
 
@@ -97,7 +116,16 @@ service cloud.firestore {
             'completedBy',
             'completedAt',
             'scoreAwarded'
-          ])
+          ]) &&
+          // Anti-fraude de ranking: un asignado no puede auto-otorgarse un score arbitrario.
+          // Siempre que scoreAwarded esté presente en el documento entrante, debe igualar el
+          // puntaje de importancia fijado por un manager. Si se omite (al revertir la tarea)
+          // o la tarea carece de puntajeImportancia (legado), no se verifica.
+          (
+            !request.resource.data.keys().hasAll(['scoreAwarded']) ||
+            !resource.data.keys().hasAll(['puntajeImportancia']) ||
+            request.resource.data.scoreAwarded == resource.data.puntajeImportancia
+          )
         )
       );
       allow delete: if request.auth != null &&
@@ -106,9 +134,14 @@ service cloud.firestore {
 
     match /activity_log/{entryId} {
       // All workspace members can read activity logs for performance rankings.
-      // Entry creation is restricted to the authenticated user's own entries.
+      // Entry creation is restricted to the authenticated user's own entries, with
+      // basic shape/size validation to prevent log forging with malformed payloads.
       allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.type is string &&
+        request.resource.data.description is string &&
+        request.resource.data.description.size() <= 2000;
     }
 
     match /files/{fileId} {
@@ -145,7 +178,10 @@ service cloud.firestore {
     }
 
     match /system_config/{configId} {
-      allow read: if request.auth != null && (request.auth.token.email.endsWith('@usm.cl') || request.auth.token.email.endsWith('@sansano.usm.cl'));
+      // endsWith() is not a valid Firestore Rules string method; use matches() (full-match
+      // RE2) so the institutional-email check actually evaluates instead of erroring.
+      allow read: if request.auth != null &&
+        request.auth.token.email.matches('.*@(sansano[.])?usm[.]cl');
       allow write: if request.auth != null && (hasRole('maestro') || hasRole('admin'));
     }
   }
