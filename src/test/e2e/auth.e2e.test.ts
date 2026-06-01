@@ -4,8 +4,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth'
-import { doc, getDoc, setDoc, collection, getDocs, query, limit } from 'firebase/firestore'
-import { getTestFirebase, clearFirestoreData, clearAuthUsers } from '../emulator-config'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { getTestFirebase, clearFirestoreData, clearAuthUsers, bootstrapMaestro } from '../emulator-config'
 
 describe('Auth E2E', () => {
   const { auth, db } = getTestFirebase()
@@ -28,18 +28,8 @@ describe('Auth E2E', () => {
 
     const { user } = await createUserWithEmailAndPassword(auth, email, password)
 
-    // Simulate what signUp does: create user doc
-    const isFirstSnap = await getDocs(query(collection(db, 'users'), limit(1)))
-    const isFirst = isFirstSnap.empty
-
-    await setDoc(doc(db, 'users', user.uid), {
-      email,
-      nombre,
-      apellido,
-      ...(isFirst ? { rol: 'maestro' } : {}),
-      createdAt: new Date(),
-      isActive: true,
-    })
+    // First registrant bootstraps as maestro via the lock (mirrors AuthContext.signUp).
+    await bootstrapMaestro(db, user.uid, email, { nombre, apellido })
 
     const userDoc = await getDoc(doc(db, 'users', user.uid))
     expect(userDoc.exists()).toBe(true)
@@ -53,47 +43,24 @@ describe('Auth E2E', () => {
 
   it('should assign maestro role to the first registered user', async () => {
     const email = 'first.user@usm.cl'
-    const password = 'FirstPass123!'
+    const { user } = await createUserWithEmailAndPassword(auth, email, 'FirstPass123!')
 
-    const { user } = await createUserWithEmailAndPassword(auth, email, password)
-
-    const isFirstSnap = await getDocs(query(collection(db, 'users'), limit(1)))
-    const isFirst = isFirstSnap.empty
-    expect(isFirst).toBe(true)
-
-    await setDoc(doc(db, 'users', user.uid), {
-      email,
-      nombre: 'First',
-      apellido: 'User',
-      rol: 'maestro',
-      createdAt: new Date(),
-      isActive: true,
-    })
+    await bootstrapMaestro(db, user.uid, email, { nombre: 'First', apellido: 'User' })
 
     const userDoc = await getDoc(doc(db, 'users', user.uid))
     expect(userDoc.data()!.rol).toBe('maestro')
   })
 
   it('should not assign maestro role to subsequent users', async () => {
-    // Create first user
+    // First user bootstraps as maestro via the lock.
     const { user: first } = await createUserWithEmailAndPassword(auth, 'first@usm.cl', 'Pass123!')
-    await setDoc(doc(db, 'users', first.uid), {
-      email: 'first@usm.cl',
-      nombre: 'First',
-      apellido: 'User',
-      rol: 'maestro',
-      createdAt: new Date(),
-      isActive: true,
-    })
+    await bootstrapMaestro(db, first.uid, 'first@usm.cl', { nombre: 'First', apellido: 'User' })
 
     await signOut(auth)
 
-    // Create second user
+    // Second user self-creates a plain profile and cannot grant itself maestro
+    // (the create rule rejects rol once the bootstrap lock is held by someone else).
     const { user: second } = await createUserWithEmailAndPassword(auth, 'second@usm.cl', 'Pass123!')
-
-    const isFirstSnap = await getDocs(query(collection(db, 'users'), limit(1)))
-    expect(isFirstSnap.empty).toBe(false)
-
     await setDoc(doc(db, 'users', second.uid), {
       email: 'second@usm.cl',
       nombre: 'Second',

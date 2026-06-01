@@ -21,6 +21,15 @@ const SHARED_SECRET = 'PUT_A_LONG_RANDOM_STRING_HERE';
 const ALLOWED_EMAIL_PATTERN = /^[a-zA-Z0-9._%+\-]+@(sansano\.)?usm\.cl$/i;
 const MAX_FILE_BYTES = 35 * 1024 * 1024;
 
+// Firebase project id — used to validate the audience (aud) / issuer of ID tokens.
+const FIREBASE_PROJECT_ID = 'usmcubesateam-1e3f4';
+
+// When true, upload/delete REQUIRE a valid Firebase ID token and the trusted email is
+// derived from it, ignoring any client-supplied userEmail. Leave false until the updated
+// web client (which sends params.idToken) is fully deployed, then flip to true to fully
+// close file impersonation. While false, a valid token is still preferred when present.
+const REQUIRE_ID_TOKEN = false;
+
 // Allowlist of Gemini model identifiers accepted by handleChat
 const ALLOWED_MODELS = [
   'gemini-3.5-flash',
@@ -33,7 +42,8 @@ const ALLOWED_MODELS = [
 
 // Allowlist of permitted MIME types to prevent executable file uploads
 const ALLOWED_MIME_TYPES = [
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+  // image/svg+xml intentionally excluded: SVG can carry embedded scripts (stored XSS).
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -94,6 +104,45 @@ function resolveTargetFolder(root, params) {
   return getOrCreateFolder(root, 'general');
 }
 
+/**
+ * Verifies a Firebase ID token via Google's tokeninfo endpoint and returns the
+ * institutional email it asserts, or null if the token is missing/invalid.
+ * Validates audience (this Firebase project), issuer, verified email and domain.
+ */
+function verifyIdToken_(idToken) {
+  if (!idToken) return null;
+  try {
+    const resp = UrlFetchApp.fetch(
+      'https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(String(idToken)),
+      { muteHttpExceptions: true }
+    );
+    if (resp.getResponseCode() !== 200) return null;
+    const claims = JSON.parse(resp.getContentText());
+    if (claims.aud !== FIREBASE_PROJECT_ID) return null;
+    if (claims.iss && claims.iss !== 'https://securetoken.google.com/' + FIREBASE_PROJECT_ID) return null;
+    if (claims.email_verified !== true && claims.email_verified !== 'true') return null;
+    const email = String(claims.email || '').trim().toLowerCase();
+    if (!ALLOWED_EMAIL_PATTERN.test(email)) return null;
+    return email;
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Resolves the trusted email for an upload/delete request. Prefers the verified ID
+ * token; falls back to the (spoofable) client-supplied email only while
+ * REQUIRE_ID_TOKEN is false, for backward compatibility with older clients.
+ */
+function resolveTrustedEmail_(params) {
+  const tokenEmail = verifyIdToken_(params.idToken);
+  if (tokenEmail) return tokenEmail;
+  if (REQUIRE_ID_TOKEN) {
+    throw new Error('valid Firebase ID token required');
+  }
+  return String(params.userEmail || '').trim().toLowerCase();
+}
+
 function handleUpload(params) {
   if (!params.fileBase64 || !params.fileName) {
     throw new Error('missing fileBase64 or fileName');
@@ -126,8 +175,10 @@ function handleUpload(params) {
   const file = target.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-  // Store uploader email and deliverableId in description for ownership verification on delete
-  const descParts = ['uploader:' + params.userEmail];
+  // Store the trusted uploader email (from the verified ID token when available) plus the
+  // deliverableId in the description, for ownership verification on delete.
+  const uploaderEmail = resolveTrustedEmail_(params);
+  const descParts = ['uploader:' + uploaderEmail];
   if (params.deliverableId) descParts.push('deliverable:' + params.deliverableId);
   file.setDescription(descParts.join(';'));
 
@@ -147,14 +198,16 @@ function handleDelete(params) {
   }
   const file = DriveApp.getFileById(params.fileId);
 
-  // Verify ownership: only the original uploader may delete via the bridge.
-  // Files uploaded before this check was added (no uploader tag) are allowed
-  // through for backward compatibility.
+  // Verify ownership: only the original uploader may delete via the bridge. The requester
+  // email is derived from the verified Firebase ID token when available (spoof-resistant);
+  // it falls back to the client-supplied email only while REQUIRE_ID_TOKEN is false.
+  // Files uploaded before this check existed (no uploader tag) are allowed through for
+  // backward compatibility.
   const description = file.getDescription() || '';
   const uploaderMatch = description.match(/uploader:([^;]+)/);
   if (uploaderMatch) {
     const uploaderEmail = uploaderMatch[1].trim().toLowerCase();
-    const requesterEmail = (params.userEmail || '').trim().toLowerCase();
+    const requesterEmail = resolveTrustedEmail_(params);
     if (uploaderEmail !== requesterEmail) {
       return { error: 'unauthorized: you can only delete files you uploaded' };
     }

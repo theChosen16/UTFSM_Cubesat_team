@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth'
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { doc, setDoc, getDoc, getDocs, collection } from 'firebase/firestore'
-import { getTestFirebase, clearFirestoreData, clearAuthUsers } from '../emulator-config'
+import { getTestFirebase, clearFirestoreData, clearAuthUsers, bootstrapMaestro } from '../emulator-config'
 import { extractFullNameFromEmail } from '@/lib/utils'
 
 describe('Members E2E', () => {
@@ -12,28 +12,22 @@ describe('Members E2E', () => {
     await clearFirestoreData()
     await clearAuthUsers()
 
-    // Create maestro
+    // Create maestro (secure bootstrap lock)
     const { user } = await createUserWithEmailAndPassword(auth, 'maestro.members@usm.cl', 'Pass123!')
     maestroUid = user.uid
-    await setDoc(doc(db, 'users', maestroUid), {
-      email: 'maestro.members@usm.cl',
-      nombre: 'Maestro',
+    await bootstrapMaestro(db, maestroUid, 'maestro.members@usm.cl', {
       apellido: 'Members',
-      rol: 'maestro',
       equipos: ['tecnico'],
-      createdAt: new Date(),
-      isActive: true,
     })
 
     await signOut(auth)
 
-    // Create regular user
+    // Regular user self-creates a plain profile (cannot self-assign the 'manager' team)
     const { user: regular } = await createUserWithEmailAndPassword(auth, 'regular@usm.cl', 'Pass123!')
     await setDoc(doc(db, 'users', regular.uid), {
       email: 'regular@usm.cl',
       nombre: 'Regular',
       apellido: 'User',
-      equipos: ['manager'],
       createdAt: new Date(),
       isActive: true,
     })
@@ -49,6 +43,13 @@ describe('Members E2E', () => {
       createdAt: new Date(),
       isActive: true,
     })
+
+    await signOut(auth)
+
+    // Maestro grants the 'manager' team to the regular user (only managers/admins/maestros
+    // may assign it — a user cannot self-assign it). Tests then run as maestro.
+    await signInWithEmailAndPassword(auth, 'maestro.members@usm.cl', 'Pass123!')
+    await setDoc(doc(db, 'users', regular.uid), { equipos: ['manager'] }, { merge: true })
   })
 
   afterAll(async () => {
@@ -59,7 +60,9 @@ describe('Members E2E', () => {
 
   it('should list all registered users', async () => {
     const snapshot = await getDocs(collection(db, 'users'))
-    expect(snapshot.size).toBe(3)
+    // Exclude the bootstrap lock sentinel doc that lives in /users.
+    const realUsers = snapshot.docs.filter(d => d.id !== '_bootstrap_lock')
+    expect(realUsers.length).toBe(3)
   })
 
   it('should update user role (maestro assigns admin)', async () => {

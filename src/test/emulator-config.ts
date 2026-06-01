@@ -1,6 +1,12 @@
 import { initializeApp, getApps, deleteApp } from 'firebase/app'
 import { getAuth, connectAuthEmulator } from 'firebase/auth'
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
+import {
+  getFirestore,
+  connectFirestoreEmulator,
+  doc,
+  setDoc,
+  type Firestore,
+} from 'firebase/firestore'
 
 const TEST_PROJECT_ID = 'cubesat-test'
 
@@ -49,4 +55,34 @@ export async function clearAuthUsers() {
   if (!response.ok) {
     throw new Error(`Failed to clear Auth users: ${response.statusText}`)
   }
+}
+
+/**
+ * Seeds a maestro user the same way the real signup bootstrap does: claim the
+ * one-time `_bootstrap_lock` (recording this uid), then create the user doc with
+ * rol:'maestro'. The hardened Firestore rules only authorize a maestro self-create
+ * when the lock's maestroUid matches, so tests must follow this flow.
+ *
+ * The caller must already be signed in as `uid` (e.g. right after
+ * createUserWithEmailAndPassword). Firestore must be empty (lock absent).
+ */
+export async function bootstrapMaestro(
+  db: Firestore,
+  uid: string,
+  email: string,
+  extra: Record<string, unknown> = {}
+) {
+  await setDoc(doc(db, 'users', '_bootstrap_lock'), {
+    maestroUid: uid,
+    createdAt: new Date(),
+  })
+  await setDoc(doc(db, 'users', uid), {
+    email,
+    nombre: 'Maestro',
+    apellido: 'User',
+    rol: 'maestro',
+    createdAt: new Date(),
+    isActive: true,
+    ...extra,
+  })
 }

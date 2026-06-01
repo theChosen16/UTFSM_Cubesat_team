@@ -180,9 +180,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const lockRef = doc(db, COLLECTIONS.USERS, '_bootstrap_lock')
         const lockDoc = await transaction.get(lockRef)
         if (!lockDoc.exists()) {
-          transaction.set(lockRef, { 
+          // Note: the lock is readable by any authenticated user (needed so the signup
+          // transaction can check it), so we intentionally do NOT store the maestro's
+          // email here — only the uid, which the Firestore create rule uses to authorize
+          // the one-time maestro bootstrap.
+          transaction.set(lockRef, {
             maestroUid: newUser.uid,
-            email: email,
             createdAt: new Date()
           })
           isFirstUser = true
