@@ -16,8 +16,15 @@ const toDate = (value: unknown): Date => {
 export class ActivityLogService {
   static async create(entry: Omit<ActivityLogEntry, 'id' | 'createdAt'>): Promise<string> {
     try {
+      // Firestore rejects `undefined` field values. Omit any undefined keys (e.g.
+      // taskId/projectId/deliverableId when a file is uploaded without associating it
+      // to a task or project) so the activity log entry is written successfully.
+      const sanitized: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(entry)) {
+        if (value !== undefined) sanitized[key] = value
+      }
       const ref = await addDoc(collection(db, COLLECTIONS.ACTIVITY_LOG), {
-        ...entry,
+        ...sanitized,
         createdAt: Timestamp.now(),
       })
       return ref.id
