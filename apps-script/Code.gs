@@ -222,6 +222,19 @@ function handleChat(params) {
     throw new Error('missing model or contents');
   }
 
+  // Authenticate the caller with a verified Firebase ID token. Chat ALWAYS requires a
+  // valid institutional token — there is intentionally no fallback to the client-supplied
+  // email here (unlike upload/delete, which keep a transitional fallback for older clients).
+  // Rationale: the shared secret is distributed to every signed-in member through Firestore
+  // (system_config/keys) and is fetched into the browser, so it cannot on its own protect
+  // the server-side Gemini API key. Without this check, anyone who reads the bundle/secret
+  // could use the team's Gemini key as a free, unrestricted LLM proxy (arbitrary
+  // systemInstruction/contents), bypassing the "solo Cubesat" guardrail and burning quota.
+  const callerEmail = verifyIdToken_(params.idToken);
+  if (!callerEmail) {
+    throw new Error('valid Firebase ID token required for chat');
+  }
+
   // Validate model against allowlist to prevent path injection / unintended API access
   const modelName = String(params.model);
   if (!ALLOWED_MODELS.includes(modelName)) {

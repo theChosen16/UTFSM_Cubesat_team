@@ -21,7 +21,9 @@ This project implements the following security practices:
 
 - **Dependency scanning**: Automated via Dependabot
 - **Code scanning**: Automated via CodeQL
-- **Secrets protection**: Firebase credentials stored as GitHub Secrets for CI/CD. Local development uses `.env.local` (git-ignored). Production builds never embed secrets directly.
+- **Secrets protection**: Firebase credentials stored as GitHub Secrets for CI/CD. Local development uses `.env.local` (git-ignored). Production builds never embed secrets directly. The Gemini API key lives only in Apps Script Script Properties, never in the client bundle.
+- **Authenticated AI proxy**: The Apps Script chat endpoint requires a verified Firebase ID token issued for this project to an institutional (`@usm.cl` / `@sansano.usm.cl`) account. The Drive shared secret alone does not grant access to the server-side Gemini key, since that secret is distributed to every signed-in member.
+- **Prompt-injection hardening**: Attached-document content is treated as untrusted data; the assistant is instructed never to execute tool calls based on instructions embedded in documents, and irreversible mass-broadcast actions (weekly digest dispatch) cannot be triggered in a turn that carries a file attachment.
 - **Branch protection**: Main branch requires pull request reviews before merging
 
 ## Response Time
