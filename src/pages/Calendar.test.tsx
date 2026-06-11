@@ -287,7 +287,7 @@ describe('Calendar Page', () => {
 
     rerender(
       <MemoryRouter>
-        <Calendar />
+        <Calendar key="manager" />
       </MemoryRouter>
     )
 
