@@ -9,13 +9,13 @@ const loggerMock = {
 }
 const getGenerativeModelMock = vi.fn()
 
-vi.mock('@/sdk/ProjectService', () => ({
+vi.mock('./ProjectService', () => ({
   ProjectService: {
     getAll: (...args: unknown[]) => getProjectListMock(...args),
   },
 }))
 
-vi.mock('@/sdk/TaskService', () => ({
+vi.mock('./TaskService', () => ({
   TaskService: {
     getAll: (...args: unknown[]) => getTaskListMock(...args),
   },
@@ -31,7 +31,7 @@ const auditarActaDriveMock = vi.fn()
 const obtenerEstadoNoticiarioMock = vi.fn()
 const forzarEnvioNoticiarioMock = vi.fn()
 
-vi.mock('@/sdk/AdminActionsService', () => ({
+vi.mock('./AdminActionsService', () => ({
   AdminActionsService: {
     crearTarea: (...args: unknown[]) => crearTareaMock(...args),
     crearEvento: (...args: unknown[]) => crearEventoMock(...args),

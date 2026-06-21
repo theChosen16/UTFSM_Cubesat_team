@@ -737,6 +737,7 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
   static resetSession() {
     this.chatSession = null
     this.chatHistory = []
+    this.activeModelIndex = 0
     this.activeSessionRole = null
   }
 }
