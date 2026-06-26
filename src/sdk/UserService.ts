@@ -95,6 +95,16 @@ export class UserService {
       }
     }
 
+    const sanitizeSocialLinks = (value: unknown): User['socialLinks'] => {
+      if (!value || typeof value !== 'object') return undefined
+      const raw = value as Record<string, unknown>
+      return {
+        linkedin: typeof raw.linkedin === 'string' ? raw.linkedin : undefined,
+        github: typeof raw.github === 'string' ? raw.github : undefined,
+        website: typeof raw.website === 'string' ? raw.website : undefined,
+      }
+    }
+
     return {
       id,
       email,
@@ -111,6 +121,11 @@ export class UserService {
       questionnaire: sanitizeQuestionnaire(rawData.questionnaire),
       fechaCumpleanos: typeof rawData.fechaCumpleanos === 'string' ? rawData.fechaCumpleanos : undefined,
       confirmadoCubeDesign: typeof rawData.confirmadoCubeDesign === 'boolean' ? rawData.confirmadoCubeDesign : undefined,
+      bio: typeof rawData.bio === 'string' ? rawData.bio : undefined,
+      title: typeof rawData.title === 'string' ? rawData.title : undefined,
+      socialLinks: sanitizeSocialLinks(rawData.socialLinks),
+      portfolioImages: Array.isArray(rawData.portfolioImages) ? rawData.portfolioImages.filter(img => typeof img === 'string') : undefined,
+      hasSeenOnboarding: typeof rawData.hasSeenOnboarding === 'boolean' ? rawData.hasSeenOnboarding : undefined,
     }
   }
 }
