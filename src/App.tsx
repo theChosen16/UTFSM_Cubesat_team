@@ -18,6 +18,8 @@ const TaskManagement = lazy(() => import('./pages/TaskManagement'))
 const Notifications = lazy(() => import('./pages/Notifications'))
 const FileRepository = lazy(() => import('./pages/FileRepository'))
 const Calendar = lazy(() => import('./pages/Calendar'))
+const Feed = lazy(() => import('./pages/Feed'))
+const ProjectChat = lazy(() => import('./pages/ProjectChat'))
 
 function App() {
   const { user, loading } = useAuth()
@@ -44,7 +46,9 @@ function App() {
               <Suspense fallback={<Spinner className="min-h-[60vh]" />}>
                 <Routes>
                   <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/feed" element={<Feed />} />
                   <Route path="/projects" element={<Projects />} />
+                  <Route path="/projects/:projectId/chat" element={<ProjectChat />} />
                   <Route path="/tasks" element={<TaskManagement />} />
                   <Route path="/files" element={<FileRepository />} />
                   <Route path="/members" element={<Members />} />

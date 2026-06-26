@@ -25,12 +25,15 @@ import {
   Rocket,
   Camera,
   MessageSquare,
-  ArrowLeft
+  ArrowLeft,
+  Link as LinkIcon,
+  Github
 } from 'lucide-react'
 import { UserRole, Questionnaire, TeamType, Genero, hasRole, hasAnyRole, hasTeam } from '@/types'
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, TEAM_LABELS } from '@/lib/ui-constants'
 import { logger } from '@/lib/logger'
 import { extractNameFromEmail, getRoleIcon } from '@/lib/utils'
+import { PortfolioGallery } from '@/components/profile/PortfolioGallery'
 
 const ROLE_STYLES: Record<UserRole, { badge: 'orange' | 'red'; icon: string; background: string }> = {
   maestro: {
@@ -75,6 +78,13 @@ export default function Profile() {
   const [disponibilidad, setDisponibilidad] = useState(user?.questionnaire?.disponibilidad || '')
   const [proyectosPrevios, setProyectosPrevios] = useState(user?.questionnaire?.proyectosPrevios || '')
 
+  // Portfolio fields
+  const [bio, setBio] = useState(user?.bio || '')
+  const [title, setTitle] = useState(user?.title || '')
+  const [linkedin, setLinkedin] = useState(user?.socialLinks?.linkedin || '')
+  const [github, setGithub] = useState(user?.socialLinks?.github || '')
+  const [portfolioImages, setPortfolioImages] = useState<string[]>(user?.portfolioImages || [])
+
   // Fetch other user's profile
   useEffect(() => {
     if (!isOwnProfile && userId) {
@@ -118,6 +128,11 @@ export default function Profile() {
       setMotivacion(user.questionnaire?.motivacion || '')
       setDisponibilidad(user.questionnaire?.disponibilidad || '')
       setProyectosPrevios(user.questionnaire?.proyectosPrevios || '')
+      setBio(user.bio || '')
+      setTitle(user.title || '')
+      setLinkedin(user.socialLinks?.linkedin || '')
+      setGithub(user.socialLinks?.github || '')
+      setPortfolioImages(user.portfolioImages || [])
     }
   }, [user])
 
@@ -153,6 +168,10 @@ export default function Profile() {
         career,
         year,
         equipos,
+        bio,
+        title,
+        socialLinks: { linkedin, github },
+        portfolioImages,
         ...(genero ? { genero: genero as Genero } : {}),
         ...(photoURL ? { photoURL } : {}),
         questionnaire
@@ -359,6 +378,75 @@ export default function Profile() {
             </div>
           )}
 
+          {/* Professional Title & Bio */}
+          {isOwnProfile && isEditing ? (
+            <div className="p-4 rounded-lg bg-space-600/50 space-y-4">
+              <div className="flex items-center gap-4 mb-3">
+                <div className="p-3 rounded-xl bg-purple-500/20">
+                  <Briefcase className="w-6 h-6 text-purple-400" />
+                </div>
+                <p className="text-sm text-muted-foreground">Perfil Profesional</p>
+              </div>
+              <Input
+                value={title}
+                onChange={handleInputChange(setTitle)}
+                placeholder="Título (Ej: Ingeniero de Software, Especialista Térmico)"
+                className="bg-space-700 border-space-500 text-white text-sm"
+              />
+              <Textarea
+                value={bio}
+                onChange={handleInputChange(setBio)}
+                placeholder="Escribe una breve biografía sobre ti y tus intereses..."
+                className="bg-space-700 border-space-500 text-white text-sm min-h-[80px]"
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className="relative">
+                  <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    value={linkedin}
+                    onChange={handleInputChange(setLinkedin)}
+                    placeholder="URL de LinkedIn"
+                    className="pl-9 bg-space-700 border-space-500 text-white text-sm"
+                  />
+                </div>
+                <div className="relative">
+                  <Github className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    value={github}
+                    onChange={handleInputChange(setGithub)}
+                    placeholder="URL de GitHub"
+                    className="pl-9 bg-space-700 border-space-500 text-white text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            (profileUser?.title || profileUser?.bio) && (
+              <div className="p-4 rounded-lg bg-space-600/50">
+                {profileUser?.title && (
+                  <h3 className="text-lg font-semibold text-white mb-2">{profileUser.title}</h3>
+                )}
+                {profileUser?.bio && (
+                  <p className="text-slate-300 text-sm whitespace-pre-wrap">{profileUser.bio}</p>
+                )}
+                {(profileUser?.socialLinks?.linkedin || profileUser?.socialLinks?.github) && (
+                  <div className="flex items-center gap-3 mt-4 pt-4 border-t border-space-500/50">
+                    {profileUser.socialLinks.linkedin && (
+                      <a href={profileUser.socialLinks.linkedin} target="_blank" rel="noreferrer" className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-sm">
+                        <LinkIcon className="w-4 h-4" /> LinkedIn
+                      </a>
+                    )}
+                    {profileUser.socialLinks.github && (
+                      <a href={profileUser.socialLinks.github} target="_blank" rel="noreferrer" className="text-purple-400 hover:text-purple-300 flex items-center gap-1 text-sm">
+                        <Github className="w-4 h-4" /> GitHub
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          )}
+
           {/* Role Section */}
           {profileUser?.rol ? (() => {
             const Icon = getRoleIcon(profileUser.rol)
@@ -532,6 +620,28 @@ export default function Profile() {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Portfolio Gallery Component */}
+          <div className="pt-4 border-t border-space-600">
+            <PortfolioGallery 
+              images={isOwnProfile ? portfolioImages : profileUser?.portfolioImages || []}
+              isOwnProfile={isOwnProfile}
+              onAddImage={
+                isOwnProfile ? (url) => {
+                  const newImages = [...portfolioImages, url]
+                  setPortfolioImages(newImages)
+                  updateUserProfile({ portfolioImages: newImages })
+                } : undefined
+              }
+              onRemoveImage={
+                isOwnProfile ? (idx) => {
+                  const newImages = portfolioImages.filter((_, i) => i !== idx)
+                  setPortfolioImages(newImages)
+                  updateUserProfile({ portfolioImages: newImages })
+                } : undefined
+              }
+            />
           </div>
 
           {/* Questionnaire Section */}

@@ -159,9 +159,9 @@ describe('Dashboard', () => {
   it('counts team members by equipo field, not by role', async () => {
     const usersSnapshot = {
       docs: [
-        { data: () => ({ rol: 'admin', equipos: ['tecnico'] }) },
-        { data: () => ({ rol: undefined, equipos: ['tecnico'] }) },
-        { data: () => ({ rol: 'admin' }) },
+        { id: 'u1', data: () => ({ email: 'u1@usm.cl', rol: 'admin', equipos: ['tecnico'] }) },
+        { id: 'u2', data: () => ({ email: 'u2@usm.cl', rol: undefined, equipos: ['tecnico'] }) },
+        { id: 'u3', data: () => ({ email: 'u3@usm.cl', rol: 'admin' }) },
       ],
       size: 3,
     }

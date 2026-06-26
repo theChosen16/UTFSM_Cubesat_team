@@ -1,4 +1,5 @@
 import { useState, useEffect, ChangeEvent, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -14,7 +15,8 @@ import {
   Filter,
   X,
   AlertCircle,
-  ListTodo
+  ListTodo,
+  MessageSquare
 } from 'lucide-react'
 import { logger } from '@/lib/logger'
 import { hasAnyRole, hasTeam, Task } from '@/types'
@@ -37,6 +39,7 @@ interface ProjectData {
 }
 
 export default function Projects() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const [projects, setProjects] = useState<ProjectData[]>([])
@@ -364,16 +367,27 @@ export default function Projects() {
                 <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
                   <Rocket className="w-5 h-5 text-cyan-400" />
                 </div>
-                {canEditProject && (
+                <div className="flex gap-2">
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => openEditForm(project)}
-                    className="text-muted-foreground hover:text-cyan-400"
+                    onClick={() => navigate(`/projects/${project.id}/chat`)}
+                    className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10"
                   >
-                    Editar
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    Chat
                   </Button>
-                )}
+                  {canEditProject && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => openEditForm(project)}
+                      className="text-muted-foreground hover:text-cyan-400"
+                    >
+                      Editar
+                    </Button>
+                  )}
+                </div>
               </div>
               <CardTitle className="text-lg text-white mt-3">{project.name}</CardTitle>
               <CardDescription className="line-clamp-2">{project.description}</CardDescription>
