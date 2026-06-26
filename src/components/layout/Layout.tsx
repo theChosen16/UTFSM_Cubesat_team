@@ -16,7 +16,8 @@ import {
   Bell,
   Lock,
   Satellite,
-  Calendar
+  Calendar,
+  Globe
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn, extractNameFromEmail } from '@/lib/utils'
@@ -25,6 +26,7 @@ import { ROLE_LABELS, TEAM_LABELS } from '@/lib/ui-constants'
 import { Badge } from '@/components/ui/badge'
 import { Chatbot } from '@/components/chat/Chatbot'
 import { EmailNotificationService } from '@/sdk/EmailNotificationService'
+import { OnboardingGuide } from '@/components/onboarding/OnboardingGuide'
 
 interface LayoutProps {
   children: ReactNode
@@ -72,6 +74,7 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, restricted: false },
+    { path: '/feed', label: 'Comunidad', icon: Globe, restricted: false },
     { path: '/projects', label: 'Proyectos', icon: FolderKanban, restricted: false },
     { path: '/tasks', label: 'Gestión de Tareas', icon: ListTodo, restricted: false },
     { path: '/calendar', label: 'Calendario', icon: Calendar, restricted: false },
@@ -254,6 +257,9 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* AI Bot Component */}
       {user && <Chatbot />}
+
+      {/* Onboarding Guide */}
+      {user && <OnboardingGuide />}
     </div>
   )
 }

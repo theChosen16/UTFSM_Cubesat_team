@@ -99,6 +99,15 @@ export interface User {
   questionnaire?: Questionnaire
   fechaCumpleanos?: string
   confirmadoCubeDesign?: boolean
+  bio?: string
+  title?: string
+  socialLinks?: {
+    linkedin?: string
+    github?: string
+    website?: string
+  }
+  portfolioImages?: string[]
+  hasSeenOnboarding?: boolean
 }
 
 export interface Project {
@@ -271,3 +280,35 @@ export interface ProcessedBotFile {
   extractedText?: string
 }
 
+export type PostCategory = 'general' | 'logro' | 'duda'
+
+export interface Post {
+  id: string
+  authorId: string
+  content: string
+  category: PostCategory
+  imageUrls?: string[]
+  createdAt: Date
+}
+
+export interface Comment {
+  id: string
+  postId: string
+  authorId: string
+  content: string
+  createdAt: Date
+  updatedAt?: Date
+  isEdited?: boolean
+}
+
+export interface ProjectMessage {
+  id: string
+  projectId: string
+  senderId: string
+  content: string
+  fileUrls?: string[]
+  createdAt: Date
+  updatedAt?: Date
+  isEdited?: boolean
+  isAiOrchestrated?: boolean
+}

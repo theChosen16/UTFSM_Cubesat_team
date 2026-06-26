@@ -7,8 +7,6 @@ import {
   Rocket,
   FolderKanban,
   Users,
-  Cpu,
-  Globe,
   Clock,
   CheckCircle2,
   ListTodo,
@@ -29,6 +27,7 @@ import { ActivityLogService } from '@/sdk/ActivityLogService'
 import { logger } from '@/lib/logger'
 import { extractNameFromEmail } from '@/lib/utils'
 import { buildMemberPerformance, getMemberRankInfo } from '@/lib/memberMetrics'
+import { TeamTree } from '@/components/dashboard/TeamTree'
 
 interface MemberCount {
   total: number
@@ -241,11 +240,7 @@ export default function Dashboard() {
   const greeting = user?.genero === 'femenino' ? 'Bienvenida' : user?.genero === 'otro' ? 'Bienvenido/a' : 'Bienvenido'
   const displayName = user?.nombre || extractNameFromEmail(user?.email || '')
 
-  const TEAM_ICON_MAP: Record<TeamType, { icon: typeof Cpu; colorClass: string; bgClass: string }> = {
-    tecnico: { icon: Cpu, colorClass: 'text-purple-400', bgClass: 'bg-purple-500/20' },
-    manager: { icon: Users, colorClass: 'text-cyan-400', bgClass: 'bg-cyan-500/20' },
-    relaciones_publicas: { icon: Globe, colorClass: 'text-green-400', bgClass: 'bg-green-500/20' },
-  }
+
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -473,8 +468,8 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3 lg:gap-6">
-        <Card className="lg:col-span-2 bg-space-700/50 border-space-600">
+      <div className="grid gap-4 lg:grid-cols-1 lg:gap-6 mt-4 lg:mt-6">
+        <Card className="bg-space-700/50 border-space-600">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <FolderKanban className="w-5 h-5 text-cyan-400" />
@@ -515,35 +510,23 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+      </div>
 
-        <Card className="bg-space-700/50 border-space-600">
+      <div className="grid gap-4 lg:grid-cols-1 lg:gap-6 mt-4 lg:mt-6">
+        <Card className="bg-space-700/50 border-space-600 w-full overflow-hidden">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <Users className="w-5 h-5 text-purple-400" />
               Estructura del Equipo
             </CardTitle>
-            <CardDescription>Distribución de roles</CardDescription>
+            <CardDescription>Red organizativa dinámica del equipo Cubesat</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {Object.entries(TEAM_ICON_MAP).map(([team, config]) => {
-                const TeamIcon = config.icon
-                const count = memberCount.byTeam[team] || 0
-                return (
-                  <div key={team} className="flex items-center gap-3 p-3 rounded-lg bg-space-600/50">
-                    <div className={`w-8 h-8 rounded-lg ${config.bgClass} flex items-center justify-center`}>
-                      <TeamIcon className={`w-4 h-4 ${config.colorClass}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{TEAM_LABELS[team as TeamType]}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {loadingStats ? '…' : `${count} miembro${count !== 1 ? 's' : ''}`}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+          <CardContent className="p-0 sm:p-6 sm:pt-0">
+            {loadingStats ? (
+              <div className="flex justify-center p-10"><span className="text-muted-foreground">Cargando árbol del equipo...</span></div>
+            ) : (
+              <TeamTree members={usersList} />
+            )}
           </CardContent>
         </Card>
       </div>

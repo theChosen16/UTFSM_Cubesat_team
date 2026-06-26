@@ -10,6 +10,9 @@ export const COLLECTIONS = {
   EVENTS: 'events',
   MAIL: 'mail',
   MAIL_DIGESTS: 'mail_digests',
+  POSTS: 'posts',
+  COMMENTS: 'comments',
+  JOB_OPPORTUNITIES: 'job_opportunities',
 } as const
 
 /** Valid institutional email domains for registration */
