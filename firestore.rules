@@ -77,11 +77,19 @@ service cloud.firestore {
       allow read: if request.auth != null &&
         resource.data.recipientId == request.auth.uid;
 
-      // Authenticated users can create notifications only if senderId matches their uid
+      // Authenticated users can create notifications only if senderId matches their uid.
+      // 'type' is constrained to the known NotificationType union and title/message are
+      // size-capped so a member cannot forge arbitrary 'system'-looking alerts (in-app
+      // phishing) or bloat documents to abuse storage/egress.
       allow create: if request.auth != null &&
         request.resource.data.senderId == request.auth.uid &&
         request.resource.data.recipientId is string &&
-        request.resource.data.recipientId.size() > 0;
+        request.resource.data.recipientId.size() > 0 &&
+        request.resource.data.type in ['task_assigned', 'deliverable_uploaded', 'deadline_reminder', 'message', 'system'] &&
+        (!('title' in request.resource.data) ||
+          (request.resource.data.title is string && request.resource.data.title.size() <= 300)) &&
+        (!('message' in request.resource.data) ||
+          (request.resource.data.message is string && request.resource.data.message.size() <= 3000));
 
       // Users can update or delete their own notifications (e.g., mark as read / dismiss)
       allow update, delete: if request.auth != null &&
@@ -178,19 +186,39 @@ service cloud.firestore {
     }
 
     match /system_config/{configId} {
-      // endsWith() is not a valid Firestore Rules string method; use matches() (full-match
-      // RE2) so the institutional-email check actually evaluates instead of erroring.
+      // system_config/keys holds the Drive shared secret, so the institutional-email gate must
+      // be airtight. Firestore's matches() is NOT implicitly anchored, so an unanchored pattern
+      // like '.*@(sansano[.])?usm[.]cl' also accepts attacker-controlled domains such as
+      // 'eve@usm.cl.evil.com' (the regex matches a substring), letting an external user read the
+      // secret. Anchor with ^...$ and restrict the local part so only true @usm.cl /
+      // @sansano.usm.cl addresses pass. The email claim is also guarded as a string.
       allow read: if request.auth != null &&
-        request.auth.token.email.matches('.*@(sansano[.])?usm[.]cl');
+        request.auth.token.email is string &&
+        request.auth.token.email.matches('^[A-Za-z0-9._%+-]+@(sansano[.])?usm[.]cl$');
       allow write: if request.auth != null && (hasRole('maestro') || hasRole('admin'));
     }
 
     match /posts/{postId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.authorId == request.auth.uid;
+      allow create: if request.auth != null &&
+        request.resource.data.authorId == request.auth.uid &&
+        (!('content' in request.resource.data) ||
+          (request.resource.data.content is string && request.resource.data.content.size() <= 10000));
+      // The author can edit their own post. Any other authenticated user may ONLY toggle their
+      // own like: the previous rule let anyone overwrite likedBy/likesCount with arbitrary
+      // values (wipe others' likes, set an arbitrary count). We now require that the only change
+      // to likedBy is the caller adding or removing their OWN uid (symmetric difference == {uid})
+      // and that likesCount stays consistent with the array length.
       allow update: if request.auth != null && (
         resource.data.authorId == request.auth.uid ||
-        request.resource.data.diff(resource.data).changedKeys().hasOnly(['likedBy', 'likesCount'])
+        (
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(['likedBy', 'likesCount']) &&
+          request.resource.data.likedBy is list &&
+          request.resource.data.likesCount == request.resource.data.likedBy.size() &&
+          resource.data.get('likedBy', []).toSet().difference(request.resource.data.likedBy.toSet())
+            .union(request.resource.data.likedBy.toSet().difference(resource.data.get('likedBy', []).toSet()))
+            == [request.auth.uid].toSet()
+        )
       );
       allow delete: if request.auth != null && (
         resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')
@@ -199,7 +227,10 @@ service cloud.firestore {
 
     match /comments/{commentId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.authorId == request.auth.uid;
+      allow create: if request.auth != null &&
+        request.resource.data.authorId == request.auth.uid &&
+        (!('content' in request.resource.data) ||
+          (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
       allow update, delete: if request.auth != null && (
         resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
@@ -207,7 +238,10 @@ service cloud.firestore {
 
     match /project_messages/{messageId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.senderId == request.auth.uid;
+      allow create: if request.auth != null &&
+        request.resource.data.senderId == request.auth.uid &&
+        (!('content' in request.resource.data) ||
+          (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
       allow update, delete: if request.auth != null && (
         resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );

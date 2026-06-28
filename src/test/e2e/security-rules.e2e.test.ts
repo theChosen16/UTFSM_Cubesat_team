@@ -18,8 +18,11 @@ describe('Security rules — privilege escalation & integrity', () => {
   const { auth, db } = getTestFirebase()
   const PW = 'Pass123!'
 
+  // The emulator reports write denials as 'permission-denied' but read (get) denials can
+  // surface as the verbose rule-evaluation reason ("false for 'get' @ L..."), so the matcher
+  // accepts both phrasings.
   const expectDenied = (p: Promise<unknown>) =>
-    expect(p).rejects.toThrow(/permission|insufficient|denied/i)
+    expect(p).rejects.toThrow(/permission|insufficient|denied|false for/i)
 
   /** Replicates the real signup bootstrap: claim the lock, then create the maestro doc. */
   async function bootstrapMaestro(email: string): Promise<string> {
@@ -190,5 +193,82 @@ describe('Security rules — privilege escalation & integrity', () => {
       createdAt: Timestamp.now(),
     })
     expect(ref.id).toBeTruthy()
+  })
+
+  it('blocks reading system_config from a look-alike spoofed domain but allows real usm.cl', async () => {
+    // A maestro seeds the secret-bearing system_config/keys document.
+    const maestroEmail = 'cfgboss@usm.cl'
+    await bootstrapMaestro(maestroEmail)
+    await setDoc(doc(db, 'system_config', 'keys'), {
+      driveUploadUrl: 'https://example/exec',
+      driveUploadSecret: 'top-secret',
+    })
+    await signOut(auth)
+
+    // Attacker registers a domain they control that *contains* usm.cl as a substring.
+    // With an unanchored regex this leaked the Drive secret; anchoring must deny it.
+    const { user: attacker } = await createUserWithEmailAndPassword(auth, 'eve@usm.cl.evil.com', PW)
+    expect(attacker).toBeTruthy()
+    await expectDenied(getDoc(doc(db, 'system_config', 'keys')))
+    await signOut(auth)
+
+    // A genuine institutional account is still allowed to read it.
+    await createUserWithEmailAndPassword(auth, 'real@usm.cl', PW)
+    const snap = await getDoc(doc(db, 'system_config', 'keys'))
+    expect(snap.data()!.driveUploadSecret).toBe('top-secret')
+  })
+
+  it('lets a user toggle their own like but blocks tampering with arbitrary like counts', async () => {
+    const { user: author } = await createUserWithEmailAndPassword(auth, 'author@usm.cl', PW)
+    const postRef = await addDoc(collection(db, 'posts'), {
+      authorId: author.uid,
+      content: 'hola equipo',
+      likedBy: [],
+      likesCount: 0,
+      createdAt: Timestamp.now(),
+    })
+    await signOut(auth)
+
+    const { user: liker } = await createUserWithEmailAndPassword(auth, 'liker@usm.cl', PW)
+
+    // Legit: adding only my own uid, with a consistent count.
+    await updateDoc(postRef, { likedBy: [liker.uid], likesCount: 1 })
+    const afterLike = await getDoc(postRef)
+    expect(afterLike.data()!.likesCount).toBe(1)
+
+    // Tampering: inflate the count beyond the array length → denied.
+    await expectDenied(updateDoc(postRef, { likedBy: [liker.uid], likesCount: 9999 }))
+
+    // Tampering: inject a uid that is not mine → denied.
+    await expectDenied(updateDoc(postRef, { likedBy: [liker.uid, 'someone-else'], likesCount: 2 }))
+  })
+
+  it('blocks creating a notification with an out-of-allowlist type', async () => {
+    const { user: sender } = await createUserWithEmailAndPassword(auth, 'notifier@usm.cl', PW)
+
+    // Valid type is accepted.
+    const ok = await addDoc(collection(db, 'notifications'), {
+      senderId: sender.uid,
+      recipientId: 'someone',
+      type: 'message',
+      title: 'Hola',
+      message: 'Saludo',
+      read: false,
+      createdAt: Timestamp.now(),
+    })
+    expect(ok.id).toBeTruthy()
+
+    // Forged/unknown type is rejected.
+    await expectDenied(
+      addDoc(collection(db, 'notifications'), {
+        senderId: sender.uid,
+        recipientId: 'someone',
+        type: 'arbitrary_spoof',
+        title: 'Hola',
+        message: 'Saludo',
+        read: false,
+        createdAt: Timestamp.now(),
+      })
+    )
   })
 })
