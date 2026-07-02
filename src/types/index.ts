@@ -280,7 +280,7 @@ export interface ProcessedBotFile {
   extractedText?: string
 }
 
-export type PostCategory = 'general' | 'logro' | 'duda'
+export type PostCategory = 'general' | 'logro' | 'duda' | 'oportunidad'
 
 export interface Post {
   id: string

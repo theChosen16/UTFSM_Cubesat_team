@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Image as ImageIcon, Send } from 'lucide-react'
+import { Image as ImageIcon, Send, AlertTriangle } from 'lucide-react'
 import { PostCategory } from '@/types'
+
+const MAX_IMAGE_SIZE_BYTES = 500 * 1024 // 500KB — base64 inflates ~33%, keeping under Firestore 1MB doc limit
 
 interface PostCreatorProps {
   onPostCreated: (content: string, category: PostCategory, imageUrls: string[]) => Promise<void>
@@ -14,10 +16,18 @@ export function PostCreator({ onPostCreated }: PostCreatorProps) {
   const [category, setCategory] = useState<PostCategory>('general')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [imageUrl, setImageUrl] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+
+    setError(null)
+
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setError(`La imagen es demasiado grande (${(file.size / 1024).toFixed(0)}KB). Máximo permitido: ${MAX_IMAGE_SIZE_BYTES / 1024}KB.`)
+      return
+    }
 
     const reader = new FileReader()
     reader.onloadend = () => {
@@ -29,11 +39,14 @@ export function PostCreator({ onPostCreated }: PostCreatorProps) {
   const handleSubmit = async () => {
     if (!content.trim() && !imageUrl) return
     setIsSubmitting(true)
+    setError(null)
     try {
       await onPostCreated(content, category, imageUrl ? [imageUrl] : [])
       setContent('')
       setImageUrl('')
       setCategory('general')
+    } catch {
+      setError('Error al publicar. La imagen puede ser demasiado grande para almacenar.')
     } finally {
       setIsSubmitting(false)
     }
@@ -42,6 +55,13 @@ export function PostCreator({ onPostCreated }: PostCreatorProps) {
   return (
     <Card className="bg-space-700/50 border-space-600 mb-6">
       <CardContent className="p-4 sm:p-6">
+        {error && (
+          <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4 text-red-400 text-sm">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
