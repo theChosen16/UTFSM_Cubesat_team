@@ -1,7 +1,54 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Camera, Plus, X, Image as ImageIcon } from 'lucide-react'
+import { Camera, Plus, X, Image as ImageIcon, AlertTriangle } from 'lucide-react'
+
+const MAX_PORTFOLIO_IMAGES = 8
+const MAX_IMAGE_SIZE_BYTES = 200 * 1024 // 200KB per image after compression
+const MAX_PORTFOLIO_TOTAL_BYTES = 900 * 1024 // 900KB total to stay under 1MB doc limit
+const COMPRESS_MAX_WIDTH = 1200
+const COMPRESS_QUALITY = 0.7
+
+/**
+ * Compresses an image file using Canvas API.
+ * Returns a base64 data URL (JPEG) that fits within size limits.
+ */
+function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+
+      let { width, height } = img
+      if (width > COMPRESS_MAX_WIDTH) {
+        height = Math.round((height * COMPRESS_MAX_WIDTH) / width)
+        width = COMPRESS_MAX_WIDTH
+      }
+
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        reject(new Error('No se pudo crear el contexto de canvas'))
+        return
+      }
+
+      ctx.drawImage(img, 0, 0, width, height)
+      const dataUrl = canvas.toDataURL('image/jpeg', COMPRESS_QUALITY)
+      resolve(dataUrl)
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Error al cargar la imagen'))
+    }
+
+    img.src = objectUrl
+  })
+}
 
 interface PortfolioGalleryProps {
   images: string[]
@@ -12,24 +59,46 @@ interface PortfolioGalleryProps {
 
 export function PortfolioGallery({ images, isOwnProfile, onAddImage, onRemoveImage }: PortfolioGalleryProps) {
   const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const currentTotalBytes = images.reduce((sum, img) => sum + img.length, 0)
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
+    setError(null)
+
+    // Validate image count
+    if (images.length >= MAX_PORTFOLIO_IMAGES) {
+      setError(`Máximo ${MAX_PORTFOLIO_IMAGES} imágenes en el portafolio.`)
+      return
+    }
+
     setUploading(true)
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string
+    try {
+      const dataUrl = await compressImage(file)
+
+      // Validate compressed image size
+      if (dataUrl.length > MAX_IMAGE_SIZE_BYTES) {
+        setError('La imagen es demasiado grande incluso después de comprimirla. Intenta con una imagen más pequeña (< 1MB).')
+        return
+      }
+
+      // Validate total portfolio size
+      if (currentTotalBytes + dataUrl.length > MAX_PORTFOLIO_TOTAL_BYTES) {
+        setError('El portafolio ha alcanzado su límite de almacenamiento. Elimina alguna imagen antes de agregar más.')
+        return
+      }
+
       if (onAddImage) {
         onAddImage(dataUrl)
       }
+    } catch {
+      setError('Error al procesar la imagen. Intenta con otro archivo.')
+    } finally {
       setUploading(false)
     }
-    reader.onerror = () => {
-      setUploading(false)
-    }
-    reader.readAsDataURL(file)
   }
 
   return (
@@ -40,7 +109,7 @@ export function PortfolioGallery({ images, isOwnProfile, onAddImage, onRemoveIma
             <ImageIcon className="w-5 h-5 text-cyan-400" />
             Portafolio Visual
           </CardTitle>
-          <CardDescription>Proyectos, logros y trabajo en el taller</CardDescription>
+          <CardDescription>Proyectos, logros y trabajo en el taller ({images.length}/{MAX_PORTFOLIO_IMAGES})</CardDescription>
         </div>
         {isOwnProfile && (
           <div>
@@ -58,13 +127,19 @@ export function PortfolioGallery({ images, isOwnProfile, onAddImage, onRemoveIma
                 accept="image/*"
                 onChange={handleFileUpload}
                 className="hidden"
-                disabled={uploading}
+                disabled={uploading || images.length >= MAX_PORTFOLIO_IMAGES}
               />
             </label>
           </div>
         )}
       </CardHeader>
       <CardContent>
+        {error && (
+          <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4 text-red-400 text-sm">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
         {images.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 px-4 text-center border-2 border-dashed border-space-600 rounded-xl">
             <Camera className="w-10 h-10 text-space-400 mb-3" />
@@ -103,3 +178,4 @@ export function PortfolioGallery({ images, isOwnProfile, onAddImage, onRemoveIma
     </Card>
   )
 }
+

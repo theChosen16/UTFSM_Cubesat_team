@@ -20,7 +20,8 @@ interface PostCardProps {
 const CATEGORY_COLORS: Record<string, 'cyan' | 'orange' | 'secondary'> = {
   general: 'secondary',
   logro: 'cyan',
-  duda: 'orange'
+  duda: 'orange',
+  oportunidad: 'cyan'
 }
 
 export function PostCard({ post, author, currentUserId, usersMap }: PostCardProps) {
