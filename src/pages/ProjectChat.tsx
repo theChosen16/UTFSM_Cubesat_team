@@ -9,7 +9,9 @@ import { extractNameFromEmail } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/spinner'
-import { Send, ArrowLeft, Paperclip, MoreHorizontal, Edit2, Trash2, File, Bot } from 'lucide-react'
+import { Send, ArrowLeft, Paperclip, MoreHorizontal, Edit2, Trash2, File, Bot, AlertTriangle } from 'lucide-react'
+
+const MAX_FILE_SIZE_BYTES = 500 * 1024 // 500KB — base64 inflates ~33%, keeping under Firestore 1MB doc limit
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +32,8 @@ export default function ProjectChat() {
   const [newMessage, setNewMessage] = useState('')
   const [fileUrl, setFileUrl] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [fileError, setFileError] = useState<string | null>(null)
+  const [sendError, setSendError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -71,6 +75,13 @@ export default function ProjectChat() {
     const file = e.target.files?.[0]
     if (!file) return
 
+    setFileError(null)
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setFileError(`El archivo es demasiado grande (${(file.size / 1024).toFixed(0)}KB). Máximo permitido: ${MAX_FILE_SIZE_BYTES / 1024}KB.`)
+      return
+    }
+
     const reader = new FileReader()
     reader.onloadend = () => {
       setFileUrl(reader.result as string)
@@ -81,6 +92,7 @@ export default function ProjectChat() {
   const handleSendMessage = async () => {
     if ((!newMessage.trim() && !fileUrl) || !projectId || !user || isSubmitting) return
     setIsSubmitting(true)
+    setSendError(null)
     try {
       await ProjectChatService.sendMessage({
         projectId,
@@ -91,9 +103,11 @@ export default function ProjectChat() {
       })
       setNewMessage('')
       setFileUrl('')
+      setFileError(null)
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
     } catch (error) {
       logger.error('Error sending project message', { error })
+      setSendError('Error al enviar el mensaje. El archivo puede ser demasiado grande.')
     } finally {
       setIsSubmitting(false)
     }
@@ -236,6 +250,12 @@ export default function ProjectChat() {
 
       {/* Input area */}
       <div className="shrink-0 pt-4 border-t border-space-600 bg-space-900">
+        {(fileError || sendError) && (
+          <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-3 text-red-400 text-sm">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{fileError || sendError}</span>
+          </div>
+        )}
         {fileUrl && (
           <div className="mb-3 relative inline-block">
             {fileUrl.startsWith('data:image') ? (
