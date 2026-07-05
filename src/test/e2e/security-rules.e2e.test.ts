@@ -163,6 +163,108 @@ describe('Security rules — privilege escalation & integrity', () => {
     expect(stored.data()!.scoreAwarded).toBe(5)
   })
 
+  it('blocks an assigned member from self-scoring a legacy task lacking puntajeImportancia', async () => {
+    const maestroEmail = 'legacyboss@usm.cl'
+    await bootstrapMaestro(maestroEmail)
+
+    const { user: member } = await createUserWithEmailAndPassword(auth, 'legacymem@usm.cl', PW)
+    const memberUid = member.uid
+    await setDoc(doc(db, 'users', memberUid), {
+      email: 'legacymem@usm.cl',
+      nombre: 'Leg',
+      apellido: 'Acy',
+      createdAt: new Date(),
+      isActive: true,
+    })
+
+    // Maestro creates a LEGACY-shaped task assigned to the member WITHOUT puntajeImportancia.
+    await signOut(auth)
+    await signInWithEmailAndPassword(auth, maestroEmail, PW)
+    const taskRef = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Legacy task',
+      descripcion: '',
+      estado: 'pendiente',
+      asignadoA: [memberUid],
+      equipo: 'tecnico',
+      prioridad: 'media',
+      creadoPor: 'maestro',
+      createdAt: Timestamp.now(),
+    })
+
+    // Member tries to self-award any positive score on a task with no manager-set importance.
+    await signOut(auth)
+    await signInWithEmailAndPassword(auth, 'legacymem@usm.cl', PW)
+    await expectDenied(
+      updateDoc(taskRef, {
+        estado: 'completado',
+        completedBy: memberUid,
+        completedAt: new Date().toISOString(),
+        scoreAwarded: 50,
+      })
+    )
+
+    // Completing with scoreAwarded 0 (the only consistent value for a no-importance task) is ok.
+    await updateDoc(taskRef, {
+      estado: 'completado',
+      completedBy: memberUid,
+      completedAt: new Date().toISOString(),
+      scoreAwarded: 0,
+    })
+    const stored = await getDoc(taskRef)
+    expect(stored.data()!.scoreAwarded).toBe(0)
+  })
+
+  it('blocks an assigned member from crediting task completion to a third party', async () => {
+    const maestroEmail = 'creditboss@usm.cl'
+    await bootstrapMaestro(maestroEmail)
+
+    const { user: member } = await createUserWithEmailAndPassword(auth, 'creditmem@usm.cl', PW)
+    const memberUid = member.uid
+    await setDoc(doc(db, 'users', memberUid), {
+      email: 'creditmem@usm.cl',
+      nombre: 'Cre',
+      apellido: 'Dit',
+      createdAt: new Date(),
+      isActive: true,
+    })
+
+    await signOut(auth)
+    await signInWithEmailAndPassword(auth, maestroEmail, PW)
+    const taskRef = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Credit task',
+      descripcion: '',
+      estado: 'pendiente',
+      asignadoA: [memberUid],
+      equipo: 'tecnico',
+      prioridad: 'media',
+      creadoPor: 'maestro',
+      puntajeImportancia: 5,
+      createdAt: Timestamp.now(),
+    })
+
+    // Member completes the task but tries to attribute the credit/score to someone else.
+    await signOut(auth)
+    await signInWithEmailAndPassword(auth, 'creditmem@usm.cl', PW)
+    await expectDenied(
+      updateDoc(taskRef, {
+        estado: 'completado',
+        completedBy: 'another-member-uid',
+        completedAt: new Date().toISOString(),
+        scoreAwarded: 5,
+      })
+    )
+
+    // Crediting themselves (the real assignee) is allowed.
+    await updateDoc(taskRef, {
+      estado: 'completado',
+      completedBy: memberUid,
+      completedAt: new Date().toISOString(),
+      scoreAwarded: 5,
+    })
+    const stored = await getDoc(taskRef)
+    expect(stored.data()!.completedBy).toBe(memberUid)
+  })
+
   it('blocks a non-manager from enqueuing /mail but allows a maestro', async () => {
     const maestroEmail = 'mailer@usm.cl'
     await bootstrapMaestro(maestroEmail)

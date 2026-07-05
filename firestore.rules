@@ -125,14 +125,24 @@ service cloud.firestore {
             'completedAt',
             'scoreAwarded'
           ]) &&
-          // Anti-fraude de ranking: un asignado no puede auto-otorgarse un score arbitrario.
+          // Anti-fraude de ranking (1/2): un asignado no puede auto-otorgarse un score arbitrario.
           // Siempre que scoreAwarded esté presente en el documento entrante, debe igualar el
-          // puntaje de importancia fijado por un manager. Si se omite (al revertir la tarea)
-          // o la tarea carece de puntajeImportancia (legado), no se verifica.
+          // puntaje de importancia fijado por un manager. Se compara contra get(...,0) para que
+          // una tarea legada SIN puntajeImportancia solo admita scoreAwarded == 0 (antes esta
+          // ausencia era una compuerta de escape que permitía cualquier score arbitrario). Si
+          // scoreAwarded se omite (al revertir la tarea) no se verifica.
           (
             !request.resource.data.keys().hasAll(['scoreAwarded']) ||
-            !resource.data.keys().hasAll(['puntajeImportancia']) ||
-            request.resource.data.scoreAwarded == resource.data.puntajeImportancia
+            request.resource.data.scoreAwarded == resource.data.get('puntajeImportancia', 0)
+          ) &&
+          // Anti-fraude de ranking (2/2): un asignado solo puede atribuirse a SÍ MISMO la
+          // finalización (y por ende el score). No puede acreditar la tarea a un tercero. Se
+          // permite conservar un completedBy previo (idempotencia) y, al revertir, el campo se
+          // elimina por lo que no aparece en keys() y la verificación se omite.
+          (
+            !request.resource.data.keys().hasAll(['completedBy']) ||
+            request.resource.data.completedBy == request.auth.uid ||
+            request.resource.data.completedBy == resource.data.get('completedBy', '')
           )
         )
       );

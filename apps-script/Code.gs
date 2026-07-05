@@ -25,10 +25,23 @@ const MAX_FILE_BYTES = 35 * 1024 * 1024;
 const FIREBASE_PROJECT_ID = 'usmcubesateam-1e3f4';
 
 // When true, upload/delete REQUIRE a valid Firebase ID token and the trusted email is
-// derived from it, ignoring any client-supplied userEmail. Leave false until the updated
-// web client (which sends params.idToken) is fully deployed, then flip to true to fully
-// close file impersonation. While false, a valid token is still preferred when present.
-const REQUIRE_ID_TOKEN = false;
+// derived from it, ignoring any client-supplied userEmail. The shipped web client
+// (FileService.ts / BotService.ts) already attaches params.idToken on every upload/delete
+// call, so the spoofable userEmail fallback is now pure attack surface: without this gate a
+// caller who holds the shared secret could pass an arbitrary victim email and delete files
+// they do not own (handleDelete gates on uploader email). Enforced to close that hole.
+const REQUIRE_ID_TOKEN = true;
+
+// Per-caller rate limiting for the Gemini proxy (handleChat). The shared secret is
+// distributed to every signed-in member via Firestore (system_config/keys) and is fetched
+// into the browser, so it cannot on its own protect the server-side Gemini API key. The
+// verified ID token proves the caller is institutional, but any single member could still
+// hammer the endpoint and burn the team's paid quota (financial DoS) or use it as a free
+// unmetered LLM. These caps bound requests per verified email and reject oversized payloads.
+const CHAT_RATE_WINDOW_SECONDS = 60;
+const CHAT_RATE_MAX_PER_WINDOW = 15;
+const CHAT_MAX_CONTENTS_CHARS = 200000;
+const CHAT_MAX_OUTPUT_TOKENS = 1200;
 
 // Allowlist of Gemini model identifiers accepted by handleChat
 const ALLOWED_MODELS = [
@@ -217,6 +230,27 @@ function handleDelete(params) {
   return { ok: true };
 }
 
+/**
+ * Fixed-window per-key rate limiter backed by the script CacheService. Returns true when the
+ * call is within budget, false when the caller has exhausted CHAT_RATE_MAX_PER_WINDOW in the
+ * current window. Fails open only if the cache backend is unavailable, never on a clean hit.
+ */
+function withinChatRateLimit_(key) {
+  try {
+    const cache = CacheService.getScriptCache();
+    if (!cache) return true;
+    const bucket = 'chat_rl_' + key;
+    const current = parseInt(cache.get(bucket) || '0', 10) || 0;
+    if (current >= CHAT_RATE_MAX_PER_WINDOW) {
+      return false;
+    }
+    cache.put(bucket, String(current + 1), CHAT_RATE_WINDOW_SECONDS);
+    return true;
+  } catch (err) {
+    return true;
+  }
+}
+
 function handleChat(params) {
   if (!params.model || !params.contents) {
     throw new Error('missing model or contents');
@@ -233,6 +267,21 @@ function handleChat(params) {
   const callerEmail = verifyIdToken_(params.idToken);
   if (!callerEmail) {
     throw new Error('valid Firebase ID token required for chat');
+  }
+
+  // Rate limit per verified email. A valid institutional token proves *who* the caller is but
+  // not that their usage is bounded; without this a single member could exhaust the team's
+  // paid Gemini quota or run the key as an unmetered LLM. Keyed by email so it survives across
+  // browser sessions/devices for the same person.
+  if (!withinChatRateLimit_(callerEmail)) {
+    return { error: 'rate limit exceeded: too many chat requests, retry in a minute' };
+  }
+
+  // Bound the request payload. Gemini prices per token, so an attacker-controlled giant
+  // `contents` array is a cost-amplification vector even under the rate limit.
+  const contentsSize = JSON.stringify(params.contents || '').length;
+  if (contentsSize > CHAT_MAX_CONTENTS_CHARS) {
+    return { error: 'payload too large' };
   }
 
   // Validate model against allowlist to prevent path injection / unintended API access
@@ -265,6 +314,14 @@ function handleChat(params) {
 
   if (params.generationConfig) {
     payload.generationConfig = params.generationConfig;
+  }
+
+  // Clamp maxOutputTokens server-side regardless of what the client requested, so the proxy
+  // cannot be steered into generating (and billing for) unbounded output.
+  payload.generationConfig = payload.generationConfig || {};
+  if (!payload.generationConfig.maxOutputTokens ||
+      payload.generationConfig.maxOutputTokens > CHAT_MAX_OUTPUT_TOKENS) {
+    payload.generationConfig.maxOutputTokens = CHAT_MAX_OUTPUT_TOKENS;
   }
 
   const options = {
