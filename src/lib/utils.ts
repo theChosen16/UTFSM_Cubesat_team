@@ -39,3 +39,47 @@ export function extractFullNameFromEmail(email: string): { nombre: string; apell
   const apellido = parts.length > 1 ? capitalize(parts[1]) : ''
   return { nombre, apellido }
 }
+
+/**
+ * Protocolos permitidos al renderizar una URL controlada por el usuario en un `href`.
+ * Excluye deliberadamente `javascript:`, `data:`, `vbscript:`, `file:`, etc.
+ */
+const SAFE_URL_PROTOCOLS = ['http:', 'https:', 'mailto:']
+
+/**
+ * Sanea una URL de origen no confiable (perfiles, mensajes, metadatos de archivos) para
+ * evitar XSS almacenado por `href`. React NO valida el esquema de un `href`, de modo que un
+ * valor como `javascript:alert(document.cookie)` guardado en Firestore por cualquier miembro
+ * se ejecutaría al hacer clic en otro navegador. Esta función devuelve la URL normalizada sólo
+ * si usa un protocolo seguro (http/https/mailto); en caso contrario devuelve `undefined` para
+ * que el llamador renderice texto plano en lugar de un enlace activo.
+ *
+ * - Recorta espacios y neutraliza caracteres de control que permiten contrabandear un esquema
+ *   (p. ej. "java\tscript:" o "java\nscript:").
+ * - A un valor sin esquema (p. ej. "linkedin.com/in/foo") se le antepone `https://`.
+ */
+export function sanitizeUrl(url: unknown): string | undefined {
+  if (typeof url !== 'string') return undefined
+
+  // Neutraliza espacios en blanco y caracteres de control (código <= 0x20 o 0x7F) que permiten
+  // contrabandear un esquema peligroso, p. ej. "java\tscript:" o "\x01javascript:".
+  const candidate = Array.from(url.trim())
+    .filter((ch) => {
+      const code = ch.charCodeAt(0)
+      return code > 0x20 && code !== 0x7f
+    })
+    .join('')
+  if (!candidate) return undefined
+
+  // Sin esquema explícito ni prefijo protocol-relative → asumir https (nunca javascript:).
+  const withScheme = (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(candidate) && !candidate.startsWith('//'))
+    ? `https://${candidate}`
+    : candidate
+
+  try {
+    const parsed = new URL(withScheme)
+    return SAFE_URL_PROTOCOLS.includes(parsed.protocol) ? parsed.href : undefined
+  } catch {
+    return undefined
+  }
+}

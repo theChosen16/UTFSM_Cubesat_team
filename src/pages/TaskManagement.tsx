@@ -20,6 +20,7 @@ import {
   FileText
 } from 'lucide-react'
 import { logger } from '@/lib/logger'
+import { sanitizeUrl } from '@/lib/utils'
 import { FileRecord, Task, TaskDeliverable, TaskMilestone, User as UserType, TeamType, hasAnyRole, hasTeam } from '@/types'
 import { TEAM_LABELS } from '@/lib/ui-constants'
 import { ProjectService } from '@/sdk/ProjectService'
@@ -531,18 +532,28 @@ export default function TaskManagement() {
 
                       <div className="mt-3 space-y-2">
                         {deliverableFiles.length > 0 ? (
-                          deliverableFiles.map(file => (
-                            <a
-                              key={file.id}
-                              href={file.viewURL}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-sm text-cyan-300 hover:text-cyan-200"
-                            >
-                              <Upload className="h-3.5 w-3.5" />
-                              <span>{file.name}</span>
-                            </a>
-                          ))
+                          deliverableFiles.map(file => {
+                            // La metadata de `files` (viewURL) es escribible por cualquier miembro
+                            // vía Firestore; se sanea antes de usarla en un `href` (anti-XSS).
+                            const safeViewUrl = sanitizeUrl(file.viewURL)
+                            return safeViewUrl ? (
+                              <a
+                                key={file.id}
+                                href={safeViewUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 text-sm text-cyan-300 hover:text-cyan-200"
+                              >
+                                <Upload className="h-3.5 w-3.5" />
+                                <span>{file.name}</span>
+                              </a>
+                            ) : (
+                              <div key={file.id} className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Upload className="h-3.5 w-3.5" />
+                                <span>{file.name}</span>
+                              </div>
+                            )
+                          })
                         ) : (
                           <p className="text-xs text-muted-foreground">Aún no hay archivos subidos para este entregable.</p>
                         )}
