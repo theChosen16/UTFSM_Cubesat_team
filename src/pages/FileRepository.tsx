@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { FileRecord, Task, User as UserType, hasAnyRole, hasTeam } from '@/types'
 import { FileService } from '@/sdk/FileService'
 import { ProjectService } from '@/sdk/ProjectService'
+import { sanitizeUrl } from '@/lib/utils'
 import { TaskService } from '@/sdk/TaskService'
 import { UserService } from '@/sdk/UserService'
 import { logger } from '@/lib/logger'
@@ -345,9 +346,18 @@ export default function FileRepository() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <FileText className="h-4 w-4 text-cyan-400" />
-                            <a href={file.viewURL} target="_blank" rel="noopener noreferrer" className="truncate text-sm font-medium text-white hover:text-cyan-300">
-                              {file.name}
-                            </a>
+                            {(() => {
+                              // La metadata de `files` (incluida viewURL) es escribible por cualquier
+                              // miembro vía Firestore; se sanea antes de usarla en un `href`.
+                              const safeViewUrl = sanitizeUrl(file.viewURL)
+                              return safeViewUrl ? (
+                                <a href={safeViewUrl} target="_blank" rel="noopener noreferrer" className="truncate text-sm font-medium text-white hover:text-cyan-300">
+                                  {file.name}
+                                </a>
+                              ) : (
+                                <span className="truncate text-sm font-medium text-white">{file.name}</span>
+                              )
+                            })()}
                             <Badge variant="secondary">{getMimeGroup(file.mimeType)}</Badge>
                           </div>
                           <p className="mt-1 text-xs text-muted-foreground">{file.mimeType} · {formatFileSize(file.size)}</p>

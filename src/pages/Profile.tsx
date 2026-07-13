@@ -32,7 +32,7 @@ import {
 import { UserRole, Questionnaire, TeamType, Genero, hasRole, hasAnyRole, hasTeam } from '@/types'
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, TEAM_LABELS } from '@/lib/ui-constants'
 import { logger } from '@/lib/logger'
-import { extractNameFromEmail, getRoleIcon } from '@/lib/utils'
+import { extractNameFromEmail, getRoleIcon, sanitizeUrl } from '@/lib/utils'
 import { PortfolioGallery } from '@/components/profile/PortfolioGallery'
 
 const ROLE_STYLES: Record<UserRole, { badge: 'orange' | 'red'; icon: string; background: string }> = {
@@ -429,20 +429,27 @@ export default function Profile() {
                 {profileUser?.bio && (
                   <p className="text-slate-300 text-sm whitespace-pre-wrap">{profileUser.bio}</p>
                 )}
-                {(profileUser?.socialLinks?.linkedin || profileUser?.socialLinks?.github) && (
-                  <div className="flex items-center gap-3 mt-4 pt-4 border-t border-space-500/50">
-                    {profileUser.socialLinks.linkedin && (
-                      <a href={profileUser.socialLinks.linkedin} target="_blank" rel="noreferrer" className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-sm">
-                        <LinkIcon className="w-4 h-4" /> LinkedIn
-                      </a>
-                    )}
-                    {profileUser.socialLinks.github && (
-                      <a href={profileUser.socialLinks.github} target="_blank" rel="noreferrer" className="text-purple-400 hover:text-purple-300 flex items-center gap-1 text-sm">
-                        <Github className="w-4 h-4" /> GitHub
-                      </a>
-                    )}
-                  </div>
-                )}
+                {(() => {
+                  // Los enlaces sociales son texto libre controlado por el usuario. Se sanean para
+                  // impedir XSS por `href` con esquemas peligrosos (javascript:, data:, etc.).
+                  const linkedinUrl = sanitizeUrl(profileUser?.socialLinks?.linkedin)
+                  const githubUrl = sanitizeUrl(profileUser?.socialLinks?.github)
+                  if (!linkedinUrl && !githubUrl) return null
+                  return (
+                    <div className="flex items-center gap-3 mt-4 pt-4 border-t border-space-500/50">
+                      {linkedinUrl && (
+                        <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-sm">
+                          <LinkIcon className="w-4 h-4" /> LinkedIn
+                        </a>
+                      )}
+                      {githubUrl && (
+                        <a href={githubUrl} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:text-purple-300 flex items-center gap-1 text-sm">
+                          <Github className="w-4 h-4" /> GitHub
+                        </a>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             )
           )}

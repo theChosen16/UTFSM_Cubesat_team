@@ -5,7 +5,7 @@ import { ProjectChatService } from '@/sdk/ProjectChatService'
 import { UserService } from '@/sdk/UserService'
 import { ProjectService } from '@/sdk/ProjectService'
 import { ProjectMessage, User } from '@/types'
-import { extractNameFromEmail } from '@/lib/utils'
+import { extractNameFromEmail, sanitizeUrl } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/spinner'
@@ -202,17 +202,28 @@ export default function ProjectChat() {
                     ) : (
                       <>
                         <p className="whitespace-pre-wrap text-sm break-words">{msg.content}</p>
-                        {msg.fileUrls && msg.fileUrls.map((url, idx) => (
-                          <div key={idx} className="mt-2 rounded-lg overflow-hidden max-w-full">
-                            {url.startsWith('data:image') || url.match(/\.(jpeg|jpg|gif|png)$/) != null ? (
-                              <img src={url} alt="Attachment" className="max-h-60 object-contain rounded" />
-                            ) : (
-                              <a href={url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs bg-black/20 p-2 rounded hover:bg-black/30">
-                                <File className="w-4 h-4" /> Archivo adjunto
-                              </a>
-                            )}
-                          </div>
-                        ))}
+                        {msg.fileUrls && msg.fileUrls.map((url, idx) => {
+                          const isImage = url.startsWith('data:image') || url.match(/\.(jpeg|jpg|gif|png)$/) != null
+                          // `fileUrls` proviene del documento del mensaje (escribible por cualquier
+                          // miembro): se sanea antes de usarlo en un `href` para evitar XSS
+                          // (javascript:, etc.). Las data:image se mantienen sólo como <img>.
+                          const safeUrl = isImage ? undefined : sanitizeUrl(url)
+                          return (
+                            <div key={idx} className="mt-2 rounded-lg overflow-hidden max-w-full">
+                              {isImage ? (
+                                <img src={url} alt="Attachment" className="max-h-60 object-contain rounded" />
+                              ) : safeUrl ? (
+                                <a href={safeUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs bg-black/20 p-2 rounded hover:bg-black/30">
+                                  <File className="w-4 h-4" /> Archivo adjunto
+                                </a>
+                              ) : (
+                                <span className="flex items-center gap-2 text-xs bg-black/20 p-2 rounded text-muted-foreground">
+                                  <File className="w-4 h-4" /> Archivo adjunto
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })}
                       </>
                     )}
                     
