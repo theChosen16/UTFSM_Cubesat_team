@@ -143,7 +143,7 @@ export default function ProjectChat() {
   }
 
   return (
-    <div className="page-shell max-w-4xl mx-auto flex flex-col h-[calc(100vh-8rem)]">
+    <div className="page-shell max-w-4xl mx-auto flex flex-col h-[calc(100vh-8rem)] h-[calc(100dvh-8rem)]">
       {/* Header */}
       <div className="flex items-center gap-4 pb-4 border-b border-space-600 mb-4 shrink-0">
         <Button variant="ghost" size="icon" onClick={() => navigate('/projects')} className="text-muted-foreground hover:text-white">

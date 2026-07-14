@@ -56,7 +56,7 @@ function CompleteNameOverlay() {
   }
 
   return (
-    <div className="min-h-screen bg-space-900 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-safe-screen min-h-screen bg-space-900 flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute inset-0 stars-bg opacity-30" />
       <Card className="w-full max-w-sm bg-space-800 border-space-600 z-10">
         <CardHeader className="text-center">
