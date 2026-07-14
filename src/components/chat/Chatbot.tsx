@@ -191,13 +191,6 @@ export function Chatbot() {
         <Bot size={28} />
       </button>
 
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm sm:hidden"
-          onClick={() => setIsOpen(false)}
-          aria-hidden="true"
-        />
-      )}
 
       {/* Ventana de Chat Flotante */}
       <div 
