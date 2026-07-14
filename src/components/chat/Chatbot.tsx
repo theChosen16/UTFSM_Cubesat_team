@@ -208,7 +208,7 @@ export function Chatbot() {
         className={`fixed z-50 flex flex-col bg-space-800/95 shadow-2xl backdrop-blur-xl transition-all duration-300 inset-0 rounded-none h-full w-full max-h-full sm:inset-auto sm:bottom-6 sm:right-6 sm:h-[550px] sm:w-[380px] sm:max-w-[calc(100vw-3rem)] sm:max-h-[calc(100dvh-1.5rem)] sm:rounded-2xl sm:border sm:border-space-600 sm:origin-bottom-right ${isOpen ? 'translate-y-0 opacity-100 sm:scale-100' : 'pointer-events-none translate-y-full opacity-0 sm:translate-y-0 sm:scale-95'}`}
       >
         {/* Cabecera del Bot */}
-        <div className="mobile-safe-top rounded-t-none border-b border-space-600 bg-space-900/50 px-4 py-3.5 sm:rounded-t-2xl">
+        <div className="mobile-safe-top rounded-t-none border-b border-space-600 bg-space-900/50 px-4 pb-3.5 sm:rounded-t-2xl">
           <div className="mb-3 flex justify-center sm:hidden">
             <span className="h-1.5 w-12 rounded-full bg-space-600" aria-hidden="true" />
           </div>
@@ -297,7 +297,7 @@ export function Chatbot() {
         )}
 
         {/* Input box */}
-        <div className="mobile-safe-bottom rounded-b-none border-t border-space-600 bg-space-900/50 p-3 sm:rounded-b-2xl">
+        <div className="mobile-safe-bottom rounded-b-none border-t border-space-600 bg-space-900/50 pt-3 px-3 sm:rounded-b-2xl">
           {/* File input (oculto) */}
           {isManager && (
             <input
