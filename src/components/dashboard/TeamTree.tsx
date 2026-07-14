@@ -52,9 +52,9 @@ export function TeamTree({ members }: TeamTreeProps) {
     const Icon = config.icon
 
     return (
-      <div className="flex flex-col items-center flex-1 min-w-[250px] relative mt-8 md:mt-0">
+      <div className="flex flex-col items-center flex-1 min-w-[250px] w-full max-w-sm relative mt-8 lg:mt-0">
         {/* Connection line from top to team header */}
-        <div className="hidden md:block absolute -top-8 left-1/2 w-0.5 h-8 bg-gradient-to-b from-cyan-500/50 to-transparent -translate-x-1/2" />
+        <div className="hidden lg:block absolute -top-8 left-1/2 w-0.5 h-8 bg-gradient-to-b from-cyan-500/50 to-transparent -translate-x-1/2" />
         
         <Card className={`bg-space-800/80 backdrop-blur-sm border ${config.borderClass} p-4 w-full flex flex-col items-center relative z-10 shadow-lg shadow-black/20`}>
           <div className={`w-10 h-10 rounded-xl ${config.bgClass} flex items-center justify-center mb-3 shadow-[0_0_15px_currentColor] ${config.colorClass}`}>
@@ -75,8 +75,8 @@ export function TeamTree({ members }: TeamTreeProps) {
   }
 
   return (
-    <div className="w-full relative py-6 overflow-x-auto custom-scrollbar">
-      <div className="min-w-[800px] md:min-w-full flex flex-col items-center">
+    <div className="w-full relative py-6">
+      <div className="w-full flex flex-col items-center">
         
         {/* Directiva / Root Node */}
         <div className="flex flex-col items-center relative z-10 mb-8">
@@ -100,7 +100,7 @@ export function TeamTree({ members }: TeamTreeProps) {
         </div>
 
         {/* Horizontal connector line for the 3 teams (Desktop only visually) */}
-        <div className="w-3/4 max-w-4xl border-t-2 border-cyan-500/30 relative hidden md:block">
+        <div className="w-3/4 max-w-4xl border-t-2 border-cyan-500/30 relative hidden lg:block">
            <div className="absolute top-0 left-0 w-full h-[2px] bg-cyan-400 blur-[2px] opacity-50" />
            {/* Ends of the horizontal line */}
            <div className="absolute -top-1 -left-1 w-2.5 h-2.5 rounded-full bg-cyan-500 shadow-[0_0_10px_#06b6d4]" />
@@ -109,7 +109,7 @@ export function TeamTree({ members }: TeamTreeProps) {
         </div>
 
         {/* Teams Row */}
-        <div className="flex flex-col md:flex-row items-start justify-center gap-6 md:gap-12 w-full max-w-6xl px-4 mt-0 md:-mt-[2px] relative z-10">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-start justify-center gap-6 lg:gap-8 w-full max-w-6xl px-4 mt-0 lg:-mt-[2px] relative z-10">
           {renderTeamSection('Técnico', 'tecnico', tecnico)}
           {renderTeamSection('Management', 'manager', manager)}
           {renderTeamSection('RR.PP.', 'relaciones_publicas', rrpp)}

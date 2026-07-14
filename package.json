@@ -1,7 +1,7 @@
 {
   "name": "usm-cubesat-team",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -40,10 +40,11 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^6.0.2",
     "autoprefixer": "^10.4.19",
+    "chrome-devtools-mcp": "^1.5.0",
     "eslint": "^9.9.0",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.9",
-    "firebase-tools": "^15.22.0",
+    "firebase-tools": "^15.23.0",
     "flatted": "3.4.2",
     "gh-pages": "^6.3.0",
     "globals": "^15.9.0",
@@ -57,6 +58,7 @@
   },
   "overrides": {
     "@tootallnate/once": "^3.0.1",
-    "uuid": "^11.1.1"
+    "uuid": "^11.1.1",
+    "@opentelemetry/core": ">=2.8.0"
   }
 }
