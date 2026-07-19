@@ -16,6 +16,24 @@ service cloud.firestore {
       return hasTeam('manager') || hasRole('maestro') || hasRole('admin');
     }
 
+    // Airtight institutional-membership gate. Registration only validated the @usm.cl /
+    // @sansano.usm.cl domain in the client UI (Register.tsx); the Firebase config ships in
+    // the public GitHub Pages bundle, so anyone could register an arbitrary account straight
+    // against the Auth REST API and — because every collection below gated reads on the bare
+    // `request.auth != null` — read the entire private workspace (member emails, tasks,
+    // projects, file metadata, posts, chats). This function moves the domain check to the one
+    // layer an attacker cannot bypass. The email claim is issued by Firebase from the address
+    // the account actually registered with, so it cannot be forged. The regex is anchored with
+    // ^...$ so a look-alike domain such as 'eve@usm.cl.evil.com' is rejected (an unanchored
+    // pattern would match it as a substring). email_verified is intentionally NOT required:
+    // email/password accounts are unverified by default and demanding it would lock everyone
+    // out — the anchored domain match is the security boundary.
+    function isInstitutional() {
+      return request.auth != null &&
+        request.auth.token.email is string &&
+        request.auth.token.email.matches('^[A-Za-z0-9._%+-]+@(sansano[.])?usm[.]cl$');
+    }
+
     // Fields a user is allowed to update on their own profile.
     // Excludes 'rol', 'isActive', 'email', 'createdAt' to prevent privilege escalation.
     function isAllowedSelfUpdate() {
@@ -35,7 +53,7 @@ service cloud.firestore {
       // as 'maestro' — but only if they are the uid recorded in the bootstrap lock that
       // the signup transaction created moments earlier. This closes the privilege-
       // escalation hole where any authenticated user could create their own doc as maestro.
-      allow create: if request.auth != null && (
+      allow create: if isInstitutional() && (
         (request.auth.uid == userId && (
           (
             !request.resource.data.keys().hasAny(['rol', 'roles']) &&
@@ -52,7 +70,7 @@ service cloud.firestore {
         (userId == '_bootstrap_lock' && !exists(/databases/$(database)/documents/users/_bootstrap_lock))
       );
 
-      allow read: if request.auth != null && (
+      allow read: if isInstitutional() && (
         request.auth.uid == userId ||
         userId == '_bootstrap_lock' ||
         hasRole('maestro') ||
@@ -61,27 +79,27 @@ service cloud.firestore {
 
       // Maestro/admin can update any field on any user document.
       // Regular users can only update their own non-privileged fields.
-      allow update: if request.auth != null && (
+      allow update: if isInstitutional() && (
         hasRole('maestro') ||
         hasRole('admin') ||
         (request.auth.uid == userId && isAllowedSelfUpdate())
       );
 
       // Only maestro can delete user documents
-      allow delete: if request.auth != null &&
+      allow delete: if isInstitutional() &&
         hasRole('maestro');
     }
 
     match /notifications/{notificationId} {
       // Users can read their own notifications
-      allow read: if request.auth != null &&
+      allow read: if isInstitutional() &&
         resource.data.recipientId == request.auth.uid;
 
       // Authenticated users can create notifications only if senderId matches their uid.
       // 'type' is constrained to the known NotificationType union and title/message are
       // size-capped so a member cannot forge arbitrary 'system'-looking alerts (in-app
       // phishing) or bloat documents to abuse storage/egress.
-      allow create: if request.auth != null &&
+      allow create: if isInstitutional() &&
         request.resource.data.senderId == request.auth.uid &&
         request.resource.data.recipientId is string &&
         request.resource.data.recipientId.size() > 0 &&
@@ -92,23 +110,23 @@ service cloud.firestore {
           (request.resource.data.message is string && request.resource.data.message.size() <= 3000));
 
       // Users can update or delete their own notifications (e.g., mark as read / dismiss)
-      allow update, delete: if request.auth != null &&
+      allow update, delete: if isInstitutional() &&
         resource.data.recipientId == request.auth.uid;
     }
 
     match /projects/{projectId} {
-      // All authenticated users can read projects (team collaboration tool, all users are institutional)
-      allow read: if request.auth != null;
-      allow create, update: if request.auth != null && canManageWorkspace();
-      allow delete: if request.auth != null &&
+      // All institutional users can read projects (team collaboration tool, all users are institutional)
+      allow read: if isInstitutional();
+      allow create, update: if isInstitutional() && canManageWorkspace();
+      allow delete: if isInstitutional() &&
         hasRole('maestro');
     }
 
     match /tasks/{taskId} {
-      // All authenticated users can read tasks (team collaboration tool, all users are institutional)
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && canManageWorkspace();
-      allow update: if request.auth != null && (
+      // All institutional users can read tasks (team collaboration tool, all users are institutional)
+      allow read: if isInstitutional();
+      allow create: if isInstitutional() && canManageWorkspace();
+      allow update: if isInstitutional() && (
         canManageWorkspace() ||
         (
           resource.data.asignadoA is list &&
@@ -146,7 +164,7 @@ service cloud.firestore {
           )
         )
       );
-      allow delete: if request.auth != null &&
+      allow delete: if isInstitutional() &&
         hasRole('maestro');
     }
 
@@ -154,8 +172,8 @@ service cloud.firestore {
       // All workspace members can read activity logs for performance rankings.
       // Entry creation is restricted to the authenticated user's own entries, with
       // basic shape/size validation to prevent log forging with malformed payloads.
-      allow read: if request.auth != null;
-      allow create: if request.auth != null &&
+      allow read: if isInstitutional();
+      allow create: if isInstitutional() &&
         request.resource.data.userId == request.auth.uid &&
         request.resource.data.type is string &&
         request.resource.data.description is string &&
@@ -163,9 +181,9 @@ service cloud.firestore {
     }
 
     match /files/{fileId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.uploadedBy == request.auth.uid;
-      allow delete: if request.auth != null && (
+      allow read: if isInstitutional();
+      allow create: if isInstitutional() && request.resource.data.uploadedBy == request.auth.uid;
+      allow delete: if isInstitutional() && (
         resource.data.uploadedBy == request.auth.uid ||
         canManageWorkspace()
       );
@@ -173,26 +191,26 @@ service cloud.firestore {
 
     match /member_scores/{scoreId} {
       // Users can read their own score; workspace managers, admins, and maestros can read all.
-      allow read: if request.auth != null &&
+      allow read: if isInstitutional() &&
         (resource.data.userId == request.auth.uid || canManageWorkspace());
-      allow create, update, delete: if request.auth != null && canManageWorkspace();
+      allow create, update, delete: if isInstitutional() && canManageWorkspace();
     }
 
     match /events/{eventId} {
-      // All authenticated users can read calendar events.
+      // All institutional users can read calendar events.
       // Creation, updates and deletions are restricted to workspace managers, admins, and maestros.
-      allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null && canManageWorkspace();
+      allow read: if isInstitutional();
+      allow create, update, delete: if isInstitutional() && canManageWorkspace();
     }
 
     match /mail/{mailId} {
       // Only workspace managers/admins/maestros may enqueue mail to prevent spam abuse.
-      allow create: if request.auth != null && canManageWorkspace();
+      allow create: if isInstitutional() && canManageWorkspace();
     }
 
     match /mail_digests/{digestId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && canManageWorkspace();
+      allow read: if isInstitutional();
+      allow create: if isInstitutional() && canManageWorkspace();
     }
 
     match /system_config/{configId} {
@@ -202,15 +220,13 @@ service cloud.firestore {
       // 'eve@usm.cl.evil.com' (the regex matches a substring), letting an external user read the
       // secret. Anchor with ^...$ and restrict the local part so only true @usm.cl /
       // @sansano.usm.cl addresses pass. The email claim is also guarded as a string.
-      allow read: if request.auth != null &&
-        request.auth.token.email is string &&
-        request.auth.token.email.matches('^[A-Za-z0-9._%+-]+@(sansano[.])?usm[.]cl$');
-      allow write: if request.auth != null && (hasRole('maestro') || hasRole('admin'));
+      allow read: if isInstitutional();
+      allow write: if isInstitutional() && (hasRole('maestro') || hasRole('admin'));
     }
 
     match /posts/{postId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null &&
+      allow read: if isInstitutional();
+      allow create: if isInstitutional() &&
         request.resource.data.authorId == request.auth.uid &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 10000));
@@ -219,7 +235,7 @@ service cloud.firestore {
       // values (wipe others' likes, set an arbitrary count). We now require that the only change
       // to likedBy is the caller adding or removing their OWN uid (symmetric difference == {uid})
       // and that likesCount stays consistent with the array length.
-      allow update: if request.auth != null && (
+      allow update: if isInstitutional() && (
         resource.data.authorId == request.auth.uid ||
         (
           request.resource.data.diff(resource.data).changedKeys().hasOnly(['likedBy', 'likesCount']) &&
@@ -230,29 +246,29 @@ service cloud.firestore {
             == [request.auth.uid].toSet()
         )
       );
-      allow delete: if request.auth != null && (
+      allow delete: if isInstitutional() && (
         resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
     }
 
     match /comments/{commentId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null &&
+      allow read: if isInstitutional();
+      allow create: if isInstitutional() &&
         request.resource.data.authorId == request.auth.uid &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
-      allow update, delete: if request.auth != null && (
+      allow update, delete: if isInstitutional() && (
         resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
     }
 
     match /project_messages/{messageId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null &&
+      allow read: if isInstitutional();
+      allow create: if isInstitutional() &&
         request.resource.data.senderId == request.auth.uid &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
-      allow update, delete: if request.auth != null && (
+      allow update, delete: if isInstitutional() && (
         resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
     }
