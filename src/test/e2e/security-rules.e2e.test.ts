@@ -373,4 +373,92 @@ describe('Security rules — privilege escalation & integrity', () => {
       })
     )
   })
+
+  it('blocks a regular member from forging a system notification but allows a manager', async () => {
+    const maestroEmail = 'sysboss@usm.cl'
+    await bootstrapMaestro(maestroEmail)
+    await signOut(auth)
+
+    // Regular member cannot emit an official-looking 'system' alert (in-app phishing).
+    const { user: member } = await createUserWithEmailAndPassword(auth, 'sysmem@usm.cl', PW)
+    await setDoc(doc(db, 'users', member.uid), {
+      email: 'sysmem@usm.cl',
+      nombre: 'Sys',
+      apellido: 'Mem',
+      createdAt: new Date(),
+      isActive: true,
+    })
+    await expectDenied(
+      addDoc(collection(db, 'notifications'), {
+        senderId: member.uid,
+        recipientId: 'victim',
+        type: 'system',
+        title: 'Alerta oficial',
+        message: 'Haz clic aquí',
+        read: false,
+        createdAt: Timestamp.now(),
+      })
+    )
+
+    // A maestro (workspace manager) can legitimately emit a 'system' notification.
+    await signOut(auth)
+    await signInWithEmailAndPassword(auth, maestroEmail, PW)
+    const ref = await addDoc(collection(db, 'notifications'), {
+      senderId: (auth.currentUser as { uid: string }).uid,
+      recipientId: 'team',
+      type: 'system',
+      title: 'Mantención',
+      message: 'El portal estará en mantención el viernes.',
+      read: false,
+      createdAt: Timestamp.now(),
+    })
+    expect(ref.id).toBeTruthy()
+  })
+
+  it('blocks a non-institutional authenticated user from reading the private workspace', async () => {
+    // Seed some workspace data as a legitimate maestro.
+    await bootstrapMaestro('wsboss@usm.cl')
+    const taskRef = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Secreto interno',
+      descripcion: '',
+      estado: 'pendiente',
+      asignadoA: [],
+      equipo: 'tecnico',
+      prioridad: 'media',
+      creadoPor: 'maestro',
+      puntajeImportancia: 5,
+      createdAt: Timestamp.now(),
+    })
+    const projectRef = await addDoc(collection(db, 'projects'), {
+      nombre: 'Proyecto privado',
+      descripcion: '',
+      estado: 'activo',
+      createdAt: Timestamp.now(),
+    })
+    await signOut(auth)
+
+    // An outsider registers a NON-institutional account (bypassing the client-side domain
+    // check by talking to Auth directly). The server-side rules must deny workspace reads.
+    await createUserWithEmailAndPassword(auth, 'outsider@gmail.com', PW)
+    await expectDenied(getDoc(taskRef))
+    await expectDenied(getDoc(projectRef))
+    await signOut(auth)
+
+    // A genuine institutional member can still read the same documents.
+    await createUserWithEmailAndPassword(auth, 'insider@usm.cl', PW)
+    const taskSnap = await getDoc(taskRef)
+    expect(taskSnap.data()!.titulo).toBe('Secreto interno')
+  })
+
+  it('blocks a non-institutional user from reading system_config secrets', async () => {
+    await bootstrapMaestro('cfgboss2@usm.cl')
+    await setDoc(doc(db, 'system_config', 'keys'), {
+      driveUploadUrl: 'https://example/exec',
+      driveUploadSecret: 'top-secret-2',
+    })
+    await signOut(auth)
+
+    await createUserWithEmailAndPassword(auth, 'evil@gmail.com', PW)
+    await expectDenied(getDoc(doc(db, 'system_config', 'keys')))
+  })
 })

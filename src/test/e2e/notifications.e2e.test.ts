@@ -25,13 +25,20 @@ describe('Notifications E2E', () => {
     await clearFirestoreData()
     await clearAuthUsers()
 
-    // Create sender
+    // Create sender. The 'system' notification type is now reserved for workspace managers
+    // (anti-phishing hardening), so the sender is bootstrapped as maestro — replicating the
+    // real signup lock — to exercise every notification type below.
     const { user: sender } = await createUserWithEmailAndPassword(auth, 'sender@usm.cl', PW)
     senderUid = sender.uid
+    await setDoc(doc(db, 'users', '_bootstrap_lock'), {
+      maestroUid: senderUid,
+      createdAt: new Date(),
+    })
     await setDoc(doc(db, 'users', senderUid), {
       email: 'sender@usm.cl',
       nombre: 'Sender',
       apellido: 'User',
+      rol: 'maestro',
       createdAt: new Date(),
       isActive: true,
     })
