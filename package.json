@@ -19,6 +19,7 @@
     "@hookform/resolvers": "^5.2.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "cookie": "^2.0.1",
     "firebase": "^12.10.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.441.0",
@@ -26,7 +27,7 @@
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.73.1",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.0.0",
+    "react-router-dom": "^7.18.1",
     "tailwind-merge": "^2.5.2",
     "zod": "^4.3.6"
   },
