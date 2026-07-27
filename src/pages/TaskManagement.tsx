@@ -42,6 +42,7 @@ export default function TaskManagement() {
   const [members, setMembers] = useState<UserType[]>([])
   const [files, setFiles] = useState<FileRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [nowTimestamp] = useState(() => Date.now())
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -68,10 +69,6 @@ export default function TaskManagement() {
 
   const canManageTasks = hasAnyRole(user, 'maestro', 'admin') || hasTeam(user, 'manager')
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
   const loadData = async () => {
     try {
       const [tasksResult, projectsResult, usersResult, filesResult] = await Promise.allSettled([
@@ -96,6 +93,10 @@ export default function TaskManagement() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    loadData()
+  }, [])
 
   const resetForm = () => {
     setTitulo('')
@@ -393,7 +394,7 @@ export default function TaskManagement() {
   const renderTaskCard = (task: Task) => {
     const isAssigned = user && task.asignadoA.includes(user.id)
     const canChangeStatus = canManageTasks || isAssigned
-    const isOverdue = Boolean(task.fechaLimite) && task.estado !== 'completado' && new Date(task.fechaLimite as string).getTime() < Date.now()
+    const isOverdue = Boolean(task.fechaLimite) && task.estado !== 'completado' && new Date(task.fechaLimite as string).getTime() < nowTimestamp
     const progressUpdates = [...(task.progressUpdates || [])].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
 
     return (

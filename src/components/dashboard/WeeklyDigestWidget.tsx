@@ -19,10 +19,10 @@ export function WeeklyDigestWidget() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewHTML, setPreviewHTML] = useState<string>('')
   const [compilingPreview, setCompilingPreview] = useState(false)
+  const [nowTimestamp] = useState(() => Date.now())
 
   const loadLastDigest = async () => {
     try {
-      setLoading(true)
       const log = await EmailNotificationService.getLastDigestLog()
       setLastDigest(log)
     } catch (err) {
@@ -33,7 +33,21 @@ export function WeeklyDigestWidget() {
   }
 
   useEffect(() => {
-    loadLastDigest()
+    let isMounted = true
+    const init = async () => {
+      try {
+        const log = await EmailNotificationService.getLastDigestLog()
+        if (isMounted) setLastDigest(log)
+      } catch (err) {
+        if (isMounted) logger.error('Error loading last digest log in widget', { err })
+      } finally {
+        if (isMounted) setLoading(false)
+      }
+    }
+    init()
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   const handleSendDigest = async () => {
@@ -80,7 +94,7 @@ export function WeeklyDigestWidget() {
   let daysRemaining = 7
 
   if (lastDigest) {
-    const diffMs = Date.now() - new Date(lastDigest.createdAt).getTime()
+    const diffMs = nowTimestamp - new Date(lastDigest.createdAt).getTime()
     daysSinceLast = Math.floor(diffMs / (24 * 60 * 60 * 1000))
     daysRemaining = Math.max(0, 7 - daysSinceLast)
     progressPercent = Math.min(100, (daysSinceLast / 7) * 100)

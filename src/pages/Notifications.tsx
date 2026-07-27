@@ -28,36 +28,24 @@ type TabType = 'notifications' | 'messages'
 export default function Notifications() {
   const { user, getAllUsers } = useAuth()
   const location = useLocation()
-  const [activeTab, setActiveTab] = useState<TabType>('notifications')
+  const composeState = location.state as { composeTo?: string; composeToName?: string } | null
+
+  const [activeTab, setActiveTab] = useState<TabType>(composeState?.composeTo ? 'messages' : 'notifications')
   const [notifications, setNotifications] = useState<NotificationType[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(Boolean(user))
 
   // Compose message state
-  const [showCompose, setShowCompose] = useState(false)
-  const [messageRecipient, setMessageRecipient] = useState('')
+  const [showCompose, setShowCompose] = useState(Boolean(composeState?.composeTo))
+  const [messageRecipient, setMessageRecipient] = useState(composeState?.composeTo || '')
   const [messageText, setMessageText] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
   const [messageSent, setMessageSent] = useState(false)
   const [allUsers, setAllUsers] = useState<{ id: string; nombre: string; apellido: string; email: string }[]>([])
 
-  // Auto-open compose form when navigated from Profile with composeTo state
-  useEffect(() => {
-    const state = location.state as { composeTo?: string; composeToName?: string } | null
-    if (state?.composeTo) {
-      setActiveTab('messages')
-      setShowCompose(true)
-      setMessageRecipient(state.composeTo)
-    }
-  }, [location.state])
-
   // Carga de usuarios y suscripción en tiempo real a notificaciones
   useEffect(() => {
-    if (!user) {
-      setLoading(false)
-      return
-    }
+    if (!user) return
 
-    setLoading(true)
     const unsubscribe = NotificationService.subscribeByUser(
       user.id,
       (loaded) => {

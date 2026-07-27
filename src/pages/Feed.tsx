@@ -35,8 +35,30 @@ export default function Feed() {
   }, [])
 
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    let isMounted = true
+    const fetchData = async () => {
+      try {
+        const [fetchedPosts, allUsers] = await Promise.all([
+          FeedService.getPosts(),
+          UserService.getAll()
+        ])
+        if (!isMounted) return
+        const map: Record<string, User> = {}
+        allUsers.forEach(u => { map[u.id] = u })
+
+        setPosts(fetchedPosts)
+        setUsersMap(map)
+      } catch (error) {
+        if (isMounted) logger.error('Error loading feed data', { error })
+      } finally {
+        if (isMounted) setLoading(false)
+      }
+    }
+    fetchData()
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const handleCreatePost = async (content: string, category: string, imageUrls: string[]) => {
     if (!user) return

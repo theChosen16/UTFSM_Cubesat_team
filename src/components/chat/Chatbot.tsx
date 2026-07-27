@@ -17,12 +17,42 @@ interface Message {
 export function Chatbot() {
   const { user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'model',
-      content: '¡Hola! Soy Cubesat Bot, el núcleo táctico de inteligencia del equipo USM Cubesat.\n\nEstoy aquí para mantenerte enfocado en la misión, asistir con análisis ingenieril y revisar el contexto crítico de nuestros proyectos espaciales. ¿En qué parámetro te asisto hoy?'
+  const getInitialMessage = (currentUser: typeof user): Message[] => {
+    if (currentUser) {
+      const name = currentUser.nombre || 'Administrador'
+      const activeIsManager = currentUser.equipos?.includes('manager') || currentUser.rol === 'maestro' || currentUser.rol === 'admin'
+      if (activeIsManager) {
+        return [
+          {
+            role: 'model',
+            content: `¡Hola, ${name}! Sistemas de gestión y organización online. Detecto privilegios ejecutivos activos en tu firma digital.\n\nPuedo asistirte en tiempo real a delegar tareas, agendar reuniones en el calendario orbital, sincronizar la base de datos viva o generar resúmenes de rendimiento. ¿Qué directiva deseas ejecutar hoy?`
+          }
+        ]
+      } else {
+        return [
+          {
+            role: 'model',
+            content: `¡Hola, ${name}! Soy Cubesat Bot, el núcleo táctico de inteligencia del equipo USM Cubesat.\n\nEstoy aquí para mantenerte enfocado en la misión, asistir con análisis ingenieril y revisar el contexto crítico de nuestros proyectos espaciales. ¿En qué parámetro te asisto hoy?`
+          }
+        ]
+      }
     }
-  ])
+    return [
+      {
+        role: 'model',
+        content: '¡Hola! Soy Cubesat Bot, el núcleo táctico de inteligencia del equipo USM Cubesat.\n\nEstoy aquí para mantenerte enfocado en la misión, asistir con análisis ingenieril y revisar el contexto crítico de nuestros proyectos espaciales. ¿En qué parámetro te asisto hoy?'
+      }
+    ]
+  }
+
+  const [prevUserId, setPrevUserId] = useState<string | undefined>(user?.id)
+  const [messages, setMessages] = useState<Message[]>(() => getInitialMessage(user))
+
+  if (user?.id !== prevUserId) {
+    setPrevUserId(user?.id)
+    setMessages(getInitialMessage(user))
+  }
+
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const endOfMessagesRef = useRef<HTMLDivElement>(null)
@@ -41,36 +71,6 @@ export function Chatbot() {
     { label: '📅 Agendar Reunión', prompt: 'Agenda una reunión de subsistema para mañana a las 15:00 titulada "Reunión de Sincronización"' },
     { label: '🔄 Sincronizar Base', prompt: 'Sincronizar base de datos y memoria de proyectos del equipo' }
   ]
-
-  // Actualizar el saludo inicial dinámicamente cuando cambie el usuario o rol
-  useEffect(() => {
-    if (user) {
-      const name = user.nombre || 'Administrador'
-      const activeIsManager = user.equipos?.includes('manager') || user.rol === 'maestro' || user.rol === 'admin'
-      if (activeIsManager) {
-        setMessages([
-          {
-            role: 'model',
-            content: `¡Hola, ${name}! Sistemas de gestión y organización online. Detecto privilegios ejecutivos activos en tu firma digital.\n\nPuedo asistirte en tiempo real a delegar tareas, agendar reuniones en el calendario orbital, sincronizar la base de datos viva o generar resúmenes de rendimiento. ¿Qué directiva deseas ejecutar hoy?`
-          }
-        ])
-      } else {
-        setMessages([
-          {
-            role: 'model',
-            content: `¡Hola, ${name}! Soy Cubesat Bot, el núcleo táctico de inteligencia del equipo USM Cubesat.\n\nEstoy aquí para mantenerte enfocado en la misión, asistir con análisis ingenieril y revisar el contexto crítico de nuestros proyectos espaciales. ¿En qué parámetro te asisto hoy?`
-          }
-        ])
-      }
-    } else {
-      setMessages([
-        {
-          role: 'model',
-          content: '¡Hola! Soy Cubesat Bot, el núcleo táctico de inteligencia del equipo USM Cubesat.\n\nEstoy aquí para mantenerte enfocado en la misión, asistir con análisis ingenieril y revisar el contexto crítico de nuestros proyectos espaciales. ¿En qué parámetro te asisto hoy?'
-        }
-      ])
-    }
-  }, [user])
 
   // Scroll al último mensaje automáticamente
   useEffect(() => {
