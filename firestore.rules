@@ -59,7 +59,7 @@ service cloud.firestore {
       // as 'maestro' — but only if they are the uid recorded in the bootstrap lock that
       // the signup transaction created moments earlier. This closes the privilege-
       // escalation hole where any authenticated user could create their own doc as maestro.
-      allow create: if request.auth != null && (
+      allow create: if isInstitutional() && (
         (request.auth.uid == userId && (
           (
             !request.resource.data.keys().hasAny(['rol', 'roles']) &&
@@ -76,7 +76,7 @@ service cloud.firestore {
         (userId == '_bootstrap_lock' && !exists(/databases/$(database)/documents/users/_bootstrap_lock))
       );
 
-      allow read: if request.auth != null && (
+      allow read: if isInstitutional() && (
         request.auth.uid == userId ||
         userId == '_bootstrap_lock' ||
         hasRole('maestro') ||
@@ -85,20 +85,20 @@ service cloud.firestore {
 
       // Maestro/admin can update any field on any user document.
       // Regular users can only update their own non-privileged fields.
-      allow update: if request.auth != null && (
+      allow update: if isInstitutional() && (
         hasRole('maestro') ||
         hasRole('admin') ||
         (request.auth.uid == userId && isAllowedSelfUpdate())
       );
 
       // Only maestro can delete user documents
-      allow delete: if request.auth != null &&
+      allow delete: if isInstitutional() &&
         hasRole('maestro');
     }
 
     match /notifications/{notificationId} {
       // Users can read their own notifications
-      allow read: if request.auth != null &&
+      allow read: if isInstitutional() &&
         resource.data.recipientId == request.auth.uid;
 
       // Authenticated members can create notifications only if senderId matches their uid.
@@ -121,7 +121,7 @@ service cloud.firestore {
           (request.resource.data.message is string && request.resource.data.message.size() <= 3000));
 
       // Users can update or delete their own notifications (e.g., mark as read / dismiss)
-      allow update, delete: if request.auth != null &&
+      allow update, delete: if isInstitutional() &&
         resource.data.recipientId == request.auth.uid;
     }
 
@@ -129,8 +129,8 @@ service cloud.firestore {
       // Institutional members can read projects (private team tool — the boundary is enforced
       // here, not only in the client). Managers create/update; deletion is maestro-only.
       allow read: if isInstitutional();
-      allow create, update: if request.auth != null && canManageWorkspace();
-      allow delete: if request.auth != null &&
+      allow create, update: if isInstitutional() && canManageWorkspace();
+      allow delete: if isInstitutional() &&
         hasRole('maestro');
     }
 
@@ -138,8 +138,8 @@ service cloud.firestore {
       // Institutional members can read tasks (private team tool). Managers create;
       // assignees may update a restricted field set (guarded below); deletion is maestro-only.
       allow read: if isInstitutional();
-      allow create: if request.auth != null && canManageWorkspace();
-      allow update: if request.auth != null && (
+      allow create: if isInstitutional() && canManageWorkspace();
+      allow update: if isInstitutional() && (
         canManageWorkspace() ||
         (
           resource.data.asignadoA is list &&
@@ -177,7 +177,7 @@ service cloud.firestore {
           )
         )
       );
-      allow delete: if request.auth != null &&
+      allow delete: if isInstitutional() &&
         hasRole('maestro');
     }
 
@@ -196,7 +196,7 @@ service cloud.firestore {
     match /files/{fileId} {
       allow read: if isInstitutional();
       allow create: if isInstitutional() && request.resource.data.uploadedBy == request.auth.uid;
-      allow delete: if request.auth != null && (
+      allow delete: if isInstitutional() && (
         resource.data.uploadedBy == request.auth.uid ||
         canManageWorkspace()
       );
@@ -204,26 +204,26 @@ service cloud.firestore {
 
     match /member_scores/{scoreId} {
       // Users can read their own score; workspace managers, admins, and maestros can read all.
-      allow read: if request.auth != null &&
+      allow read: if isInstitutional() &&
         (resource.data.userId == request.auth.uid || canManageWorkspace());
-      allow create, update, delete: if request.auth != null && canManageWorkspace();
+      allow create, update, delete: if isInstitutional() && canManageWorkspace();
     }
 
     match /events/{eventId} {
       // Institutional members can read calendar events.
       // Creation, updates and deletions are restricted to workspace managers, admins, and maestros.
       allow read: if isInstitutional();
-      allow create, update, delete: if request.auth != null && canManageWorkspace();
+      allow create, update, delete: if isInstitutional() && canManageWorkspace();
     }
 
     match /mail/{mailId} {
       // Only workspace managers/admins/maestros may enqueue mail to prevent spam abuse.
-      allow create: if request.auth != null && canManageWorkspace();
+      allow create: if isInstitutional() && canManageWorkspace();
     }
 
     match /mail_digests/{digestId} {
       allow read: if isInstitutional();
-      allow create: if request.auth != null && canManageWorkspace();
+      allow create: if isInstitutional() && canManageWorkspace();
     }
 
     match /system_config/{configId} {
@@ -234,7 +234,7 @@ service cloud.firestore {
       // secret. Anchor with ^...$ and restrict the local part so only true @usm.cl /
       // @sansano.usm.cl addresses pass. The email claim is also guarded as a string.
       allow read: if isInstitutional();
-      allow write: if request.auth != null && (hasRole('maestro') || hasRole('admin'));
+      allow write: if isInstitutional() && (hasRole('maestro') || hasRole('admin'));
     }
 
     match /posts/{postId} {
@@ -250,7 +250,7 @@ service cloud.firestore {
       // and that likesCount stays consistent with the array length.
       // A content size cap is also enforced on update (not just create) so an author cannot
       // grow their own post unboundedly to abuse storage/egress.
-      allow update: if request.auth != null &&
+      allow update: if isInstitutional() &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 10000)) && (
         resource.data.authorId == request.auth.uid ||
@@ -263,7 +263,7 @@ service cloud.firestore {
             == [request.auth.uid].toSet()
         )
       );
-      allow delete: if request.auth != null && (
+      allow delete: if isInstitutional() && (
         resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
     }
@@ -274,11 +274,11 @@ service cloud.firestore {
         request.resource.data.authorId == request.auth.uid &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
-      allow delete: if request.auth != null && (
+      allow delete: if isInstitutional() && (
         resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
       // Update keeps the same content size cap as create to bound storage/egress abuse.
-      allow update: if request.auth != null &&
+      allow update: if isInstitutional() &&
         (resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')) &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
@@ -290,11 +290,11 @@ service cloud.firestore {
         request.resource.data.senderId == request.auth.uid &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
-      allow delete: if request.auth != null && (
+      allow delete: if isInstitutional() && (
         resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
       // Update keeps the same content size cap as create to bound storage/egress abuse.
-      allow update: if request.auth != null &&
+      allow update: if isInstitutional() &&
         (resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')) &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 5000));

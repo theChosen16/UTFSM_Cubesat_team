@@ -320,6 +320,58 @@ describe('Security rules — privilege escalation & integrity', () => {
     expect(snap.data()!.driveUploadSecret).toBe('top-secret')
   })
 
+  it('blocks a non-institutional (non-@usm.cl) account from reading the private workspace', async () => {
+    // A maestro seeds real workspace data.
+    const maestroEmail = 'gatekeeper@usm.cl'
+    const maestroUid = await bootstrapMaestro(maestroEmail)
+    const taskRef = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Confidential mission task',
+      descripcion: 'internal',
+      estado: 'pendiente',
+      asignadoA: [],
+      equipo: 'tecnico',
+      prioridad: 'media',
+      creadoPor: maestroUid,
+      puntajeImportancia: 5,
+      createdAt: Timestamp.now(),
+    })
+    await addDoc(collection(db, 'posts'), {
+      authorId: maestroUid,
+      content: 'internal announcement',
+      likedBy: [],
+      likesCount: 0,
+      createdAt: Timestamp.now(),
+    })
+    await signOut(auth)
+
+    // An outsider registers with a non-institutional email. Firebase Auth accepts any domain,
+    // so the domain restriction MUST be enforced by the security rules, not just the UI.
+    const { user: outsider } = await createUserWithEmailAndPassword(auth, 'intruder@gmail.com', PW)
+    expect(outsider).toBeTruthy()
+
+    // Every private collection read must be denied for the outsider.
+    await expectDenied(getDoc(taskRef))
+    await expectDenied(getDoc(doc(db, 'users', maestroUid)))
+    await expectDenied(getDoc(doc(db, 'system_config', 'keys')))
+
+    // And they cannot bootstrap a profile document either (create is gated too).
+    await expectDenied(
+      setDoc(doc(db, 'users', outsider.uid), {
+        email: 'intruder@gmail.com',
+        nombre: 'In',
+        apellido: 'Truder',
+        createdAt: new Date(),
+        isActive: true,
+      })
+    )
+    await signOut(auth)
+
+    // A genuine institutional member CAN read the same task (control case).
+    await createUserWithEmailAndPassword(auth, 'insider@sansano.usm.cl', PW)
+    const snap = await getDoc(taskRef)
+    expect(snap.data()!.titulo).toBe('Confidential mission task')
+  })
+
   it('lets a user toggle their own like but blocks tampering with arbitrary like counts', async () => {
     const { user: author } = await createUserWithEmailAndPassword(auth, 'author@usm.cl', PW)
     const postRef = await addDoc(collection(db, 'posts'), {
