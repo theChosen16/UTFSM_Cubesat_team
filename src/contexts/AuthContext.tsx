@@ -11,7 +11,7 @@ import { doc, getDoc, setDoc, runTransaction } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
 import { User, UserRole, sanitizeGenero, sanitizeUserRole, sanitizeUserTeams, TeamType, hasRole } from '@/types'
 import { logger } from '@/lib/logger'
-import { COLLECTIONS } from '@/lib/constants'
+import { COLLECTIONS, VALID_EMAIL_DOMAINS } from '@/lib/constants'
 import { extractFullNameFromEmail } from '@/lib/utils'
 import { UserService } from '@/sdk/UserService'
 
@@ -169,7 +169,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signUp = async (email: string, password: string, nombre: string, apellido: string) => {
-    const { user: newUser } = await createUserWithEmailAndPassword(auth, email, password)
+    // Enforce the institutional-domain restriction here — not only in the Register form.
+    // The Firestore rules are the real security boundary (they now require an @usm.cl /
+    // @sansano.usm.cl token to read/write any collection), but blocking a non-institutional
+    // account at creation avoids leaving orphaned, unusable Firebase Auth users behind and
+    // gives a clear error regardless of which UI path calls signUp.
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!VALID_EMAIL_DOMAINS.some(domain => normalizedEmail.endsWith(domain))) {
+      throw new Error('Debes usar un correo institucional de la USM (@usm.cl o @sansano.usm.cl)')
+    }
+    const { user: newUser } = await createUserWithEmailAndPassword(auth, normalizedEmail, password)
     
     // Bootstrap: the very first user registered becomes maestro.
     // Uses a secure Firestore transaction and write lock to prevent race conditions.
@@ -200,7 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     const userData: Omit<User, 'id'> = {
-      email,
+      email: normalizedEmail,
       nombre,
       apellido,
       ...(isFirstUser ? { rol: 'maestro' as UserRole } : {}),
