@@ -56,12 +56,12 @@ export default function Profile() {
   const [loading, setLoading] = useState(false)
   const [photoError, setPhotoError] = useState('')
   const [viewedUser, setViewedUser] = useState<import('@/types').User | null>(null)
-  const [viewLoading, setViewLoading] = useState(false)
-
   const isOwnProfile = !userId || userId === user?.id
+  const [viewLoading, setViewLoading] = useState(!isOwnProfile && Boolean(userId))
   const profileUser = isOwnProfile ? user : viewedUser
   
   // Profile fields
+  const [syncedUserId, setSyncedUserId] = useState<string | undefined>(user?.id)
   const [career, setCareer] = useState(user?.career || '')
   const [year, setYear] = useState(user?.year || '')
   const [equipos, setEquipos] = useState<TeamType[]>(user?.equipos || [])
@@ -85,10 +85,30 @@ export default function Profile() {
   const [github, setGithub] = useState(user?.socialLinks?.github || '')
   const [portfolioImages, setPortfolioImages] = useState<string[]>(user?.portfolioImages || [])
 
+  if (user && user.id !== syncedUserId) {
+    setSyncedUserId(user.id)
+    setCareer(user.career || '')
+    setYear(user.year || '')
+    setEquipos(user.equipos || [])
+    setGenero(user.genero || '')
+    setPhotoURL(user.photoURL || '')
+    setNombre(user.nombre || '')
+    setApellido(user.apellido || '')
+    setIntereses(user.questionnaire?.intereses || '')
+    setHabilidades(user.questionnaire?.habilidades || '')
+    setMotivacion(user.questionnaire?.motivacion || '')
+    setDisponibilidad(user.questionnaire?.disponibilidad || '')
+    setProyectosPrevios(user.questionnaire?.proyectosPrevios || '')
+    setBio(user.bio || '')
+    setTitle(user.title || '')
+    setLinkedin(user.socialLinks?.linkedin || '')
+    setGithub(user.socialLinks?.github || '')
+    setPortfolioImages(user.portfolioImages || [])
+  }
+
   // Fetch other user's profile
   useEffect(() => {
     if (!isOwnProfile && userId) {
-      setViewLoading(true)
       const fetchUser = async () => {
         try {
           const fallbackUser = {
@@ -113,28 +133,6 @@ export default function Profile() {
       fetchUser()
     }
   }, [userId, isOwnProfile])
-
-  useEffect(() => {
-    if (user) {
-      setCareer(user.career || '')
-      setYear(user.year || '')
-      setEquipos(user.equipos || [])
-      setGenero(user.genero || '')
-      setPhotoURL(user.photoURL || '')
-      setNombre(user.nombre || '')
-      setApellido(user.apellido || '')
-      setIntereses(user.questionnaire?.intereses || '')
-      setHabilidades(user.questionnaire?.habilidades || '')
-      setMotivacion(user.questionnaire?.motivacion || '')
-      setDisponibilidad(user.questionnaire?.disponibilidad || '')
-      setProyectosPrevios(user.questionnaire?.proyectosPrevios || '')
-      setBio(user.bio || '')
-      setTitle(user.title || '')
-      setLinkedin(user.socialLinks?.linkedin || '')
-      setGithub(user.socialLinks?.github || '')
-      setPortfolioImages(user.portfolioImages || [])
-    }
-  }, [user])
 
   if (!user) return null
   if (viewLoading) {

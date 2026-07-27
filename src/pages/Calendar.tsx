@@ -59,7 +59,6 @@ export default function Calendar() {
 
   // Fetch / Subscribe on mount
   useEffect(() => {
-    setLoading(true)
     // Subscribe reactively to events
     const unsubscribeEvents = EventService.subscribeAll(
       (loadedEvents) => {

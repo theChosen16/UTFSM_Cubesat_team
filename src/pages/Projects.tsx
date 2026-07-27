@@ -57,16 +57,42 @@ export default function Projects() {
   const [prioridadForm, setPrioridadForm] = useState<'alta' | 'media' | 'baja'>('media')
   const [fechaLimite, setFechaLimite] = useState('')
 
-  useEffect(() => {
-    loadProjects()
-  }, [])
-
   const loadProjects = async () => {
+    try {
+      const [projectsList, tasksList] = await Promise.all([
+        ProjectService.getAll(),
+        TaskService.getAll()
+      ])
+
+      const loadedProjects = projectsList.map(doc => ({
+        id: doc.id,
+        name: doc.nombre,
+        description: doc.descripcion,
+        status: doc.estado,
+        priority: 'media', // Fallback, no priority stored natively yet
+        team: 'tecnico',
+        deadline: doc.fechaLimite ? (doc.fechaLimite instanceof Date ? doc.fechaLimite.toISOString() : String(doc.fechaLimite)) : '',
+        progress: 0,
+        tasks: tasksList.filter(t => t.projectId === doc.id)
+      }))
+      setProjects(loadedProjects)
+    } catch (error) {
+      logger.error('Error loading projects', { error })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    let isMounted = true
+    const fetchProjects = async () => {
       try {
         const [projectsList, tasksList] = await Promise.all([
           ProjectService.getAll(),
           TaskService.getAll()
         ])
+
+        if (!isMounted) return
 
         const loadedProjects = projectsList.map(doc => ({
           id: doc.id,
@@ -81,11 +107,16 @@ export default function Projects() {
         }))
         setProjects(loadedProjects)
       } catch (error) {
-        logger.error('Error loading projects', { error })
+        if (isMounted) logger.error('Error loading projects', { error })
       } finally {
-        setLoading(false)
+        if (isMounted) setLoading(false)
       }
     }
+    fetchProjects()
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const getStatusColor = (status: string) => {
     switch (status) {
