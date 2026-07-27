@@ -79,6 +79,7 @@ export default function ProjectChat() {
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
       setFileError(`El archivo es demasiado grande (${(file.size / 1024).toFixed(0)}KB). Máximo permitido: ${MAX_FILE_SIZE_BYTES / 1024}KB.`)
+      e.target.value = ''
       return
     }
 
@@ -87,6 +88,7 @@ export default function ProjectChat() {
       setFileUrl(reader.result as string)
     }
     reader.readAsDataURL(file)
+    e.target.value = ''
   }
 
   const handleSendMessage = async () => {

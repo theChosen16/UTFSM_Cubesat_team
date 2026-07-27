@@ -72,9 +72,11 @@ export function sanitizeUrl(url: unknown): string | undefined {
   if (!candidate) return undefined
 
   // Sin esquema explícito ni prefijo protocol-relative → asumir https (nunca javascript:).
-  const withScheme = (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(candidate) && !candidate.startsWith('//'))
-    ? `https://${candidate}`
-    : candidate
+  const withScheme = candidate.startsWith('//')
+    ? `https:${candidate}`
+    : (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(candidate)
+      ? `https://${candidate}`
+      : candidate)
 
   try {
     const parsed = new URL(withScheme)

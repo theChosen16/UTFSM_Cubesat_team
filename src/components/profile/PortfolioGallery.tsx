@@ -64,7 +64,8 @@ export function PortfolioGallery({ images, isOwnProfile, onAddImage, onRemoveIma
   const currentTotalBytes = images.reduce((sum, img) => sum + img.length, 0)
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+    const targetInput = e.target
+    const file = targetInput.files?.[0]
     if (!file) return
 
     setError(null)
@@ -72,6 +73,7 @@ export function PortfolioGallery({ images, isOwnProfile, onAddImage, onRemoveIma
     // Validate image count
     if (images.length >= MAX_PORTFOLIO_IMAGES) {
       setError(`Máximo ${MAX_PORTFOLIO_IMAGES} imágenes en el portafolio.`)
+      targetInput.value = ''
       return
     }
 
@@ -98,6 +100,7 @@ export function PortfolioGallery({ images, isOwnProfile, onAddImage, onRemoveIma
       setError('Error al procesar la imagen. Intenta con otro archivo.')
     } finally {
       setUploading(false)
+      targetInput.value = ''
     }
   }
 

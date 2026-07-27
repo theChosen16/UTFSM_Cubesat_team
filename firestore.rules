@@ -37,7 +37,7 @@ service cloud.firestore {
     function isInstitutional() {
       return request.auth != null &&
         request.auth.token.email is string &&
-        request.auth.token.email.matches('^[A-Za-z0-9._%+-]+@(sansano[.])?usm[.]cl$');
+        request.auth.token.email.lower().matches('^[a-z0-9._%+-]+@(sansano[.])?usm[.]cl$');
     }
 
     // Fields a user is allowed to update on their own profile.

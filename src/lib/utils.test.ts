@@ -44,9 +44,10 @@ describe('sanitizeUrl', () => {
     expect(sanitizeUrl('mailto:team@usm.cl')).toBe('mailto:team@usm.cl')
   })
 
-  it('prepends https:// to scheme-less values', () => {
+  it('prepends https:// to scheme-less values and protocol-relative URLs', () => {
     expect(sanitizeUrl('github.com/theChosen16')).toBe('https://github.com/theChosen16')
     expect(sanitizeUrl('drive.google.com/file/d/abc/view')).toBe('https://drive.google.com/file/d/abc/view')
+    expect(sanitizeUrl('//github.com/theChosen16')).toBe('https://github.com/theChosen16')
   })
 
   it('rejects javascript: URIs (stored XSS vector)', () => {

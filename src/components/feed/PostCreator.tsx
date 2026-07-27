@@ -26,6 +26,7 @@ export function PostCreator({ onPostCreated }: PostCreatorProps) {
 
     if (file.size > MAX_IMAGE_SIZE_BYTES) {
       setError(`La imagen es demasiado grande (${(file.size / 1024).toFixed(0)}KB). Máximo permitido: ${MAX_IMAGE_SIZE_BYTES / 1024}KB.`)
+      e.target.value = ''
       return
     }
 
@@ -34,6 +35,7 @@ export function PostCreator({ onPostCreated }: PostCreatorProps) {
       setImageUrl(reader.result as string)
     }
     reader.readAsDataURL(file)
+    e.target.value = ''
   }
 
   const handleSubmit = async () => {
