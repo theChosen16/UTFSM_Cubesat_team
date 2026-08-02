@@ -183,19 +183,49 @@ service cloud.firestore {
 
     match /activity_log/{entryId} {
       // Institutional members can read activity logs for performance rankings.
-      // Entry creation is restricted to the authenticated user's own entries, with
-      // basic shape/size validation to prevent log forging with malformed payloads.
+      // Entry creation is restricted to the authenticated user's own entries.
+      //
+      // The activity log is the platform's *immutable audit trail* ("registro inmutable de
+      // acciones de usuario"), so beyond the userId gate the entry SHAPE is constrained to
+      // stop forging. Previously `type` was any string: a member could write audit entries of
+      // arbitrary types for themselves (e.g. a fake 'task_completed'), polluting the shared
+      // performance feed / audit trail rendered on the Dashboard and Members pages. We now
+      // allowlist `type` to exactly the ActivityLogType values the app actually emits — the
+      // documented union plus the two admin-action types cast at the call site
+      // (`event_created`, `project_synced`) — mirroring the notifications allowlist hardening.
+      // Free-text/id fields are size-capped to bound storage/egress abuse. There is
+      // intentionally no update/delete rule, keeping the log strictly append-only.
       allow read: if isInstitutional();
       allow create: if isInstitutional() &&
         request.resource.data.userId == request.auth.uid &&
-        request.resource.data.type is string &&
+        request.resource.data.type in [
+          'task_created', 'task_status_changed', 'task_progress_logged', 'task_completed',
+          'deliverable_uploaded', 'deliverable_status_changed', 'event_created', 'project_synced'
+        ] &&
         request.resource.data.description is string &&
-        request.resource.data.description.size() <= 2000;
+        request.resource.data.description.size() <= 2000 &&
+        (!('relatedId' in request.resource.data) ||
+          (request.resource.data.relatedId is string && request.resource.data.relatedId.size() <= 300));
     }
 
     match /files/{fileId} {
+      // File metadata for the Drive-backed repository. The uploader must be the caller.
+      // The actual bytes live in Google Drive (not Firestore), so in the legitimate flow
+      // these fields only ever hold a short name, ids and Drive URLs. They are size-capped
+      // so a member cannot write oversized metadata documents as a storage/egress-abuse
+      // vector; the caps are generous (Drive names are <=255, ids/URLs are short) and so do
+      // not affect any real upload written by FileService.
       allow read: if isInstitutional();
-      allow create: if isInstitutional() && request.resource.data.uploadedBy == request.auth.uid;
+      allow create: if isInstitutional() &&
+        request.resource.data.uploadedBy == request.auth.uid &&
+        (!('name' in request.resource.data) ||
+          (request.resource.data.name is string && request.resource.data.name.size() <= 512)) &&
+        (!('viewURL' in request.resource.data) ||
+          (request.resource.data.viewURL is string && request.resource.data.viewURL.size() <= 2048)) &&
+        (!('downloadURL' in request.resource.data) ||
+          (request.resource.data.downloadURL is string && request.resource.data.downloadURL.size() <= 2048)) &&
+        (!('driveFileId' in request.resource.data) ||
+          (request.resource.data.driveFileId is string && request.resource.data.driveFileId.size() <= 256));
       allow delete: if isInstitutional() && (
         resource.data.uploadedBy == request.auth.uid ||
         canManageWorkspace()
