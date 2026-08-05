@@ -62,7 +62,7 @@
     "@tootallnate/once": "^3.0.1",
     "uuid": "^11.1.1",
     "@opentelemetry/core": ">=2.8.0",
-    "fast-uri": "^4.1.1",
+    "fast-uri": "^4.1.2",
     "@hono/node-server": "^2.0.12"
   }
 }
