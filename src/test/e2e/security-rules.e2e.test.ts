@@ -513,4 +513,97 @@ describe('Security rules — privilege escalation & integrity', () => {
     await createUserWithEmailAndPassword(auth, 'evil@gmail.com', PW)
     await expectDenied(getDoc(doc(db, 'system_config', 'keys')))
   })
+
+  it('allows a legitimate activity_log entry but blocks a forged type (audit-log integrity)', async () => {
+    const { user } = await createUserWithEmailAndPassword(auth, 'logger@usm.cl', PW)
+
+    // A genuine entry with a known ActivityLogType for the caller's own uid is accepted.
+    const ok = await addDoc(collection(db, 'activity_log'), {
+      userId: user.uid,
+      type: 'task_completed',
+      relatedId: 'task-123',
+      description: 'Completó la tarea de telemetría',
+      createdAt: Timestamp.now(),
+    })
+    expect(ok.id).toBeTruthy()
+
+    // A forged type outside the ActivityLogType allowlist is rejected — a member cannot
+    // fabricate arbitrary audit-trail events for themselves.
+    await expectDenied(
+      addDoc(collection(db, 'activity_log'), {
+        userId: user.uid,
+        type: 'arbitrary_spoof',
+        relatedId: 'task-123',
+        description: 'Evento de auditoría falso',
+        createdAt: Timestamp.now(),
+      })
+    )
+  })
+
+  it('blocks writing an activity_log entry attributed to another user', async () => {
+    const { user } = await createUserWithEmailAndPassword(auth, 'logger2@usm.cl', PW)
+
+    // userId must equal the caller's uid: a member cannot forge audit entries in
+    // someone else's name.
+    await expectDenied(
+      addDoc(collection(db, 'activity_log'), {
+        userId: 'someone-else-uid',
+        type: 'task_completed',
+        relatedId: 'task-9',
+        description: 'Actividad atribuida a un tercero',
+        createdAt: Timestamp.now(),
+      })
+    )
+    expect(user.uid).toBeTruthy()
+  })
+
+  it('rejects an over-cap description on an activity_log entry (storage/egress abuse)', async () => {
+    const { user } = await createUserWithEmailAndPassword(auth, 'logger3@usm.cl', PW)
+
+    await expectDenied(
+      addDoc(collection(db, 'activity_log'), {
+        userId: user.uid,
+        type: 'task_progress_logged',
+        relatedId: 'task-1',
+        description: 'x'.repeat(2001),
+        createdAt: Timestamp.now(),
+      })
+    )
+  })
+
+  it('requires the uploader to be the caller and bounds file metadata size', async () => {
+    const { user } = await createUserWithEmailAndPassword(auth, 'uploader@usm.cl', PW)
+
+    // A legitimate, correctly-sized file metadata record for the caller is accepted.
+    const ok = await addDoc(collection(db, 'files'), {
+      name: 'informe.pdf',
+      driveFileId: 'drive-abc',
+      viewURL: 'https://drive.google.com/file/d/drive-abc/view',
+      downloadURL: 'https://drive.google.com/uc?export=download&id=drive-abc',
+      mimeType: 'application/pdf',
+      size: 1234,
+      uploadedBy: user.uid,
+      createdAt: Timestamp.now(),
+    })
+    expect(ok.id).toBeTruthy()
+
+    // A member cannot forge a record attributed to another uploader.
+    await expectDenied(
+      addDoc(collection(db, 'files'), {
+        name: 'spoof.pdf',
+        uploadedBy: 'another-uid',
+        createdAt: Timestamp.now(),
+      })
+    )
+
+    // Oversized metadata (e.g. a multi-MB base64 blob smuggled into a URL field) is rejected.
+    await expectDenied(
+      addDoc(collection(db, 'files'), {
+        name: 'huge.pdf',
+        viewURL: 'https://x/' + 'a'.repeat(3000),
+        uploadedBy: user.uid,
+        createdAt: Timestamp.now(),
+      })
+    )
+  })
 })
