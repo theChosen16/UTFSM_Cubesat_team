@@ -50,7 +50,7 @@
     "flatted": "3.4.2",
     "gh-pages": "^6.3.0",
     "globals": "^15.9.0",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.1",
     "postcss": "^8.5.23",
     "tailwindcss": "^3.4.7",
     "typescript": "^5.5.3",
