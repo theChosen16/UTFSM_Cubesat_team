@@ -425,9 +425,7 @@ export default function TaskManagement() {
                 {task.asignadoA.length > 0 && (
                   <span>Responsable(s): <span className="text-white">{task.asignadoA.map(getMemberName).join(', ')}</span></span>
                 )}
-                {task.puntajeImportancia !== undefined && task.puntajeImportancia > 0 && (
-                  <span className="flex items-center gap-1 text-orange-400">★ Pto: <span className="text-white">{task.puntajeImportancia}/10</span></span>
-                )}
+
                 {task.fechaLimite && (
                   <span className={`flex items-center gap-1 whitespace-nowrap ${isOverdue ? 'text-red-400' : 'text-cyan-400'}`}>
                     <Calendar className="w-3 h-3" />
@@ -792,24 +790,6 @@ export default function TaskManagement() {
                 </select>
               </div>
 
-              {canManageTasks && (
-                <div className="space-y-2 sm:col-span-2 xl:col-span-3">
-                  <label htmlFor="task-points" className="text-sm font-medium text-white flex justify-between items-center mb-1">
-                    <span>Puntaje de Importancia</span>
-                    <span className="text-cyan-400 font-bold bg-cyan-500/10 px-2 py-0.5 rounded text-xs">{puntajeImportancia}/10</span>
-                  </label>
-                  <input
-                    id="task-points"
-                    type="range"
-                    min="1"
-                    max="10"
-                    value={puntajeImportancia}
-                    onChange={(e) => setPuntajeImportancia(parseInt(e.target.value))}
-                    className="w-full accent-cyan-500 hover:accent-cyan-400 cursor-pointer"
-                  />
-                  <p className="text-xs text-slate-400">Escala de valor de esta tarea (Asignable solo por Administradores/Managers)</p>
-                </div>
-              )}
             </div>
 
             {/* Member Assignment */}

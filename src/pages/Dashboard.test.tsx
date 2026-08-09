@@ -92,8 +92,8 @@ describe('Dashboard', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Proyectos Activos')).toBeInTheDocument()
-      expect(screen.getAllByText('Tareas Activas').length).toBeGreaterThanOrEqual(1)
-      expect(screen.getByText('Completadas')).toBeInTheDocument()
+      expect(screen.getByText('Actividades En Curso')).toBeInTheDocument()
+      expect(screen.getByText('Actividades Pendientes')).toBeInTheDocument()
       expect(screen.getByText('Miembros')).toBeInTheDocument()
     })
   })
@@ -152,7 +152,7 @@ describe('Dashboard', () => {
     renderDashboard()
 
     await waitFor(() => {
-      expect(screen.getByText('2')).toBeInTheDocument() // Members
+      expect(screen.getAllByText('2').length).toBeGreaterThanOrEqual(1) // Members / total tasks
     })
   })
 
