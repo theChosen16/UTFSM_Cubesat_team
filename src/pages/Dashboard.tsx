@@ -67,6 +67,7 @@ export default function Dashboard() {
   const [memberCount, setMemberCount] = useState<MemberCount>({ total: 0, byRole: {}, byTeam: {} })
   const [stats, setStats] = useState<DashboardStats>({ activeProjects: 0, inProgressTasks: 0, pendingTasks: 0, completedTasks: 0 })
   const [recentProjects, setRecentProjects] = useState<DashboardProject[]>([])
+  const [allProjectsList, setAllProjectsList] = useState<{ id: string; nombre: string }[]>([])
   const [allTasksList, setAllTasksList] = useState<Task[]>([])
   const [recentActivity, setRecentActivity] = useState<ActivityLogEntry[]>([])
   const [usersList, setUsersList] = useState<UserType[]>([])
@@ -128,6 +129,7 @@ export default function Dashboard() {
             const order: Record<string, number> = { en_progreso: 0, planificacion: 1, completado: 2 }
             return (order[left.estado] ?? 1) - (order[right.estado] ?? 1)
           })
+        setAllProjectsList(projectsList.map(p => ({ id: p.id, nombre: p.nombre })))
         setRecentProjects(projectsList.slice(0, 4))
 
         const inProgressTasks = tasksListRaw.filter(task => task.estado === 'en_progreso').length
@@ -323,7 +325,7 @@ export default function Dashboard() {
         <ActivityTrackerWidget
           tasks={allTasksList}
           users={usersList}
-          projects={recentProjects}
+          projects={allProjectsList}
           recentLogs={recentActivity}
         />
       </div>
