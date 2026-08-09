@@ -81,8 +81,24 @@ El script organiza los archivos automáticamente en subcarpetas dentro del folde
 
 ## Seguridad
 
-- El secret se valida en cada request (sin él, 401).
+- El secret se valida en cada request, pero **no es una credencial de autorización**: se distribuye
+  a todo miembro autenticado vía Firestore (`system_config/keys`) y llega al navegador. Trátalo
+  como filtro anti-bots; la autorización real es el token de Firebase.
+- **Token de Firebase obligatorio** (`REQUIRE_ID_TOKEN`): `upload`, `delete` y `chat` exigen un ID
+  token válido emitido para este proyecto a una cuenta institucional (`@usm.cl` /
+  `@sansano.usm.cl`) con el correo verificado. El correo de confianza se deriva del token, nunca
+  del campo `userEmail` que envía el cliente.
+- La autenticación ocurre **antes** de cualquier escritura en Drive: un llamado sin token válido no
+  alcanza a crear el archivo (antes se creaba y se compartía por link, y recién después fallaba).
 - Solo correos `@usm.cl` o `@sansano.usm.cl` pueden subir/eliminar.
+- **Contención de borrado**: la Web App se ejecuta con los permisos del dueño del Drive, así que
+  `DriveApp.getFileById()` puede resolver *cualquier* archivo de esa cuenta, no solo los del
+  proyecto. Por eso `delete` exige que el archivo (1) esté dentro del árbol de `FOLDER_ID` y
+  (2) tenga la etiqueta `uploader:` que coincida con quien pide el borrado. Un archivo **sin**
+  etiqueta se rechaza (fail-closed): hay que eliminarlo a mano desde Drive.
+- **Límites por miembro verificado** (ventana fija de 60 s): 15 llamadas de chat, 20 subidas y 30
+  borrados, para que una sola cuenta no agote la cuota pagada de Gemini ni el almacenamiento de
+  Drive.
 - Cada archivo subido se marca como **"Cualquiera con el link puede ver"** (los miembros NO necesitan acceso al folder).
 - El folder raíz **NO** debe ser público — los usuarios acceden únicamente vía la app, nunca a Drive directamente.
 

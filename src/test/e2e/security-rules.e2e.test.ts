@@ -606,4 +606,219 @@ describe('Security rules — privilege escalation & integrity', () => {
       })
     )
   })
+
+  it('blocks creating a profile under another member’s institutional email', async () => {
+    const { user } = await createUserWithEmailAndPassword(auth, 'realone@usm.cl', PW)
+
+    // Claiming somebody else's address would hijack their entry in the members directory and
+    // redirect the weekly digest, so the stored email must match the verified token.
+    await expectDenied(
+      setDoc(doc(db, 'users', user.uid), {
+        email: 'victim@usm.cl',
+        nombre: 'Imp',
+        apellido: 'Ostor',
+        createdAt: new Date(),
+        isActive: true,
+      })
+    )
+
+    // The genuine address is accepted (case-insensitively).
+    await setDoc(doc(db, 'users', user.uid), {
+      email: 'RealOne@USM.cl',
+      nombre: 'Real',
+      apellido: 'One',
+      createdAt: new Date(),
+      isActive: true,
+    })
+    expect((await getDoc(doc(db, 'users', user.uid))).exists()).toBe(true)
+  })
+
+  it('lets a regular member read the team directory and update their own profile fields', async () => {
+    const maestroUid = await bootstrapMaestro('dirboss@usm.cl')
+    await signOut(auth)
+
+    const { user: member } = await createUserWithEmailAndPassword(auth, 'member@sansano.usm.cl', PW)
+    await setDoc(doc(db, 'users', member.uid), {
+      email: 'member@sansano.usm.cl',
+      nombre: 'Mem',
+      apellido: 'Ber',
+      createdAt: new Date(),
+      isActive: true,
+    })
+
+    // The whole UI (team tree, member metrics, feed authorship) resolves names through the
+    // users collection, so an ordinary member must be able to read other profiles.
+    const other = await getDoc(doc(db, 'users', maestroUid))
+    expect(other.exists()).toBe(true)
+
+    // Profile fields the app actually writes are accepted…
+    await updateDoc(doc(db, 'users', member.uid), {
+      bio: 'Subsistema de potencia',
+      title: 'Ingeniería EPS',
+      socialLinks: { linkedin: 'https://linkedin.com/in/mem', github: '' },
+      hasSeenOnboarding: true,
+    })
+    expect((await getDoc(doc(db, 'users', member.uid))).data()!.bio).toBe('Subsistema de potencia')
+
+    // …but privileged fields are still not self-assignable. Note every one of these ADDS a key
+    // the profile did not previously carry, which is exactly the case a `changedKeys()`-based
+    // allowlist misses: the diff comes back empty and hasOnly() passes trivially. The rules use
+    // affectedKeys() so the allowlist actually applies.
+    await expectDenied(updateDoc(doc(db, 'users', member.uid), { rol: 'maestro' }))
+    await expectDenied(updateDoc(doc(db, 'users', member.uid), { roles: ['maestro'] }))
+    await expectDenied(updateDoc(doc(db, 'users', member.uid), { equipos: ['manager'] }))
+    await expectDenied(updateDoc(doc(db, 'users', member.uid), { confirmadoCubeDesign: true }))
+    await expectDenied(updateDoc(doc(db, 'users', member.uid), { email: 'someone@usm.cl' }))
+
+    // A non-privileged team is still self-assignable (the feature this allowlist exists for).
+    await updateDoc(doc(db, 'users', member.uid), { equipos: ['tecnico'] })
+    expect((await getDoc(doc(db, 'users', member.uid))).data()!.equipos).toEqual(['tecnico'])
+
+    // Oversized embedded media is rejected (avatars live inline in the user document).
+    await expectDenied(updateDoc(doc(db, 'users', member.uid), { photoURL: 'x'.repeat(750001) }))
+  })
+
+  it('blocks an assignee from adding a field outside the task update allowlist', async () => {
+    const maestroEmail = 'taskboss@usm.cl'
+    const maestroUid = await bootstrapMaestro(maestroEmail)
+    await signOut(auth)
+
+    const { user: member } = await createUserWithEmailAndPassword(auth, 'assignee@usm.cl', PW)
+    const memberUid = member.uid
+    await setDoc(doc(db, 'users', memberUid), {
+      email: 'assignee@usm.cl',
+      nombre: 'Asig',
+      apellido: 'Nado',
+      createdAt: new Date(),
+      isActive: true,
+    })
+    await signOut(auth)
+
+    await signInWithEmailAndPassword(auth, maestroEmail, PW)
+    const taskRef = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Integrar EPS',
+      descripcion: 'Subsistema de potencia',
+      estado: 'pendiente',
+      asignadoA: [memberUid],
+      equipo: 'tecnico',
+      prioridad: 'media',
+      creadoPor: maestroUid,
+      puntajeImportancia: 5,
+      createdAt: Timestamp.now(),
+    })
+    await signOut(auth)
+
+    await signInWithEmailAndPassword(auth, 'assignee@usm.cl', PW)
+
+    // The allowed field set still works for the assignee.
+    await updateDoc(taskRef, { estado: 'en_progreso' })
+
+    // Fields absent from the stored task cannot be smuggled in as *additions* — this is the
+    // changedKeys()/affectedKeys() distinction again, applied to the task allowlist.
+    await expectDenied(updateDoc(taskRef, { asignadoA: [memberUid, 'someone-else'] }))
+    await expectDenied(updateDoc(taskRef, { fechaLimite: '2026-01-01' }))
+    await expectDenied(updateDoc(taskRef, { titulo: 'Tarea secuestrada' }))
+  })
+
+  it('blocks re-attributing a post, comment or project message to another member', async () => {
+    const { user: author } = await createUserWithEmailAndPassword(auth, 'poster@usm.cl', PW)
+    const postRef = await addDoc(collection(db, 'posts'), {
+      authorId: author.uid,
+      content: 'mensaje original',
+      likedBy: [],
+      likesCount: 0,
+      createdAt: Timestamp.now(),
+    })
+    const commentRef = await addDoc(collection(db, 'comments'), {
+      postId: postRef.id,
+      authorId: author.uid,
+      content: 'comentario original',
+      createdAt: Timestamp.now(),
+    })
+    const messageRef = await addDoc(collection(db, 'project_messages'), {
+      projectId: 'proj-1',
+      senderId: author.uid,
+      content: 'mensaje de proyecto',
+      createdAt: Timestamp.now(),
+    })
+
+    // Editing my own content is fine…
+    await updateDoc(postRef, { content: 'mensaje editado' })
+    await updateDoc(commentRef, { content: 'comentario editado' })
+    await updateDoc(messageRef, { content: 'mensaje editado' })
+
+    // …but authorship is immutable: an author cannot rewrite the byline so that arbitrary
+    // content ends up attributed to a teammate.
+    await expectDenied(updateDoc(postRef, { authorId: 'victim-uid' }))
+    await expectDenied(updateDoc(commentRef, { authorId: 'victim-uid' }))
+    await expectDenied(updateDoc(messageRef, { senderId: 'victim-uid' }))
+
+    // Threading is pinned too, so content cannot be relocated under another post/project.
+    await expectDenied(updateDoc(commentRef, { postId: 'another-post' }))
+    await expectDenied(updateDoc(messageRef, { projectId: 'proj-2' }))
+  })
+
+  it('bounds the /mail queue to institutional recipients and sane payloads', async () => {
+    const maestroEmail = 'mailboss@usm.cl'
+    await bootstrapMaestro(maestroEmail)
+
+    // The legitimate digest write is accepted.
+    const ok = await addDoc(collection(db, 'mail'), {
+      to: 'member@sansano.usm.cl',
+      message: { subject: 'Boletín de la Órbita', html: '<p>hola</p>' },
+      createdAt: Timestamp.now(),
+    })
+    expect(ok.id).toBeTruthy()
+
+    // /mail is delivered by the team's authenticated sender, so it must not be usable to mail
+    // arbitrary external addresses (phishing from a trusted identity).
+    await expectDenied(
+      addDoc(collection(db, 'mail'), {
+        to: 'target@gmail.com',
+        message: { subject: 'Verifica tu cuenta', html: '<a href="https://evil">clic</a>' },
+        createdAt: Timestamp.now(),
+      })
+    )
+
+    // Look-alike domains are rejected by the same anchored pattern used elsewhere.
+    await expectDenied(
+      addDoc(collection(db, 'mail'), {
+        to: 'target@usm.cl.evil.com',
+        message: { subject: 'Hola', html: '<p>hola</p>' },
+        createdAt: Timestamp.now(),
+      })
+    )
+
+    // Oversized bodies cannot be parked in the queue.
+    await expectDenied(
+      addDoc(collection(db, 'mail'), {
+        to: 'member@usm.cl',
+        message: { subject: 'Hola', html: 'x'.repeat(200001) },
+        createdAt: Timestamp.now(),
+      })
+    )
+  })
+
+  it('blocks re-addressing a notification to another member', async () => {
+    const { user: sender } = await createUserWithEmailAndPassword(auth, 'notif-a@usm.cl', PW)
+    await signOut(auth)
+
+    const { user: recipient } = await createUserWithEmailAndPassword(auth, 'notif-b@usm.cl', PW)
+    const notifRef = await addDoc(collection(db, 'notifications'), {
+      senderId: recipient.uid,
+      recipientId: recipient.uid,
+      type: 'message',
+      title: 'Hola',
+      message: 'Saludo',
+      read: false,
+      createdAt: Timestamp.now(),
+    })
+
+    // Marking my own notification as read is fine.
+    await updateDoc(notifRef, { read: true })
+
+    // Re-pointing it at somebody else (turning it into a message they never received) is not.
+    await expectDenied(updateDoc(notifRef, { recipientId: 'victim-uid' }))
+    await expectDenied(updateDoc(notifRef, { senderId: sender.uid }))
+  })
 })

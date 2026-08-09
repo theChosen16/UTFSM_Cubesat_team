@@ -40,15 +40,64 @@ service cloud.firestore {
         request.auth.token.email.lower().matches('^[a-z0-9._%+-]+@(sansano[.])?usm[.]cl$');
     }
 
+    // Size caps for the free-text / embedded-media fields of a user profile.
+    //
+    // Avatars and portfolio images are stored as base64 data URLs *inside the user document*
+    // (Profile.tsx reads the file with FileReader and writes the data URL straight to
+    // Firestore), so without a cap a member can push documents up against the 1 MiB limit and
+    // inflate the read cost of every page that lists members (Dashboard, Members, Feed,
+    // TaskManagement all call UserService.getAll()). The limits are well above what the client
+    // can produce: it refuses images over 500 KB (~700 KB base64) and only ever sends one.
+    function withinProfileSizeCaps() {
+      let d = request.resource.data;
+      return (!('photoURL' in d) || (d.photoURL is string && d.photoURL.size() <= 750000)) &&
+        (!('bio' in d) || (d.bio is string && d.bio.size() <= 2000)) &&
+        (!('title' in d) || (d.title is string && d.title.size() <= 160)) &&
+        (!('career' in d) || (d.career is string && d.career.size() <= 160)) &&
+        (!('nombre' in d) || (d.nombre is string && d.nombre.size() <= 120)) &&
+        (!('apellido' in d) || (d.apellido is string && d.apellido.size() <= 120)) &&
+        (!('portfolioImages' in d) ||
+          (d.portfolioImages is list && d.portfolioImages.size() <= 12));
+    }
+
     // Fields a user is allowed to update on their own profile.
-    // Excludes 'rol', 'isActive', 'email', 'createdAt' to prevent privilege escalation.
+    // Excludes 'rol', 'isActive', 'createdAt', 'confirmadoCubeDesign' and 'fechaCumpleanos'
+    // (the last two are part of the CubeDesign roster / social log an admin curates through
+    // AdminActionsService) so none of them can be self-granted.
+    //
+    // The allowlist must stay in sync with what the client legitimately writes through
+    // UserService.updateProfile, otherwise the rule fails *closed* and silently breaks the
+    // feature: 'bio', 'title', 'socialLinks', 'portfolioImages' (Profile.tsx) and
+    // 'hasSeenOnboarding' (OnboardingGuide.tsx) were all being written by the app and rejected
+    // here, which both broke those flows and creates pressure to relax the rule wholesale.
     function isAllowedSelfUpdate() {
-      let allowed = ['nombre', 'apellido', 'career', 'year', 'genero', 'photoURL', 'questionnaire', 'equipos'];
-      let changed = request.resource.data.diff(resource.data).changedKeys();
+      let allowed = [
+        'nombre', 'apellido', 'career', 'year', 'genero', 'photoURL', 'questionnaire', 'equipos',
+        'bio', 'title', 'socialLinks', 'portfolioImages', 'hasSeenOnboarding', 'email'
+      ];
+      // MUST be affectedKeys(), not changedKeys(). changedKeys() only reports keys present in
+      // BOTH the before and after documents with a different value — a key that did not exist
+      // before is reported by addedKeys(), so it is invisible to changedKeys(). With
+      // changedKeys() this allowlist was a no-op for any field the profile did not already
+      // carry: a plain member could write `{ rol: 'maestro' }` (or `{ equipos: ['manager'] }`,
+      // or `{ isActive: ... }`) onto their own document and the diff would come back EMPTY,
+      // satisfying hasOnly() trivially and granting them full control of the workspace.
+      // affectedKeys() is the union of added + removed + changed and is the only correct
+      // primitive for an allowlist.
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
       // User cannot self-assign to the 'manager' team (grants workspace management rights)
       let noManagerSelfAssign = !changed.hasAny(['equipos']) ||
         !('manager' in request.resource.data.equipos);
-      return changed.hasOnly(allowed) && noManagerSelfAssign;
+      // 'email' is writable ONLY as the self-repair AuthContext performs for accounts created
+      // before the field was persisted, and only to re-state the address the verified token
+      // already asserts — a member can never point their profile at somebody else's address
+      // (which would, among other things, redirect the weekly digest).
+      let emailMatchesToken = !changed.hasAny(['email']) ||
+        (request.resource.data.email is string &&
+          request.auth.token.email is string &&
+          request.resource.data.email.lower() == request.auth.token.email.lower());
+      return changed.hasOnly(allowed) && noManagerSelfAssign && emailMatchesToken &&
+        withinProfileSizeCaps();
     }
 
     match /users/{userId} {
@@ -59,8 +108,15 @@ service cloud.firestore {
       // as 'maestro' — but only if they are the uid recorded in the bootstrap lock that
       // the signup transaction created moments earlier. This closes the privilege-
       // escalation hole where any authenticated user could create their own doc as maestro.
+      // The stored 'email' must match the verified token address, so a profile can never be
+      // created under somebody else's institutional identity (which the Members directory,
+      // the weekly digest recipient list and the Drive bridge all key off).
       allow create: if isInstitutional() && (
-        (request.auth.uid == userId && (
+        (request.auth.uid == userId &&
+          withinProfileSizeCaps() &&
+          (!('email' in request.resource.data) ||
+            (request.resource.data.email is string &&
+              request.resource.data.email.lower() == request.auth.token.email.lower())) && (
           (
             !request.resource.data.keys().hasAny(['rol', 'roles']) &&
             (!('isActive' in request.resource.data) || request.resource.data.isActive == true) &&
@@ -76,12 +132,17 @@ service cloud.firestore {
         (userId == '_bootstrap_lock' && !exists(/databases/$(database)/documents/users/_bootstrap_lock))
       );
 
-      allow read: if isInstitutional() && (
-        request.auth.uid == userId ||
-        userId == '_bootstrap_lock' ||
-        hasRole('maestro') ||
-        hasRole('admin')
-      );
+      // Any institutional member may read member profiles. This is the same boundary every
+      // other collection in this private workspace uses, and the app depends on it: the team
+      // tree, member metrics, feed authorship, task assignees, the file repository and the
+      // notification sender names all resolve names/avatars through UserService.getAll().
+      //
+      // Restricting reads to self/maestro/admin (as this rule previously did) does not protect
+      // anything a member cannot already infer — every collaborative document they can read is
+      // stamped with the other members' uids — while it *does* deny the collection query the
+      // whole UI is built on, which fails closed into a broken app for ordinary members.
+      // Writes stay locked down: privileged fields remain maestro/admin-only (see below).
+      allow read: if isInstitutional();
 
       // Maestro/admin can update any field on any user document.
       // Regular users can only update their own non-privileged fields.
@@ -120,8 +181,14 @@ service cloud.firestore {
         (!('message' in request.resource.data) ||
           (request.resource.data.message is string && request.resource.data.message.size() <= 3000));
 
-      // Users can update or delete their own notifications (e.g., mark as read / dismiss)
-      allow update, delete: if isInstitutional() &&
+      // Users can update or delete their own notifications (e.g., mark as read / dismiss).
+      // The recipient is pinned: without this, "my" notification could be re-addressed to
+      // another member and rewritten into an arbitrary message they never received.
+      allow update: if isInstitutional() &&
+        resource.data.recipientId == request.auth.uid &&
+        request.resource.data.recipientId == resource.data.recipientId &&
+        request.resource.data.get('senderId', '') == resource.data.get('senderId', '');
+      allow delete: if isInstitutional() &&
         resource.data.recipientId == request.auth.uid;
     }
 
@@ -144,7 +211,10 @@ service cloud.firestore {
         (
           resource.data.asignadoA is list &&
           request.auth.uid in resource.data.asignadoA &&
-          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          // affectedKeys(), not changedKeys(): see the note in isAllowedSelfUpdate(). With
+          // changedKeys() an assignee could ADD any field the task document did not already
+          // carry (the diff would not report it), escaping this allowlist entirely.
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'estado',
             'progressUpdates',
             'fechaInicioReal',
@@ -248,7 +318,24 @@ service cloud.firestore {
 
     match /mail/{mailId} {
       // Only workspace managers/admins/maestros may enqueue mail to prevent spam abuse.
-      allow create: if isInstitutional() && canManageWorkspace();
+      //
+      // Documents here are picked up by the Firebase Trigger Email extension and delivered by
+      // the team's authenticated sender, so this collection is a send-as-us primitive. Manager
+      // is not a small circle (any maestro/admin plus anyone on the 'manager' team), and a
+      // single hijacked manager session could otherwise mail arbitrary HTML to arbitrary
+      // external addresses under the team's identity — textbook phishing infrastructure.
+      // Confine recipients to the institutional domain (the only address set the digest ever
+      // targets) and bound the body so the queue cannot be used as bulk storage.
+      allow create: if isInstitutional() && canManageWorkspace() &&
+        request.resource.data.to is string &&
+        request.resource.data.to.lower().matches('^[a-z0-9._%+-]+@(sansano[.])?usm[.]cl$') &&
+        request.resource.data.message is map &&
+        (!('subject' in request.resource.data.message) ||
+          (request.resource.data.message.subject is string &&
+            request.resource.data.message.subject.size() <= 300)) &&
+        (!('html' in request.resource.data.message) ||
+          (request.resource.data.message.html is string &&
+            request.resource.data.message.html.size() <= 200000));
     }
 
     match /mail_digests/{digestId} {
@@ -268,9 +355,18 @@ service cloud.firestore {
     }
 
     match /posts/{postId} {
+      // Post images are inlined as base64 data URLs in the document (PostCreator.tsx), so the
+      // array is capped the same way profile media is; the client only ever sends one.
+      function postMediaBounded() {
+        return !('imageUrls' in request.resource.data) ||
+          (request.resource.data.imageUrls is list &&
+            request.resource.data.imageUrls.size() <= 4);
+      }
+
       allow read: if isInstitutional();
       allow create: if isInstitutional() &&
         request.resource.data.authorId == request.auth.uid &&
+        postMediaBounded() &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 10000));
       // The author can edit their own post. Any other authenticated user may ONLY toggle their
@@ -280,12 +376,21 @@ service cloud.firestore {
       // and that likesCount stays consistent with the array length.
       // A content size cap is also enforced on update (not just create) so an author cannot
       // grow their own post unboundedly to abuse storage/egress.
+      // `authorId` is immutable: the author branch below authorizes on the *stored* authorId,
+      // so without pinning it an author could rewrite the field to another member's uid and
+      // leave arbitrary content attributed to them (the feed renders author identity purely
+      // from this field).
       allow update: if isInstitutional() &&
+        request.resource.data.get('authorId', '') == resource.data.get('authorId', '') &&
+        postMediaBounded() &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 10000)) && (
         resource.data.authorId == request.auth.uid ||
         (
-          request.resource.data.diff(resource.data).changedKeys().hasOnly(['likedBy', 'likesCount']) &&
+          // affectedKeys(), not changedKeys(): see the note in isAllowedSelfUpdate(). With
+          // changedKeys() a non-author could add fields a post did not already carry (e.g.
+          // slipping `imageUrls` into somebody else's post) while pretending to just like it.
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'likesCount']) &&
           request.resource.data.likedBy is list &&
           request.resource.data.likesCount == request.resource.data.likedBy.size() &&
           resource.data.get('likedBy', []).toSet().difference(request.resource.data.likedBy.toSet())
@@ -307,9 +412,13 @@ service cloud.firestore {
       allow delete: if isInstitutional() && (
         resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
-      // Update keeps the same content size cap as create to bound storage/egress abuse.
+      // Update keeps the same content size cap as create to bound storage/egress abuse, and
+      // pins authorship/threading so an edit cannot re-attribute a comment to another member
+      // or move it under a different post.
       allow update: if isInstitutional() &&
         (resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')) &&
+        request.resource.data.get('authorId', '') == resource.data.get('authorId', '') &&
+        request.resource.data.get('postId', '') == resource.data.get('postId', '') &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
     }
@@ -323,9 +432,13 @@ service cloud.firestore {
       allow delete: if isInstitutional() && (
         resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
-      // Update keeps the same content size cap as create to bound storage/egress abuse.
+      // Update keeps the same content size cap as create to bound storage/egress abuse, and
+      // pins the sender/project so an edit cannot re-attribute a message to another member or
+      // relocate it into a different project's chat.
       allow update: if isInstitutional() &&
         (resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')) &&
+        request.resource.data.get('senderId', '') == resource.data.get('senderId', '') &&
+        request.resource.data.get('projectId', '') == resource.data.get('projectId', '') &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
     }

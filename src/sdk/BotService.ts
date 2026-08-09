@@ -692,15 +692,24 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
       }
     }
 
-    // Defensa contra inyección indirecta de prompts: el contenido de archivos adjuntos es
-    // dato no confiable. Las acciones de difusión masiva e irreversibles (envío del
-    // noticiario a TODO el equipo) no pueden gatillarse en un turno que incluye un adjunto,
-    // de modo que un documento manipulado nunca pueda provocar un correo masivo por su cuenta.
-    const BROADCAST_ACTIONS = ['forzarEnvioNoticiario']
-    if (hasUntrustedAttachment && BROADCAST_ACTIONS.includes(name)) {
+    // Defensa contra inyección indirecta de prompts: el contenido de un archivo adjunto es dato
+    // no confiable (lo redacta quien produjo el documento, no el administrador que lo sube), y
+    // el modelo no puede distinguir de forma fiable una instrucción incrustada en el documento
+    // de una petición del usuario. La instrucción de sistema lo advierte, pero una instrucción
+    // no es un control de seguridad.
+    //
+    // Por eso, en un turno que incluye un adjunto solo se permiten las herramientas de SOLO
+    // LECTURA. Antes se bloqueaba únicamente `forzarEnvioNoticiario`, dejando pasar todas las
+    // acciones que escriben en Firestore — en particular `auditarActaDrive`, cuya entrada es
+    // justamente el texto del documento y que crea tareas y eventos de forma masiva: un acta
+    // manipulada podía inyectar registros arbitrarios en la base del equipo con solo pedirle al
+    // administrador que la resumiera. El criterio es una lista de permitidos (fail-closed), de
+    // modo que cualquier herramienta nueva quede bloqueada por defecto en turnos con adjunto.
+    const READ_ONLY_ACTIONS = ['obtenerMetricas', 'obtenerEstadoNoticiario']
+    if (hasUntrustedAttachment && !READ_ONLY_ACTIONS.includes(name)) {
       return {
         success: false,
-        message: 'Acción bloqueada por seguridad: las acciones de difusión masiva (como despachar el noticiario) no pueden ejecutarse en un turno que incluye un archivo adjunto, para evitar la inyección de instrucciones ocultas en documentos. Solicítalo nuevamente en un mensaje de texto sin adjuntos.'
+        message: 'Acción bloqueada por seguridad: en un turno con archivo adjunto solo puedo ejecutar consultas de solo lectura. El contenido de un documento no es una fuente de órdenes confiable, así que las acciones que modifican la base de datos o envían correos deben pedirse en un mensaje de texto sin adjuntos.'
       }
     }
 

@@ -32,16 +32,27 @@ const FIREBASE_PROJECT_ID = 'usmcubesateam-1e3f4';
 // they do not own (handleDelete gates on uploader email). Enforced to close that hole.
 const REQUIRE_ID_TOKEN = true;
 
-// Per-caller rate limiting for the Gemini proxy (handleChat). The shared secret is
-// distributed to every signed-in member via Firestore (system_config/keys) and is fetched
-// into the browser, so it cannot on its own protect the server-side Gemini API key. The
-// verified ID token proves the caller is institutional, but any single member could still
-// hammer the endpoint and burn the team's paid quota (financial DoS) or use it as a free
-// unmetered LLM. These caps bound requests per verified email and reject oversized payloads.
-const CHAT_RATE_WINDOW_SECONDS = 60;
+// Per-caller rate limiting. The shared secret is distributed to every signed-in member via
+// Firestore (system_config/keys) and is fetched into the browser, so it cannot on its own
+// protect anything: treat it as a bot-filter, never as authorization. The verified ID token
+// proves the caller is institutional, but any single member could still hammer an endpoint
+// and burn the team's paid Gemini quota (financial DoS), use it as a free unmetered LLM, or
+// exhaust the Drive quota of the account this script runs as. These caps bound requests per
+// verified email and reject oversized payloads.
+const RATE_WINDOW_SECONDS = 60;
 const CHAT_RATE_MAX_PER_WINDOW = 15;
+const UPLOAD_RATE_MAX_PER_WINDOW = 20;
+const DELETE_RATE_MAX_PER_WINDOW = 30;
 const CHAT_MAX_CONTENTS_CHARS = 200000;
 const CHAT_MAX_OUTPUT_TOKENS = 1200;
+
+// Base64 inflates bytes by ~4/3. Reject obviously oversized payloads *before* decoding them,
+// so a caller cannot force the script to materialize hundreds of MB in memory just to have
+// the decoded-length check reject it afterwards.
+const MAX_FILE_BASE64_CHARS = Math.ceil((35 * 1024 * 1024) * 4 / 3) + 1024;
+
+// Depth guard for the folder-containment walk in isInsideManagedFolder_.
+const MAX_PARENT_WALK = 64;
 
 // Allowlist of Gemini model identifiers accepted by handleChat
 const ALLOWED_MODELS = [
@@ -157,8 +168,25 @@ function resolveTrustedEmail_(params) {
 }
 
 function handleUpload(params) {
+  // Authenticate FIRST. This used to run at the very end of the function, *after* the blob had
+  // already been written to Drive and shared with anyone-who-has-the-link: an unauthenticated
+  // caller got an error response, but their file was created and world-readable all the same.
+  // Resolving the trusted email up front makes the token the actual gate on the write.
+  const uploaderEmail = resolveTrustedEmail_(params);
+
+  // Bound how often one verified member can write to the team Drive, so a single account
+  // cannot exhaust the owner's storage quota with a loop of small uploads.
+  if (!withinRateLimit_('upload', uploaderEmail, UPLOAD_RATE_MAX_PER_WINDOW)) {
+    throw new Error('rate limit exceeded: too many uploads, retry in a minute');
+  }
+
   if (!params.fileBase64 || !params.fileName) {
     throw new Error('missing fileBase64 or fileName');
+  }
+
+  // Reject oversized payloads before decoding (see MAX_FILE_BASE64_CHARS).
+  if (String(params.fileBase64).length > MAX_FILE_BASE64_CHARS) {
+    throw new Error('file exceeds 35 MB limit');
   }
 
   // Sanitize fileName: only allow safe characters to prevent path traversal / injection
@@ -188,9 +216,8 @@ function handleUpload(params) {
   const file = target.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-  // Store the trusted uploader email (from the verified ID token when available) plus the
+  // Store the trusted uploader email (resolved from the verified ID token above) plus the
   // deliverableId in the description, for ownership verification on delete.
-  const uploaderEmail = resolveTrustedEmail_(params);
   const descParts = ['uploader:' + uploaderEmail];
   if (params.deliverableId) descParts.push('deliverable:' + params.deliverableId);
   file.setDescription(descParts.join(';'));
@@ -209,21 +236,43 @@ function handleDelete(params) {
   if (!params.fileId) {
     throw new Error('missing fileId');
   }
-  const file = DriveApp.getFileById(params.fileId);
 
-  // Verify ownership: only the original uploader may delete via the bridge. The requester
-  // email is derived from the verified Firebase ID token when available (spoof-resistant);
-  // it falls back to the client-supplied email only while REQUIRE_ID_TOKEN is false.
-  // Files uploaded before this check existed (no uploader tag) are allowed through for
-  // backward compatibility.
+  // Authenticate before resolving the file id at all.
+  const requesterEmail = resolveTrustedEmail_(params);
+
+  if (!withinRateLimit_('delete', requesterEmail, DELETE_RATE_MAX_PER_WINDOW)) {
+    return { error: 'rate limit exceeded: too many delete requests, retry in a minute' };
+  }
+
+  let file;
+  try {
+    file = DriveApp.getFileById(params.fileId);
+  } catch (err) {
+    return { error: 'file not found' };
+  }
+
+  // CONTAINMENT (the important part). The web app executes as the Drive owner, so
+  // DriveApp.getFileById() happily resolves *any* file that account can reach — including
+  // their private, non-CubeSat documents. Previously the only guard was the `uploader:` tag,
+  // and files without one were trashed unconditionally "for backward compatibility". Since no
+  // file outside this app ever carries that tag, any caller could pass an arbitrary Drive file
+  // id and have the owner's personal files moved to the trash. Refuse to touch anything that
+  // does not live under the managed root folder.
+  if (!isInsideManagedFolder_(file)) {
+    return { error: 'unauthorized: file is outside the CubeSat repository folder' };
+  }
+
+  // Verify ownership: only the original uploader may delete through the bridge. The requester
+  // email comes from the verified Firebase ID token (spoof-resistant) whenever one is present,
+  // and REQUIRE_ID_TOKEN makes it mandatory. Untagged files now fail CLOSED — a legacy file
+  // with no recorded uploader has to be removed by hand from Drive by an owner.
   const description = file.getDescription() || '';
   const uploaderMatch = description.match(/uploader:([^;]+)/);
-  if (uploaderMatch) {
-    const uploaderEmail = uploaderMatch[1].trim().toLowerCase();
-    const requesterEmail = resolveTrustedEmail_(params);
-    if (uploaderEmail !== requesterEmail) {
-      return { error: 'unauthorized: you can only delete files you uploaded' };
-    }
+  if (!uploaderMatch) {
+    return { error: 'unauthorized: file has no recorded uploader; remove it directly from Drive' };
+  }
+  if (uploaderMatch[1].trim().toLowerCase() !== requesterEmail) {
+    return { error: 'unauthorized: you can only delete files you uploaded' };
   }
 
   file.setTrashed(true);
@@ -232,23 +281,53 @@ function handleDelete(params) {
 
 /**
  * Fixed-window per-key rate limiter backed by the script CacheService. Returns true when the
- * call is within budget, false when the caller has exhausted CHAT_RATE_MAX_PER_WINDOW in the
- * current window. Fails open only if the cache backend is unavailable, never on a clean hit.
+ * call is within budget, false when the caller has exhausted `max` calls in the current
+ * window. Fails open only if the cache backend is unavailable, never on a clean hit.
+ *
+ * `bucket` namespaces the counter so the chat, upload and delete budgets are independent.
  */
-function withinChatRateLimit_(key) {
+function withinRateLimit_(bucket, key, max) {
   try {
     const cache = CacheService.getScriptCache();
     if (!cache) return true;
-    const bucket = 'chat_rl_' + key;
-    const current = parseInt(cache.get(bucket) || '0', 10) || 0;
-    if (current >= CHAT_RATE_MAX_PER_WINDOW) {
+    const cacheKey = bucket + '_rl_' + key;
+    const current = parseInt(cache.get(cacheKey) || '0', 10) || 0;
+    if (current >= max) {
       return false;
     }
-    cache.put(bucket, String(current + 1), CHAT_RATE_WINDOW_SECONDS);
+    cache.put(cacheKey, String(current + 1), RATE_WINDOW_SECONDS);
     return true;
   } catch (err) {
     return true;
   }
+}
+
+/**
+ * True when `file` lives somewhere under the app's managed root folder (FOLDER_ID).
+ *
+ * DriveApp resolves ANY file id the executing account can reach — the web app runs as the
+ * Drive owner, so that includes their entire personal Drive, not just the CubeSat folder.
+ * Every mutating operation must therefore prove containment before touching a file.
+ * Walks parents breadth-first (Drive allows multiple parents) with a depth guard.
+ */
+function isInsideManagedFolder_(file) {
+  const visited = {};
+  const queue = [];
+  const parents = file.getParents();
+  while (parents.hasNext()) queue.push(parents.next());
+
+  let steps = 0;
+  while (queue.length > 0 && steps < MAX_PARENT_WALK) {
+    steps++;
+    const folder = queue.shift();
+    const id = folder.getId();
+    if (id === FOLDER_ID) return true;
+    if (visited[id]) continue;
+    visited[id] = true;
+    const up = folder.getParents();
+    while (up.hasNext()) queue.push(up.next());
+  }
+  return false;
 }
 
 function handleChat(params) {
@@ -273,7 +352,7 @@ function handleChat(params) {
   // not that their usage is bounded; without this a single member could exhaust the team's
   // paid Gemini quota or run the key as an unmetered LLM. Keyed by email so it survives across
   // browser sessions/devices for the same person.
-  if (!withinChatRateLimit_(callerEmail)) {
+  if (!withinRateLimit_('chat', callerEmail, CHAT_RATE_MAX_PER_WINDOW)) {
     return { error: 'rate limit exceeded: too many chat requests, retry in a minute' };
   }
 
