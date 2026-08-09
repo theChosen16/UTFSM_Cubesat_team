@@ -32,12 +32,13 @@ export function DropdownMenuTrigger({ children, asChild }: { children: React.Rea
   }
 
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement<any>, {
+    const childProps = children.props as { onClick?: (e: React.MouseEvent) => void }
+    return React.cloneElement(children as any, {
       ref: triggerRef,
       onClick: (e: React.MouseEvent) => {
         handleClick(e)
-        if (children.props.onClick) {
-          children.props.onClick(e)
+        if (childProps.onClick) {
+          childProps.onClick(e)
         }
       }
     })
