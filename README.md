@@ -180,7 +180,7 @@ Los usuarios pueden seleccionar los equipos a los que desean pertenecer desde su
 
 ## Asistente de IA (Cubesat Bot) y Function Calling 🤖🛰️
 
-El **Cubesat Bot** es el centro de asistencia de inteligencia artificial del UTFSM CubeSat Team. Integrado directamente en la interfaz del portal web mediante el SDK oficial `@google/generative-ai` y motorizado de forma inteligente por la familia de modelos de última generación `gemini-3.5-flash`, `gemini-2.5-flash` y `gemini-flash-latest` (con soporte para conmutación automática por fallo).
+El **Cubesat Bot** es el centro de asistencia de inteligencia artificial del UTFSM CubeSat Team. Integrado directamente en la interfaz del portal web mediante el SDK oficial `@google/generative-ai` y motorizado de forma inteligente por la familia de modelos de última generación `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-2.5-flash` y `gemini-flash-latest` (con soporte para conmutación automática por fallo).
 
 ### 1. Reglas y Comportamiento Aeroespacial Estricto
 El bot está configurado con instrucciones de sistema rigurosas que garantizan el foco de la misión:

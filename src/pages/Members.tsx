@@ -16,7 +16,6 @@ import {
   ChevronDown,
   ChevronRight,
   Info,
-  Trophy,
   History,
 } from 'lucide-react'
 import { ActivityLogEntry, Task, User as UserType, UserRole, TeamType, hasRole, hasAnyRole } from '@/types'
@@ -25,11 +24,11 @@ import { logger } from '@/lib/logger'
 import { extractNameFromEmail, getRoleIcon } from '@/lib/utils'
 import { TaskService } from '@/sdk/TaskService'
 import { ActivityLogService } from '@/sdk/ActivityLogService'
-import { buildMemberPerformance, getMemberRankInfo } from '@/lib/memberMetrics'
+import { buildMemberPerformance } from '@/lib/memberMetrics'
 
 const TEAM_CONFIG: { key: TeamType | 'none'; label: string; icon: typeof Users; color: string; bgColor: string; borderColor: string }[] = [
   { key: 'tecnico', label: 'Equipo Técnico', icon: Cpu, color: 'text-purple-400', bgColor: 'bg-purple-500/20', borderColor: 'border-purple-500/30' },
-  { key: 'manager', label: 'Manager', icon: Users, color: 'text-cyan-400', bgColor: 'bg-cyan-500/20', borderColor: 'border-cyan-500/30' },
+  { key: 'manager', label: 'Manager / Gestión', icon: Users, color: 'text-cyan-400', bgColor: 'bg-cyan-500/20', borderColor: 'border-cyan-500/30' },
   { key: 'relaciones_publicas', label: 'Relaciones Públicas', icon: Globe, color: 'text-green-400', bgColor: 'bg-green-500/20', borderColor: 'border-green-500/30' },
   { key: 'none', label: 'Sin equipo asignado', icon: User, color: 'text-gray-400', bgColor: 'bg-gray-500/20', borderColor: 'border-gray-500/30' },
 ]
@@ -150,12 +149,11 @@ export default function Members() {
         ? (!member.equipos || member.equipos.length === 0)
         : member.equipos?.includes(team.key as TeamType))
       .sort((left, right) => {
-        const leftPerformance = performanceByMember.get(left.id)
-        const rightPerformance = performanceByMember.get(right.id)
-        const leftScore = leftPerformance?.totalScore ?? 0
-        const rightScore = rightPerformance?.totalScore ?? 0
-        if (rightScore !== leftScore) return rightScore - leftScore
-        return (rightPerformance?.activityCount ?? 0) - (leftPerformance?.activityCount ?? 0)
+        const leftPerf = performanceByMember.get(left.id)
+        const rightPerf = performanceByMember.get(right.id)
+        const leftTotalActs = (leftPerf?.inProgressCount ?? 0) + (leftPerf?.completedCount ?? 0) + (leftPerf?.activityCount ?? 0)
+        const rightTotalActs = (rightPerf?.inProgressCount ?? 0) + (rightPerf?.completedCount ?? 0) + (rightPerf?.activityCount ?? 0)
+        return rightTotalActs - leftTotalActs
       })
     return acc
   }, {})
@@ -170,7 +168,7 @@ export default function Members() {
         <div>
           <h1 className="page-title">Miembros del Equipo</h1>
           <p className="page-copy">
-            Directorio de miembros, ranking de aportes y actividad reciente.
+            Directorio de miembros, distribución por sub-equipo y tracking de actividades.
           </p>
         </div>
         {hasAnyRole(user, 'maestro', 'admin') && (
@@ -184,7 +182,7 @@ export default function Members() {
       <div className="flex items-start gap-3 rounded-2xl border border-space-600/50 bg-space-800/80 p-4 animate-fade-in-up sm:p-5">
         <Info className="w-5 h-5 text-cyan-400 flex-shrink-0 mt-0.5" />
         <p className="text-sm text-slate-300">
-          <strong className="text-white">Nota Histórica:</strong> El ranking ahora considera puntaje acumulado, tareas completadas y actividad registrada para que el seguimiento del proyecto deje evidencia clara de quién hizo qué.
+          <strong className="text-white">Tracking de Actividades:</strong> Consulta las tareas asignadas en curso, pendientes y completadas de cada miembro, así como sus últimos registros de actividad por sub-equipo.
         </p>
       </div>
 
@@ -232,7 +230,6 @@ export default function Members() {
                   const isCurrentUser = user?.id === member.id
                   const isMaster = hasRole(user, 'maestro')
                   const performance = performanceByMember.get(member.id) || buildMemberPerformance(member.id, allTasks, allActivity)
-                  const rank = getMemberRankInfo(performance.totalScore)
 
                   return (
                     <Card key={member.id} className="bg-space-700/50 border-space-600 hover:border-cyan-500/30 transition-all duration-200">
@@ -273,28 +270,25 @@ export default function Members() {
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="flex flex-col gap-2">
-                          <div className={`w-fit px-3 py-1 rounded-full border flex items-center gap-2 text-xs font-semibold ${rank.color}`}>
-                            <Trophy className="w-3.5 h-3.5" />
-                            <span>Rango: {rank.label}</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
-                            <div className="rounded-lg bg-space-800/60 px-3 py-2 text-center">
-                              <p className="text-white font-semibold">{performance.totalScore}</p>
-                              <p className="text-muted-foreground">Puntos</p>
+                          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                            <div className="rounded-lg bg-space-800/60 px-2.5 py-2 text-center border border-cyan-500/20">
+                              <p className="text-cyan-400 font-bold">{performance.inProgressCount}</p>
+                              <p className="text-muted-foreground text-[10px]">En Curso</p>
                             </div>
-                            <div className="rounded-lg bg-space-800/60 px-3 py-2 text-center">
-                              <p className="text-white font-semibold">{performance.completedCount}</p>
-                              <p className="text-muted-foreground">Terminadas</p>
+                            <div className="rounded-lg bg-space-800/60 px-2.5 py-2 text-center border border-orange-500/20">
+                              <p className="text-orange-300 font-bold">{performance.pendingCount}</p>
+                              <p className="text-muted-foreground text-[10px]">Pendientes</p>
                             </div>
-                            <div className="rounded-lg bg-space-800/60 px-3 py-2 text-center">
-                              <p className="text-white font-semibold">{performance.pendingCount}</p>
-                              <p className="text-muted-foreground">Pendientes</p>
+                            <div className="rounded-lg bg-space-800/60 px-2.5 py-2 text-center border border-emerald-500/20">
+                              <p className="text-emerald-400 font-bold">{performance.completedCount}</p>
+                              <p className="text-muted-foreground text-[10px]">Pasadas</p>
                             </div>
-                            <div className="rounded-lg bg-space-800/60 px-3 py-2 text-center">
-                              <p className="text-white font-semibold">{performance.activityCount}</p>
-                              <p className="text-muted-foreground">Aportes</p>
+                            <div className="rounded-lg bg-space-800/60 px-2.5 py-2 text-center border border-space-600">
+                              <p className="text-purple-300 font-bold">{performance.activityCount}</p>
+                              <p className="text-muted-foreground text-[10px]">Aportes</p>
                             </div>
                           </div>
+
                           <div className="rounded-lg border border-space-600 bg-space-800/50 px-3 py-2">
                             <p className="flex items-center gap-2 text-xs font-medium text-white">
                               <History className="w-3.5 h-3.5 text-cyan-400" />

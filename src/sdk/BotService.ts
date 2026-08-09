@@ -12,7 +12,7 @@ import { auth } from '@/lib/firebase'
 const API_KEY = (import.meta.env.DEV && import.meta.env.VITE_ENABLE_DIRECT_AI === 'true')
   ? import.meta.env.VITE_GOOGLE_AI_KEY
   : undefined
-const MODEL_CANDIDATES = ['gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite'] as const
+const MODEL_CANDIDATES = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite'] as const
 
 // Only use direct SDK mode if explicitly enabled AND a real, valid API Key is provided
 const isDirectMode = Boolean(API_KEY && API_KEY !== 'your-google-ai-key' && !API_KEY.includes('placeholder'))

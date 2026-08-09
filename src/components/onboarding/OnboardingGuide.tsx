@@ -9,7 +9,7 @@ const ONBOARDING_SLIDES = [
   {
     id: 'welcome',
     title: 'Bienvenido a Cubesat Base',
-    description: 'El centro de control y coordinación de nuestro equipo. Aquí podrás ver el estado de la misión en tiempo real a través del Dashboard y el ranking de contribuciones.',
+    description: 'El centro de control y coordinación de nuestro equipo. Aquí podrás ver el estado de la misión en tiempo real a través del Dashboard y el tracking de actividades por sub-equipo.',
     icon: Rocket,
     color: 'text-amber-400',
     bg: 'bg-amber-500/20'
@@ -33,7 +33,7 @@ const ONBOARDING_SLIDES = [
   {
     id: 'tasks',
     title: 'Tareas & Progreso',
-    description: 'Cumple hitos, entrega tareas asignadas y gana puntos. Tu esfuerzo se verá reflejado en tu rango dentro del equipo.',
+    description: 'Cumple hitos y entrega tareas asignadas. El progreso y la actividad de tu sub-equipo se reflejará en tiempo real en la plataforma.',
     icon: ListTodo,
     color: 'text-orange-400',
     bg: 'bg-orange-500/20'

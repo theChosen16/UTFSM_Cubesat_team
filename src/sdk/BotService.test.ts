@@ -94,7 +94,7 @@ describe('BotService', () => {
 
     getGenerativeModelMock.mockImplementation(({ model }: { model: string }) => ({
       startChat: vi.fn(() => ({
-        sendMessage: model === 'gemini-3.5-flash' ? primarySendMessage : fallbackSendMessage,
+        sendMessage: model === 'gemini-3.6-flash' ? primarySendMessage : fallbackSendMessage,
       })),
     }))
 
@@ -103,8 +103,8 @@ describe('BotService', () => {
     const response = await BotService.sendMessage('Dame un resumen de los proyectos')
 
     expect(response).toBe('Resumen táctico listo.')
+    expect(getGenerativeModelMock).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-3.6-flash' }))
     expect(getGenerativeModelMock).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-3.5-flash' }))
-    expect(getGenerativeModelMock).toHaveBeenCalledWith(expect.objectContaining({ model: 'gemini-2.5-flash' }))
   })
 
   it('securely intercepts and executes function calls for administrators', async () => {

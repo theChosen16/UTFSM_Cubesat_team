@@ -41,7 +41,7 @@ Las constantes de colección están en `src/lib/constants.ts` (`COLLECTIONS`).
 - `ActivityLogService` — `create`, `getAll`, `getByUser`.
 - `FileService` — `upload` (Apps Script + Drive + Firestore metadata), `getAll`, `delete`. Lee `VITE_DRIVE_UPLOAD_URL` y `VITE_DRIVE_UPLOAD_SECRET`. `isConfigured()` indica si el bridge está disponible.
 - `NotificationService` — `create` (con deduplicación opcional), `ensureDeadlineReminder`, `notifyDeliverableUploaded`.
-- `BotService` — servicio del chatbot IA con soporte recursivo de **Gemini Function Calling** (hasta 3 niveles) para administradores, conmutación de modelos por fallo (`gemini-3.5-flash`, `gemini-2.5-flash`, etc.) y procesamiento/lectura de archivos adjuntos (imágenes, PDFs, DOCX, PPTX, TXT, CSV, JSON, MD).
+- `BotService` — servicio del chatbot IA con soporte recursivo de **Gemini Function Calling** (hasta 3 niveles) para administradores, conmutación de modelos por fallo (`gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-2.5-flash`, etc.) y procesamiento/lectura de archivos adjuntos (imágenes, PDFs, DOCX, PPTX, TXT, CSV, JSON, MD).
 - `AdminActionsService` — servicio puente seguro que resuelve las llamadas ejecutivas de IA sobre Firestore (creación de tareas/eventos, sincronizaciones, consulta/despacho de noticiarios semanales, gestión de CubeDesign 2026, auditoría de actas de reunión e ingreso de cumpleaños) validando privilegios en caliente.
 - `UserService`, `ProjectService` — servicios pre-existentes.
 
@@ -61,11 +61,11 @@ Las constantes de colección están en `src/lib/constants.ts` (`COLLECTIONS`).
 
 | Ruta | Componente |
 |------|-----------|
-| `/dashboard` | Dashboard — stats + leaderboard de miembros |
+| `/dashboard` | Dashboard — stats + Centro de Tracking de Actividades por sub-equipo |
 | `/projects` | Projects |
 | `/tasks` | TaskManagement — hitos, entregables, avances |
 | `/files` | FileRepository — biblioteca central de archivos |
-| `/members` | Members — métricas de rendimiento por miembro |
+| `/members` | Members — métricas de actividad por miembro y sub-equipo |
 | `/notifications` | Notifications |
 | `/profile` | Profile |
 
