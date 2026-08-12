@@ -2,14 +2,30 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // Helper function: check if user has a specific role (supports both legacy 'rol' and new 'roles' array)
+    //
+    // Both helpers MUST read through `data.get(field, default)`. Dereferencing a missing field
+    // directly (`userData.rol`, `userData.equipos`) raises an *evaluation error* in Firestore
+    // rules rather than yielding a falsy value, and an erroring sub-expression poisons the whole
+    // condition. Since AuthContext.signUp writes neither `roles` nor `equipos`, that was the
+    // default state of every freshly-registered account: `hasRole()` errored for any user whose
+    // `rol` did not match on the first comparison, and `hasTeam()` errored for anyone without an
+    // `equipos` array. Because `canManageWorkspace()` evaluates `hasTeam('manager')` first, a
+    // legitimate maestro/admin with no `equipos` field was denied every manager-gated write
+    // (creating tasks, projects and events, enqueuing mail) — the authorization boundary was
+    // failing on well-formed data instead of on the user's actual privileges.
     function hasRole(role) {
       let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return userData != null && (userData.rol == role || (userData.roles is list && role in userData.roles));
+      return userData != null && (
+        userData.get('rol', '') == role ||
+        (userData.get('roles', []) is list && role in userData.get('roles', []))
+      );
     }
 
     function hasTeam(team) {
       let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return userData != null && userData.equipos is list && team in userData.equipos;
+      return userData != null &&
+        userData.get('equipos', []) is list &&
+        team in userData.get('equipos', []);
     }
 
     function canManageWorkspace() {
@@ -41,14 +57,69 @@ service cloud.firestore {
     }
 
     // Fields a user is allowed to update on their own profile.
-    // Excludes 'rol', 'isActive', 'email', 'createdAt' to prevent privilege escalation.
+    // Excludes 'rol'/'roles', 'isActive', 'email', 'createdAt' to prevent privilege escalation.
+    //
+    // The allowlist must stay in sync with what the app actually writes. Profile.tsx persists
+    // 'bio', 'title', 'socialLinks' and 'portfolioImages', and OnboardingGuide.tsx persists
+    // 'hasSeenOnboarding'; none of them were listed here, so every profile save from a regular
+    // member was rejected by these rules (a functional regression of the previous hardening).
+    // They are all non-privileged presentation fields, so they are added here — with size caps,
+    // since 'portfolioImages' holds base64 data URLs and is a storage/egress-abuse vector.
+    // 'fechaCumpleanos' is included so a member can set their own birthday without needing an
+    // admin to run the bot's registrarCumpleanos action.
     function isAllowedSelfUpdate() {
-      let allowed = ['nombre', 'apellido', 'career', 'year', 'genero', 'photoURL', 'questionnaire', 'equipos'];
-      let changed = request.resource.data.diff(resource.data).changedKeys();
+      let allowed = [
+        'nombre', 'apellido', 'career', 'year', 'genero', 'photoURL', 'questionnaire', 'equipos',
+        'bio', 'title', 'socialLinks', 'portfolioImages', 'fechaCumpleanos', 'hasSeenOnboarding'
+      ];
+      // MUST be affectedKeys(), never changedKeys(). `changedKeys()` only reports keys present
+      // in BOTH the before and after maps whose value differs; keys the write *adds* are
+      // reported by `addedKeys()` and are invisible to it. Since a normal account has no `rol`
+      // field at all, `changedKeys().hasOnly(allowed)` evaluated to true for a write that added
+      // `rol: 'admin'` — letting any member grant themselves the admin role on their own
+      // document (verified against the Firestore emulator). `affectedKeys()` is the union of
+      // added + removed + changed and is the correct basis for a field allowlist.
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
       // User cannot self-assign to the 'manager' team (grants workspace management rights)
       let noManagerSelfAssign = !changed.hasAny(['equipos']) ||
         !('manager' in request.resource.data.equipos);
-      return changed.hasOnly(allowed) && noManagerSelfAssign;
+      return changed.hasOnly(allowed) && noManagerSelfAssign && isBoundedProfile();
+    }
+
+    // Size caps for the self-editable free-text / media fields. The caps are generous relative
+    // to the UI limits (PortfolioGallery caps at 8 images / ~900 KB total) and exist so a member
+    // cannot script oversized profile documents as a storage/egress-abuse vector.
+    function isBoundedProfile() {
+      return (!('bio' in request.resource.data) ||
+          (request.resource.data.bio is string && request.resource.data.bio.size() <= 2000)) &&
+        (!('title' in request.resource.data) ||
+          (request.resource.data.title is string && request.resource.data.title.size() <= 120)) &&
+        (!('portfolioImages' in request.resource.data) ||
+          (request.resource.data.portfolioImages is list &&
+            request.resource.data.portfolioImages.size() <= 8)) &&
+        (!('equipos' in request.resource.data) ||
+          (request.resource.data.equipos is list && request.resource.data.equipos.size() <= 2));
+    }
+
+    // Vertical privilege boundary between 'admin' and 'maestro'.
+    //
+    // The previous rule granted `hasRole('admin')` a blanket update on ANY user document, which
+    // let any admin write `rol: 'maestro'` onto their own document and take over the workspace —
+    // or strip/deactivate the real maestro. That contradicts both the documented policy ("Admin:
+    // gestión de contenido y miembros *excepto maestro/admin*") and the client-side guard in
+    // AuthContext.updateUserRole, which already restricts role assignment to the maestro. The
+    // client guard is UX; this is the boundary. Roles are now maestro-only to grant, and admins
+    // cannot touch a document that already holds an elevated role.
+    function changesRoleFields() {
+      // affectedKeys() so that *adding* a 'rol'/'roles' field to a document that lacks one is
+      // detected as a role change (see the note in isAllowedSelfUpdate).
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['rol', 'roles']);
+    }
+
+    function targetHoldsElevatedRole() {
+      return resource.data.get('rol', '') in ['maestro', 'admin'] ||
+        (resource.data.get('roles', []) is list &&
+          (('maestro' in resource.data.get('roles', [])) || ('admin' in resource.data.get('roles', []))));
     }
 
     match /users/{userId} {
@@ -83,11 +154,13 @@ service cloud.firestore {
         hasRole('admin')
       );
 
-      // Maestro/admin can update any field on any user document.
+      // Maestro can update any field on any user document (including roles).
+      // Admin can manage regular members but may NOT grant/revoke roles and may not modify a
+      // user who already holds an elevated role — that closes the admin -> maestro escalation.
       // Regular users can only update their own non-privileged fields.
       allow update: if isInstitutional() && (
         hasRole('maestro') ||
-        hasRole('admin') ||
+        (hasRole('admin') && !changesRoleFields() && !targetHoldsElevatedRole()) ||
         (request.auth.uid == userId && isAllowedSelfUpdate())
       );
 
@@ -144,7 +217,10 @@ service cloud.firestore {
         (
           resource.data.asignadoA is list &&
           request.auth.uid in resource.data.asignadoA &&
-          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          // affectedKeys(), not changedKeys(): otherwise an assignee could ADD any field the
+          // task does not already carry (e.g. 'puntajeImportancia', 'asignadoA', 'equipo')
+          // because newly added keys are absent from changedKeys().
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'estado',
             'progressUpdates',
             'fechaInicioReal',
@@ -242,8 +318,16 @@ service cloud.firestore {
     match /events/{eventId} {
       // Institutional members can read calendar events.
       // Creation, updates and deletions are restricted to workspace managers, admins, and maestros.
+      // Free-text fields are size-capped: events are also created programmatically by the
+      // assistant (AdminActionsService.crearEvento / auditarActaDrive) from model output, so the
+      // rules bound what a manipulated model turn can persist per document.
       allow read: if isInstitutional();
-      allow create, update, delete: if isInstitutional() && canManageWorkspace();
+      allow create, update: if isInstitutional() && canManageWorkspace() &&
+        (!('titulo' in request.resource.data) ||
+          (request.resource.data.titulo is string && request.resource.data.titulo.size() <= 300)) &&
+        (!('descripcion' in request.resource.data) ||
+          (request.resource.data.descripcion is string && request.resource.data.descripcion.size() <= 5000));
+      allow delete: if isInstitutional() && canManageWorkspace();
     }
 
     match /mail/{mailId} {
@@ -252,7 +336,11 @@ service cloud.firestore {
     }
 
     match /mail_digests/{digestId} {
-      allow read: if isInstitutional();
+      // Each digest log embeds the full 'recipients' list — every active member's email address.
+      // Reading it is a manager-only operation in the app (the WeeklyDigestWidget is rendered
+      // behind canManageWorkspace, and the bot's obtenerEstadoNoticiario is admin-only), so the
+      // rule is narrowed to match instead of exposing the whole team roster to every member.
+      allow read: if isInstitutional() && canManageWorkspace();
       allow create: if isInstitutional() && canManageWorkspace();
     }
 
@@ -280,12 +368,18 @@ service cloud.firestore {
       // and that likesCount stays consistent with the array length.
       // A content size cap is also enforced on update (not just create) so an author cannot
       // grow their own post unboundedly to abuse storage/egress.
+      // 'authorId' is immutable on update: without this an author could re-attribute their own
+      // post to another member, planting content under a colleague's name in the shared feed.
       allow update: if isInstitutional() &&
+        request.resource.data.get('authorId', '') == resource.data.get('authorId', '') &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 10000)) && (
         resource.data.authorId == request.auth.uid ||
         (
-          request.resource.data.diff(resource.data).changedKeys().hasOnly(['likedBy', 'likesCount']) &&
+          // affectedKeys(), not changedKeys(): a post created without a 'likedBy'/'likesCount'
+          // field would otherwise let a non-author add arbitrary new fields to someone else's
+          // post under the guise of a like toggle.
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'likesCount']) &&
           request.resource.data.likedBy is list &&
           request.resource.data.likesCount == request.resource.data.likedBy.size() &&
           resource.data.get('likedBy', []).toSet().difference(request.resource.data.likedBy.toSet())
@@ -307,9 +401,11 @@ service cloud.firestore {
       allow delete: if isInstitutional() && (
         resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
-      // Update keeps the same content size cap as create to bound storage/egress abuse.
+      // Update keeps the same content size cap as create to bound storage/egress abuse, and
+      // pins 'authorId' so a comment can never be re-attributed to another member.
       allow update: if isInstitutional() &&
         (resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')) &&
+        request.resource.data.get('authorId', '') == resource.data.get('authorId', '') &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
     }
@@ -323,9 +419,11 @@ service cloud.firestore {
       allow delete: if isInstitutional() && (
         resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
-      // Update keeps the same content size cap as create to bound storage/egress abuse.
+      // Update keeps the same content size cap as create to bound storage/egress abuse, and
+      // pins 'senderId' so a message can never be re-attributed to another member.
       allow update: if isInstitutional() &&
         (resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')) &&
+        request.resource.data.get('senderId', '') == resource.data.get('senderId', '') &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
     }

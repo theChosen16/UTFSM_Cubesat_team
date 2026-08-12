@@ -37,6 +37,10 @@ export class BotService {
     return status === 404 ||
       message.includes('404') ||
       message.includes('not found') ||
+      // El proxy rechaza los modelos fuera de su allowlist con "model not allowed: <id>". Sin
+      // este caso, una desincronización entre MODEL_CANDIDATES y ALLOWED_MODELS del bridge no
+      // se considera recuperable y tumba el chat completo en vez de degradar al siguiente modelo.
+      message.includes('model not allowed') ||
       message.includes('model') && message.includes('not') && (message.includes('available') || message.includes('found') || message.includes('supported'))
   }
 
@@ -692,15 +696,25 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
       }
     }
 
-    // Defensa contra inyección indirecta de prompts: el contenido de archivos adjuntos es
-    // dato no confiable. Las acciones de difusión masiva e irreversibles (envío del
-    // noticiario a TODO el equipo) no pueden gatillarse en un turno que incluye un adjunto,
-    // de modo que un documento manipulado nunca pueda provocar un correo masivo por su cuenta.
-    const BROADCAST_ACTIONS = ['forzarEnvioNoticiario']
-    if (hasUntrustedAttachment && BROADCAST_ACTIONS.includes(name)) {
+    // Defensa contra inyección indirecta de prompts: el contenido de un archivo adjunto es dato
+    // no confiable y llega íntegro al modelo, de modo que un documento manipulado puede inducir
+    // llamadas a herramientas que el usuario nunca pidió.
+    //
+    // Antes sólo se bloqueaba la difusión masiva (`forzarEnvioNoticiario`), dejando expuesto
+    // todo el resto de la superficie de escritura: `auditarActaDrive` crea tareas y eventos de
+    // forma masiva a partir del propio texto del documento, `registrarCumpleanos` y
+    // `gestionarCubeDesign` escriben en los documentos de OTROS usuarios, y `crearTarea` /
+    // `crearEvento` inyectan contenido arbitrario en el espacio de trabajo compartido. La
+    // política se invierte: en un turno con adjunto sólo se permite una lista blanca de acciones
+    // de SÓLO LECTURA; cualquier acción que mute estado queda bloqueada y debe repetirse en un
+    // mensaje de texto explícito, sin adjuntos.
+    const READ_ONLY_ACTIONS = ['obtenerMetricas', 'obtenerEstadoNoticiario']
+    const isReadOnlyCubeDesignAudit = name === 'gestionarCubeDesign' && args?.accion === 'auditar_preparacion'
+
+    if (hasUntrustedAttachment && !READ_ONLY_ACTIONS.includes(name) && !isReadOnlyCubeDesignAudit) {
       return {
         success: false,
-        message: 'Acción bloqueada por seguridad: las acciones de difusión masiva (como despachar el noticiario) no pueden ejecutarse en un turno que incluye un archivo adjunto, para evitar la inyección de instrucciones ocultas en documentos. Solicítalo nuevamente en un mensaje de texto sin adjuntos.'
+        message: 'Acción bloqueada por seguridad: las acciones que modifican datos (crear tareas o eventos, procesar actas, registrar cumpleaños, gestionar CubeDesign o despachar el noticiario) no pueden ejecutarse en un turno que incluye un archivo adjunto, para evitar la inyección de instrucciones ocultas en documentos. Solicítala nuevamente en un mensaje de texto sin adjuntos.'
       }
     }
 
