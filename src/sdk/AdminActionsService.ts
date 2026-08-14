@@ -11,6 +11,14 @@ import { Task, CalendarEvent, CalendarEventType } from '@/types'
 import { logger } from '@/lib/logger'
 
 
+/**
+ * Cotas de seguridad para `auditarActaDrive`. El texto del acta proviene del modelo (y a menudo
+ * de un documento adjunto no confiable) y se materializa como un documento de Firestore por
+ * línea, así que se limita explícitamente tanto la entrada como el fan-out de escrituras.
+ */
+const ACTA_MAX_INPUT_CHARS = 20000
+const ACTA_MAX_CREATED_DOCS = 40
+
 export interface AdminTaskArgs {
   titulo: string
   descripcion: string
@@ -453,9 +461,16 @@ export class AdminActionsService {
     userId: string
   ): Promise<{ success: boolean; message: string; data?: any }> {
     try {
-      const lines = args.acuerdosResumen.split('\n')
+      // Esta acción convierte texto generado por el modelo (a menudo derivado de un documento
+      // subido) en escrituras masivas a Firestore: una tarea o evento POR LÍNEA, sin techo. Un
+      // acta manipulada —o simplemente muy larga— se traduce en miles de documentos, saturando
+      // el espacio de trabajo compartido y la cuota del proyecto. Se acota tanto la entrada como
+      // el número de documentos que un único turno puede materializar.
+      const truncatedResumen = String(args.acuerdosResumen || '').substring(0, ACTA_MAX_INPUT_CHARS)
+      const lines = truncatedResumen.split('\n')
       const createdTasks: string[] = []
       const createdEvents: string[] = []
+      let truncatedByLimit = false
 
       // Helper function to extract date from text
       const parseSpanishDate = (text: string): string | undefined => {
@@ -483,6 +498,11 @@ export class AdminActionsService {
       }
 
       for (const rawLine of lines) {
+        if (createdTasks.length + createdEvents.length >= ACTA_MAX_CREATED_DOCS) {
+          truncatedByLimit = true
+          break
+        }
+
         let line = rawLine.trim()
         if (!line || line.toLowerCase().includes('acuerdo') || line.toLowerCase().includes('reunión') && line.includes(':')) {
           continue
@@ -564,10 +584,14 @@ export class AdminActionsService {
         message: `¡Acta auditada y procesada con éxito! He procesado el documento de Google Drive (${args.fechaActa}) e inyectado masivamente en la base de datos de Firestore:\n` +
           `- Tareas Creadas (${createdTasks.length})\n` +
           `- Eventos/Reuniones Agendados (${createdEvents.length})\n` +
-          `Todo asignado y clasificado en los subsistemas correctos.`,
+          `Todo asignado y clasificado en los subsistemas correctos.` +
+          (truncatedByLimit
+            ? `\n\n⚠️ Se alcanzó el límite de seguridad de ${ACTA_MAX_CREATED_DOCS} documentos por acta; el resto del texto no se procesó. Divide el acta y vuelve a solicitarlo si falta contenido.`
+            : ''),
         data: {
           createdTasksCount: createdTasks.length,
-          createdEventsCount: createdEvents.length
+          createdEventsCount: createdEvents.length,
+          truncatedByLimit
         }
       }
     } catch (error) {

@@ -606,4 +606,256 @@ describe('Security rules — privilege escalation & integrity', () => {
       })
     )
   })
+
+  /**
+   * Creates a maestro, then an 'admin' user promoted by that maestro, and leaves the session
+   * signed in AS THE ADMIN. Returns both uids.
+   */
+  async function bootstrapAdmin(adminEmail: string): Promise<{ maestroUid: string; adminUid: string }> {
+    // Derive the maestro address from the admin one so repeated calls never collide in the
+    // shared Auth emulator.
+    const maestroEmail = `root-${adminEmail.split('@')[0]}@usm.cl`
+    const maestroUid = await bootstrapMaestro(maestroEmail)
+    await signOut(auth)
+
+    const { user: adminUser } = await createUserWithEmailAndPassword(auth, adminEmail, PW)
+    const adminUid = adminUser.uid
+    await setDoc(doc(db, 'users', adminUid), {
+      email: adminEmail,
+      nombre: 'Ada',
+      apellido: 'Admin',
+      createdAt: new Date(),
+      isActive: true,
+    })
+    await signOut(auth)
+
+    // The maestro promotes them to admin (the only path the rules allow).
+    await signInWithEmailAndPassword(auth, maestroEmail, PW)
+    await updateDoc(doc(db, 'users', adminUid), { rol: 'admin' })
+    await signOut(auth)
+
+    await signInWithEmailAndPassword(auth, adminEmail, PW)
+    return { maestroUid, adminUid }
+  }
+
+  it('blocks a regular member from ADDING a rol field to their own document', async () => {
+    // Regression test for the changedKeys()/affectedKeys() confusion in the self-update
+    // allowlist. `changedKeys()` only reports keys present in BOTH the before and after maps,
+    // so a write that *added* an absent field was invisible to it. A normal account carries no
+    // 'rol' field at all, so `changedKeys().hasOnly(allowedFields)` was trivially satisfied and
+    // any member could grant themselves rol:'admin' on their own document — and from there
+    // (under the old blanket admin rule) rol:'maestro'. The allowlist now uses affectedKeys().
+    await bootstrapMaestro('boss14@usm.cl')
+    await signOut(auth)
+
+    const { user } = await createUserWithEmailAndPassword(auth, 'climber@usm.cl', PW)
+    await setDoc(doc(db, 'users', user.uid), {
+      email: 'climber@usm.cl',
+      nombre: 'Cli',
+      apellido: 'Mber',
+      createdAt: new Date(),
+      isActive: true,
+    })
+
+    await expectDenied(updateDoc(doc(db, 'users', user.uid), { rol: 'admin' }))
+    await expectDenied(updateDoc(doc(db, 'users', user.uid), { rol: 'maestro' }))
+    await expectDenied(updateDoc(doc(db, 'users', user.uid), { roles: ['maestro'] }))
+    await expectDenied(updateDoc(doc(db, 'users', user.uid), { equipos: ['manager'] }))
+    await expectDenied(updateDoc(doc(db, 'users', user.uid), { isActive: false }))
+
+    // A legitimate, allowlisted self-edit still works.
+    await updateDoc(doc(db, 'users', user.uid), { nombre: 'Climber' })
+
+    const snap = await getDoc(doc(db, 'users', user.uid))
+    expect(snap.data()!.rol).toBeUndefined()
+    expect(snap.data()!.nombre).toBe('Climber')
+  })
+
+  it('blocks an assigned member from ADDING a field outside the task allowlist', async () => {
+    // Same affectedKeys() class of bug on the task update rule: an assignee could previously
+    // add any field the task document did not already carry.
+    const maestroEmail = 'boss15@usm.cl'
+    await bootstrapMaestro(maestroEmail)
+
+    const taskRef = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Validar arnés',
+      descripcion: '',
+      estado: 'pendiente',
+      asignadoA: ['assignee-placeholder'],
+      equipo: 'tecnico',
+      prioridad: 'media',
+      createdAt: Timestamp.now(),
+    })
+    await signOut(auth)
+
+    const { user: assignee } = await createUserWithEmailAndPassword(auth, 'assignee9@usm.cl', PW)
+    await setDoc(doc(db, 'users', assignee.uid), {
+      email: 'assignee9@usm.cl',
+      nombre: 'As',
+      apellido: 'Signee',
+      createdAt: new Date(),
+      isActive: true,
+    })
+    await signOut(auth)
+
+    await signInWithEmailAndPassword(auth, maestroEmail, PW)
+    await updateDoc(doc(db, 'tasks', taskRef.id), { asignadoA: [assignee.uid] })
+    await signOut(auth)
+
+    await signInWithEmailAndPassword(auth, 'assignee9@usm.cl', PW)
+
+    // 'puntajeImportancia' is absent from this task, so adding it used to slip past the
+    // allowlist — and it is the very value the anti-fraud score check compares against.
+    await expectDenied(updateDoc(doc(db, 'tasks', taskRef.id), { puntajeImportancia: 999 }))
+    await expectDenied(updateDoc(doc(db, 'tasks', taskRef.id), { equipo: 'manager' }))
+
+    // An allowlisted field update still works.
+    await updateDoc(doc(db, 'tasks', taskRef.id), { estado: 'en_progreso' })
+  })
+
+  it('blocks an admin from escalating themselves to maestro', async () => {
+    const { adminUid } = await bootstrapAdmin('ada@usm.cl')
+
+    // The core escalation: the previous rule granted admins a blanket update on any user doc.
+    await expectDenied(updateDoc(doc(db, 'users', adminUid), { rol: 'maestro' }))
+    await expectDenied(updateDoc(doc(db, 'users', adminUid), { roles: ['maestro'] }))
+
+    const snap = await getDoc(doc(db, 'users', adminUid))
+    expect(snap.data()!.rol).toBe('admin')
+  })
+
+  it('blocks an admin from tampering with the maestro account', async () => {
+    const { maestroUid } = await bootstrapAdmin('ada2@usm.cl')
+
+    // Neither demoting nor locking out the maestro is available to an admin.
+    await expectDenied(updateDoc(doc(db, 'users', maestroUid), { rol: null }))
+    await expectDenied(updateDoc(doc(db, 'users', maestroUid), { isActive: false }))
+  })
+
+  it('still lets an admin manage a regular member (non-role fields)', async () => {
+    await bootstrapAdmin('ada3@usm.cl')
+    await signOut(auth)
+
+    const { user: member } = await createUserWithEmailAndPassword(auth, 'member9@usm.cl', PW)
+    await setDoc(doc(db, 'users', member.uid), {
+      email: 'member9@usm.cl',
+      nombre: 'Reg',
+      apellido: 'User',
+      createdAt: new Date(),
+      isActive: true,
+    })
+    await signOut(auth)
+
+    await signInWithEmailAndPassword(auth, 'ada3@usm.cl', PW)
+    await updateDoc(doc(db, 'users', member.uid), { equipos: ['tecnico'], isActive: false })
+
+    const snap = await getDoc(doc(db, 'users', member.uid))
+    expect(snap.data()!.equipos).toEqual(['tecnico'])
+
+    // ...but still cannot hand that member a role.
+    await expectDenied(updateDoc(doc(db, 'users', member.uid), { rol: 'admin' }))
+  })
+
+  it('lets a member save their own profile fields (bio, links, portfolio, onboarding)', async () => {
+    await bootstrapMaestro('boss10@usm.cl')
+    await signOut(auth)
+
+    const { user } = await createUserWithEmailAndPassword(auth, 'profiler@usm.cl', PW)
+    await setDoc(doc(db, 'users', user.uid), {
+      email: 'profiler@usm.cl',
+      nombre: 'Pro',
+      apellido: 'Filer',
+      createdAt: new Date(),
+      isActive: true,
+    })
+
+    // These are exactly the fields Profile.tsx / OnboardingGuide.tsx persist. Before this fix
+    // they were absent from the self-update allowlist, so every profile save was denied.
+    await updateDoc(doc(db, 'users', user.uid), {
+      bio: 'Ingeniero de subsistema de potencia.',
+      title: 'Líder EPS',
+      socialLinks: { linkedin: 'https://linkedin.com/in/pro', github: 'https://github.com/pro' },
+      portfolioImages: ['data:image/jpeg;base64,AAAA'],
+      fechaCumpleanos: '11-14',
+      hasSeenOnboarding: true,
+    })
+
+    const snap = await getDoc(doc(db, 'users', user.uid))
+    expect(snap.data()!.title).toBe('Líder EPS')
+    expect(snap.data()!.hasSeenOnboarding).toBe(true)
+  })
+
+  it('bounds the self-editable profile fields against storage abuse', async () => {
+    await bootstrapMaestro('boss11@usm.cl')
+    await signOut(auth)
+
+    const { user } = await createUserWithEmailAndPassword(auth, 'bloater@usm.cl', PW)
+    await setDoc(doc(db, 'users', user.uid), {
+      email: 'bloater@usm.cl',
+      nombre: 'B',
+      apellido: 'Loater',
+      createdAt: new Date(),
+      isActive: true,
+    })
+
+    await expectDenied(updateDoc(doc(db, 'users', user.uid), { bio: 'x'.repeat(2001) }))
+    await expectDenied(
+      updateDoc(doc(db, 'users', user.uid), {
+        portfolioImages: Array.from({ length: 9 }, () => 'data:image/jpeg;base64,AAAA'),
+      })
+    )
+    // Privileged fields stay outside the allowlist.
+    await expectDenied(updateDoc(doc(db, 'users', user.uid), { rol: 'admin' }))
+    await expectDenied(updateDoc(doc(db, 'users', user.uid), { isActive: false }))
+  })
+
+  it('blocks re-attributing an own post to another member', async () => {
+    await bootstrapMaestro('boss12@usm.cl')
+    await signOut(auth)
+
+    const { user } = await createUserWithEmailAndPassword(auth, 'poster@usm.cl', PW)
+    const post = await addDoc(collection(db, 'posts'), {
+      authorId: user.uid,
+      content: 'Avance del subsistema estructural.',
+      likedBy: [],
+      likesCount: 0,
+      createdAt: Timestamp.now(),
+    })
+
+    // Editing own content stays allowed...
+    await updateDoc(doc(db, 'posts', post.id), { content: 'Avance corregido.' })
+
+    // ...but the authorship cannot be moved onto a colleague.
+    await expectDenied(updateDoc(doc(db, 'posts', post.id), { authorId: 'victim-uid' }))
+  })
+
+  it('restricts mail_digests reads (recipient roster) to workspace managers', async () => {
+    const maestroUid = await bootstrapMaestro('boss13@usm.cl')
+
+    const digest = await addDoc(collection(db, 'mail_digests'), {
+      triggeredBy: maestroUid,
+      recipientCount: 2,
+      eventsCount: 0,
+      tasksCount: 0,
+      recipients: ['a@usm.cl', 'b@usm.cl'],
+      createdAt: Timestamp.now(),
+    })
+
+    // The maestro (a workspace manager) can read it.
+    const asMaestro = await getDoc(doc(db, 'mail_digests', digest.id))
+    expect(asMaestro.data()!.recipientCount).toBe(2)
+
+    await signOut(auth)
+    const { user } = await createUserWithEmailAndPassword(auth, 'nosy@usm.cl', PW)
+    await setDoc(doc(db, 'users', user.uid), {
+      email: 'nosy@usm.cl',
+      nombre: 'No',
+      apellido: 'Sy',
+      createdAt: new Date(),
+      isActive: true,
+    })
+
+    // A regular member can no longer enumerate every member's email address.
+    await expectDenied(getDoc(doc(db, 'mail_digests', digest.id)))
+  })
 })

@@ -26,6 +26,24 @@ const SHARED_SECRET = 'PUT_A_LONG_RANDOM_STRING_HERE';
   `crypto.randomUUID()` desde la consola del navegador, o
   [`https://www.uuidgenerator.net`](https://www.uuidgenerator.net). Mínimo 32 caracteres.
 
+### 2.b. Configurar las Script Properties (obligatorio)
+
+Las claves de servidor **nunca** van en `Code.gs` (el archivo está versionado en el repo). Se
+configuran en **Configuración del proyecto → Propiedades del script → Agregar propiedad**:
+
+| Propiedad | Para qué sirve | ¿Obligatoria? |
+|-----------|----------------|---------------|
+| `GOOGLE_AI_KEY` | Clave de la API de Gemini que usa el proxy de chat. | Sí, para el chatbot |
+| `FIREBASE_WEB_API_KEY` | Clave web de Firebase (`VITE_FIREBASE_API_KEY`). Se usa para validar los ID tokens contra `identitytoolkit.googleapis.com/v1/accounts:lookup`. | **Sí** |
+
+`FIREBASE_WEB_API_KEY` es el mecanismo autoritativo para verificar un ID token *de Firebase*:
+`accounts:lookup` rechaza tokens vencidos, malformados o emitidos para otro proyecto (la clave
+fija la audiencia) y devuelve el correo verificado de la cuenta. El endpoint genérico
+`oauth2.googleapis.com/tokeninfo` valida ID tokens de **Google OAuth** (emisor
+`accounts.google.com`), no los JWT de `securetoken.google.com` que emite Firebase, por lo que se
+mantiene sólo como respaldo para despliegues que aún no configuran la propiedad. Sin una de las
+dos vías, `REQUIRE_ID_TOKEN` deja el bridge cerrado y las subidas fallan.
+
 ### 3. Desplegar como Web App
 
 1. Botón **Implementar** (arriba a la derecha) → **Nueva implementación**.
@@ -81,10 +99,30 @@ El script organiza los archivos automáticamente en subcarpetas dentro del folde
 
 ## Seguridad
 
-- El secret se valida en cada request (sin él, 401).
+- El secret se valida en cada request (sin él, 401). **No es una credencial de autenticación**:
+  se distribuye a cada miembro autenticado vía Firestore (`system_config/keys`) y llega al
+  navegador, así que por sí solo no prueba nada sobre quién llama.
+- La identidad real proviene del **ID token de Firebase verificado en el servidor**
+  (`REQUIRE_ID_TOKEN = true`). El correo de confianza se deriva del token, nunca del campo
+  `userEmail` que envía el cliente (que es falsificable).
+- **La autenticación ocurre antes de cualquier escritura en Drive.** Anteriormente el archivo se
+  creaba y se publicaba con enlace ("cualquiera con el link") *antes* de resolver el correo de
+  confianza, de modo que un llamante con sólo el secret podía dejar archivos en el Drive del
+  equipo sin sesión válida — y esos archivos quedaban sin etiqueta `uploader:`, lo que a su vez
+  permitía que cualquiera los borrara. Ambos huecos están cerrados.
+- **Sin etiqueta de propiedad, no se borra.** Un archivo sin `uploader:` en su descripción ya no
+  se elimina por compatibilidad hacia atrás: hay que borrarlo desde Drive directamente.
+- **Rate limiting por llamante verificado** en chat, subida y borrado, para acotar el abuso de la
+  cuota de Drive y de la clave de pago de Gemini.
+- **Política de servidor en el chat**: el `systemInstruction` que envía el cliente se acota en
+  tamaño y siempre se le añade una política inmutable del lado servidor, de modo que el alcance
+  "solo CubeSat" no dependa de una cadena que el llamante puede omitir.
 - Solo correos `@usm.cl` o `@sansano.usm.cl` pueden subir/eliminar.
 - Cada archivo subido se marca como **"Cualquiera con el link puede ver"** (los miembros NO necesitan acceso al folder).
 - El folder raíz **NO** debe ser público — los usuarios acceden únicamente vía la app, nunca a Drive directamente.
+- `ALLOWED_MODELS` debe mantenerse sincronizado con `MODEL_CANDIDATES` de
+  `src/sdk/BotService.ts`: un modelo que el cliente intenta y el bridge rechaza deja el chat
+  caído (falla cerrada).
 
 ## Límites del plan gratuito
 
