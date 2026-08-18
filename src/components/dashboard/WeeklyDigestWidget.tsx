@@ -89,13 +89,12 @@ export function WeeklyDigestWidget() {
   }
 
   // Calcular días desde el último boletín
-  let daysSinceLast = -1
   let progressPercent = 0
   let daysRemaining = 7
 
   if (lastDigest) {
     const diffMs = nowTimestamp - new Date(lastDigest.createdAt).getTime()
-    daysSinceLast = Math.floor(diffMs / (24 * 60 * 60 * 1000))
+    const daysSinceLast = Math.floor(diffMs / (24 * 60 * 60 * 1000))
     daysRemaining = Math.max(0, 7 - daysSinceLast)
     progressPercent = Math.min(100, (daysSinceLast / 7) * 100)
   }
