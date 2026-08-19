@@ -3,8 +3,6 @@ import { getAuth, connectAuthEmulator } from 'firebase/auth'
 import {
   getFirestore,
   connectFirestoreEmulator,
-  doc,
-  setDoc,
   type Firestore,
 } from 'firebase/firestore'
 
@@ -57,26 +55,71 @@ export async function clearAuthUsers() {
   }
 }
 
+/** Encodes a plain JS value into the Firestore REST `Value` representation. */
+function toFirestoreValue(value: unknown): Record<string, unknown> {
+  if (value === null || value === undefined) return { nullValue: null }
+  if (value instanceof Date) return { timestampValue: value.toISOString() }
+  if (typeof value === 'boolean') return { booleanValue: value }
+  if (typeof value === 'number') {
+    return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value }
+  }
+  if (Array.isArray(value)) {
+    return { arrayValue: { values: value.map(toFirestoreValue) } }
+  }
+  if (typeof value === 'object') {
+    return { mapValue: { fields: toFirestoreFields(value as Record<string, unknown>) } }
+  }
+  return { stringValue: String(value) }
+}
+
+function toFirestoreFields(data: Record<string, unknown>): Record<string, unknown> {
+  const fields: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(data)) {
+    fields[key] = toFirestoreValue(value)
+  }
+  return fields
+}
+
 /**
- * Seeds a maestro user the same way the real signup bootstrap does: claim the
- * one-time `_bootstrap_lock` (recording this uid), then create the user doc with
- * rol:'maestro'. The hardened Firestore rules only authorize a maestro self-create
- * when the lock's maestroUid matches, so tests must follow this flow.
+ * Writes a document straight through the emulator's REST API with the `owner` bearer token,
+ * which bypasses the security rules exactly like an Admin SDK / Firebase console write.
  *
- * The caller must already be signed in as `uid` (e.g. right after
- * createUserWithEmailAndPassword). Firestore must be empty (lock absent).
+ * This is how privileged fixtures must be seeded now: the rules deliberately give **no** client
+ * path to create a document carrying `rol: 'maestro'` (the old `_bootstrap_lock` self-claim was
+ * a privilege-escalation hole — see SECURITY.md), so a test that provisions a maestro has to do
+ * it out-of-band, the same way a real operator does.
+ */
+export async function adminSetDoc(path: string, data: Record<string, unknown>) {
+  const response = await fetch(
+    `http://127.0.0.1:8080/v1/projects/${TEST_PROJECT_ID}/databases/(default)/documents/${path}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: 'Bearer owner',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ fields: toFirestoreFields(data) }),
+    }
+  )
+  if (!response.ok) {
+    throw new Error(`Failed to seed ${path}: ${response.status} ${await response.text()}`)
+  }
+}
+
+/**
+ * Seeds a maestro user out-of-band (see `adminSetDoc`). Registration never grants a role, so
+ * the first maestro of a real workspace is provisioned from the Firebase console; tests mirror
+ * that instead of pretending a client can elevate itself.
+ *
+ * `db` is kept in the signature so call sites read the same as before.
  */
 export async function bootstrapMaestro(
-  db: Firestore,
+  _db: Firestore,
   uid: string,
   email: string,
   extra: Record<string, unknown> = {}
 ) {
-  await setDoc(doc(db, 'users', '_bootstrap_lock'), {
-    maestroUid: uid,
-    createdAt: new Date(),
-  })
-  await setDoc(doc(db, 'users', uid), {
+  await adminSetDoc(`users/${uid}`, {
     email,
     nombre: 'Maestro',
     apellido: 'User',

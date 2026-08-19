@@ -7,7 +7,7 @@ import {
   sendPasswordResetEmail,
   signOut as firebaseSignOut
 } from 'firebase/auth'
-import { doc, getDoc, setDoc, runTransaction } from 'firebase/firestore'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
 import { User, UserRole, sanitizeGenero, sanitizeUserRole, sanitizeUserTeams, TeamType, hasRole } from '@/types'
 import { logger } from '@/lib/logger'
@@ -179,44 +179,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Debes usar un correo institucional de la USM (@usm.cl o @sansano.usm.cl)')
     }
     const { user: newUser } = await createUserWithEmailAndPassword(auth, normalizedEmail, password)
-    
-    // Bootstrap: the very first user registered becomes maestro.
-    // Uses a secure Firestore transaction and write lock to prevent race conditions.
-    // Falls through conservatively (fail-closed) if any error occurs.
-    let isFirstUser = false
-    try {
-      await runTransaction(db, async (transaction) => {
-        const lockRef = doc(db, COLLECTIONS.USERS, '_bootstrap_lock')
-        const lockDoc = await transaction.get(lockRef)
-        if (!lockDoc.exists()) {
-          // Note: the lock is readable by any authenticated user (needed so the signup
-          // transaction can check it), so we intentionally do NOT store the maestro's
-          // email here — only the uid, which the Firestore create rule uses to authorize
-          // the one-time maestro bootstrap.
-          transaction.set(lockRef, {
-            maestroUid: newUser.uid,
-            createdAt: new Date()
-          })
-          isFirstUser = true
-        }
-      })
-      if (isFirstUser) {
-        logger.warn('First user bootstrap: granting maestro role', { uid: newUser.uid, email })
-      }
-    } catch (error) {
-      logger.error('Error checking first user — skipping maestro bootstrap', { error: error instanceof Error ? error : undefined })
-      isFirstUser = false
-    }
-    
+
+    // Registration NEVER grants a role. The previous flow claimed a one-time
+    // `users/_bootstrap_lock` document inside a transaction and, when it won the claim, wrote
+    // `rol: 'maestro'` on the new profile — with the Firestore rules authorizing that write
+    // precisely because the lock (which the same client had just created) named this uid. On any
+    // workspace where the lock is absent — every project provisioned before the lock existed, or
+    // one where a maestro deleted the document — the next person to register therefore took over
+    // the whole workspace, and the only prerequisite was an @usm.cl / @sansano.usm.cl address.
+    //
+    // The first maestro is now provisioned once from the Firebase console (server-side writes
+    // bypass the security rules); see SECURITY.md → "Provisioning the first maestro".
     const userData: Omit<User, 'id'> = {
       email: normalizedEmail,
       nombre,
       apellido,
-      ...(isFirstUser ? { rol: 'maestro' as UserRole } : {}),
       createdAt: new Date(),
       isActive: true,
     }
-    
+
     await setDoc(doc(db, COLLECTIONS.USERS, newUser.uid), userData)
     setUser({ ...userData, id: newUser.uid })
   }

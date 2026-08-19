@@ -5,14 +5,14 @@ import {
   signOut,
 } from 'firebase/auth'
 import { doc, setDoc, getDoc, updateDoc, addDoc, collection, Timestamp } from 'firebase/firestore'
-import { getTestFirebase, clearFirestoreData, clearAuthUsers } from '../emulator-config'
+import { getTestFirebase, clearFirestoreData, clearAuthUsers, adminSetDoc } from '../emulator-config'
 
 /**
  * Validates the security-hardening rules added during the cybersecurity audit:
  *  - users.create cannot self-assign rol/roles, isActive:false or the 'manager' team
- *  - only the genuine first registrant (matching the bootstrap lock uid) may become maestro
+ *  - no client path grants the maestro role (the bootstrap lock self-claim is gone)
  *  - an assigned member cannot inflate task scoreAwarded beyond the manager-set importance
- *  - /mail can only be enqueued by workspace managers
+ *  - /mail can only be enqueued by workspace managers, and only to institutional recipients
  */
 describe('Security rules — privilege escalation & integrity', () => {
   const { auth, db } = getTestFirebase()
@@ -24,14 +24,16 @@ describe('Security rules — privilege escalation & integrity', () => {
   const expectDenied = (p: Promise<unknown>) =>
     expect(p).rejects.toThrow(/permission|insufficient|denied|false for/i)
 
-  /** Replicates the real signup bootstrap: claim the lock, then create the maestro doc. */
+  /**
+   * Provisions a maestro the way a real workspace does it: the account registers like anyone
+   * else, and the role is written out-of-band (Firebase console / Admin SDK — here the
+   * emulator's `owner` REST endpoint, which bypasses the rules the same way). No client path
+   * grants a role any more, so this cannot be done through the SDK.
+   * Leaves the session signed in as the maestro.
+   */
   async function bootstrapMaestro(email: string): Promise<string> {
     const { user } = await createUserWithEmailAndPassword(auth, email, PW)
-    await setDoc(doc(db, 'users', '_bootstrap_lock'), {
-      maestroUid: user.uid,
-      createdAt: new Date(),
-    })
-    await setDoc(doc(db, 'users', user.uid), {
+    await adminSetDoc(`users/${user.uid}`, {
       email,
       nombre: 'Master',
       apellido: 'Boot',
@@ -53,10 +55,51 @@ describe('Security rules — privilege escalation & integrity', () => {
     await clearAuthUsers()
   })
 
-  it('allows the genuine first user to bootstrap as maestro', async () => {
+  it('provisions a maestro out-of-band (no client path grants the role)', async () => {
     const uid = await bootstrapMaestro('founder@usm.cl')
     const snap = await getDoc(doc(db, 'users', uid))
     expect(snap.data()!.rol).toBe('maestro')
+  })
+
+  it('blocks the self-service maestro bootstrap on a workspace with no lock', async () => {
+    // Firestore is empty at this point — exactly the state (`_bootstrap_lock` absent) in which
+    // the previous rules made the NEXT person to register the maestro of the whole workspace:
+    // the client claimed the lock for its own uid and the create rule then honoured
+    // `rol: 'maestro'` because the lock named that uid. Any holder of an @usm.cl address could
+    // therefore take over any deployment provisioned before the lock existed, or one where the
+    // lock document had been deleted.
+    const { user } = await createUserWithEmailAndPassword(auth, 'firstever@usm.cl', PW)
+
+    // The lock is no longer client-writable...
+    await expectDenied(
+      setDoc(doc(db, 'users', '_bootstrap_lock'), {
+        maestroUid: user.uid,
+        createdAt: new Date(),
+      })
+    )
+
+    // ...and a profile carrying a role is refused regardless of what the lock says.
+    await expectDenied(
+      setDoc(doc(db, 'users', user.uid), {
+        email: 'firstever@usm.cl',
+        nombre: 'First',
+        apellido: 'Ever',
+        rol: 'maestro',
+        createdAt: new Date(),
+        isActive: true,
+      })
+    )
+
+    // The role-less profile registration still works.
+    await setDoc(doc(db, 'users', user.uid), {
+      email: 'firstever@usm.cl',
+      nombre: 'First',
+      apellido: 'Ever',
+      createdAt: new Date(),
+      isActive: true,
+    })
+    const snap = await getDoc(doc(db, 'users', user.uid))
+    expect(snap.data()!.rol).toBeUndefined()
   })
 
   it('blocks a normal user from self-assigning rol:maestro on create', async () => {
@@ -857,5 +900,184 @@ describe('Security rules — privilege escalation & integrity', () => {
 
     // A regular member can no longer enumerate every member's email address.
     await expectDenied(getDoc(doc(db, 'mail_digests', digest.id)))
+  })
+
+  it('blocks a manager from relaying mail to a non-institutional recipient', async () => {
+    const maestroEmail = 'relayboss@usm.cl'
+    await bootstrapMaestro(maestroEmail)
+
+    // The Trigger Email extension sends whatever lands in /mail from the team's own SMTP
+    // identity, so an unconstrained recipient turned the maestro/manager privilege into an
+    // outbound relay for perfectly-provenanced phishing.
+    await expectDenied(
+      addDoc(collection(db, 'mail'), {
+        to: 'victim@gmail.com',
+        message: { subject: 'Recupera tu cuenta', html: '<a href="https://evil">entra</a>' },
+        createdAt: Timestamp.now(),
+      })
+    )
+
+    // A look-alike domain is rejected by the same anchored pattern used everywhere else.
+    await expectDenied(
+      addDoc(collection(db, 'mail'), {
+        to: 'victim@usm.cl.evil.com',
+        message: { subject: 'x', html: 'x' },
+        createdAt: Timestamp.now(),
+      })
+    )
+
+    // Oversized payloads are refused too.
+    await expectDenied(
+      addDoc(collection(db, 'mail'), {
+        to: 'member@usm.cl',
+        message: { subject: 'x', html: 'x'.repeat(200001) },
+        createdAt: Timestamp.now(),
+      })
+    )
+
+    // The real digest path (institutional recipient, bounded payload) still works.
+    const ok = await addDoc(collection(db, 'mail'), {
+      to: 'member@sansano.usm.cl',
+      message: { subject: 'Boletín de la Órbita', html: '<p>hola</p>' },
+      createdAt: Timestamp.now(),
+    })
+    expect(ok.id).toBeTruthy()
+  })
+
+  it('bounds the profile fields at CREATE time, not only on update', async () => {
+    // The size caps only ran on update, so a member could simply write the oversized document
+    // at registration — profile creation is a client write like any other — and never touch it
+    // again, sidestepping every bound.
+    const { user } = await createUserWithEmailAndPassword(auth, 'fatprofile@usm.cl', PW)
+
+    await expectDenied(
+      setDoc(doc(db, 'users', user.uid), {
+        email: 'fatprofile@usm.cl',
+        nombre: 'Fat',
+        apellido: 'Profile',
+        bio: 'x'.repeat(2001),
+        createdAt: new Date(),
+        isActive: true,
+      })
+    )
+    await expectDenied(
+      setDoc(doc(db, 'users', user.uid), {
+        email: 'fatprofile@usm.cl',
+        nombre: 'Fat',
+        apellido: 'Profile',
+        portfolioImages: Array.from({ length: 9 }, () => 'data:image/jpeg;base64,AAAA'),
+        createdAt: new Date(),
+        isActive: true,
+      })
+    )
+
+    // A normally-sized profile is still accepted.
+    await setDoc(doc(db, 'users', user.uid), {
+      email: 'fatprofile@usm.cl',
+      nombre: 'Fat',
+      apellido: 'Profile',
+      bio: 'Subsistema de comunicaciones.',
+      createdAt: new Date(),
+      isActive: true,
+    })
+    const snap = await getDoc(doc(db, 'users', user.uid))
+    expect(snap.data()!.bio).toBe('Subsistema de comunicaciones.')
+  })
+
+  it('bounds what an assignee may write into their task (enum + array growth)', async () => {
+    const maestroEmail = 'boundsboss@usm.cl'
+    await bootstrapMaestro(maestroEmail)
+
+    const taskRef = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Integración de antena',
+      descripcion: '',
+      estado: 'pendiente',
+      asignadoA: ['placeholder'],
+      equipo: 'tecnico',
+      prioridad: 'media',
+      creadoPor: 'maestro',
+      puntajeImportancia: 5,
+      createdAt: Timestamp.now(),
+    })
+    await signOut(auth)
+
+    const { user: assignee } = await createUserWithEmailAndPassword(auth, 'bounded@usm.cl', PW)
+    await setDoc(doc(db, 'users', assignee.uid), {
+      email: 'bounded@usm.cl',
+      nombre: 'Bo',
+      apellido: 'Unded',
+      createdAt: new Date(),
+      isActive: true,
+    })
+    await signOut(auth)
+
+    await signInWithEmailAndPassword(auth, maestroEmail, PW)
+    await updateDoc(doc(db, 'tasks', taskRef.id), { asignadoA: [assignee.uid] })
+    await signOut(auth)
+
+    await signInWithEmailAndPassword(auth, 'bounded@usm.cl', PW)
+
+    // 'estado' is an allowlisted FIELD but was an unconstrained VALUE: an assignee could park
+    // the task in a state no view knows how to filter.
+    await expectDenied(updateDoc(doc(db, 'tasks', taskRef.id), { estado: 'cancelado_por_eve' }))
+
+    // The append-only arrays are the actual document-growth vector (1 MiB per task, times
+    // every task the member is assigned to).
+    await expectDenied(
+      updateDoc(doc(db, 'tasks', taskRef.id), {
+        progressUpdates: Array.from({ length: 201 }, (_, i) => ({ id: `u${i}`, descripcion: 'x' })),
+      })
+    )
+    await expectDenied(
+      updateDoc(doc(db, 'tasks', taskRef.id), {
+        deliverables: Array.from({ length: 51 }, (_, i) => ({ id: `d${i}`, titulo: 'x' })),
+      })
+    )
+
+    // Normal progress reporting is unaffected.
+    await updateDoc(doc(db, 'tasks', taskRef.id), {
+      estado: 'en_progreso',
+      progressUpdates: [{ id: 'u1', descripcion: 'Arnés montado' }],
+    })
+    const stored = await getDoc(doc(db, 'tasks', taskRef.id))
+    expect(stored.data()!.estado).toBe('en_progreso')
+  })
+
+  it('bounds the inlined base64 media arrays on posts and project messages', async () => {
+    const { user } = await createUserWithEmailAndPassword(auth, 'mediaposter@usm.cl', PW)
+    const dataUrl = 'data:image/jpeg;base64,AAAA'
+
+    // 'imageUrls'/'fileUrls' hold base64 data URLs, so they — not the text — are what drives
+    // document size; only 'content' used to be capped.
+    await expectDenied(
+      addDoc(collection(db, 'posts'), {
+        authorId: user.uid,
+        content: 'muchas fotos',
+        imageUrls: Array.from({ length: 5 }, () => dataUrl),
+        likedBy: [],
+        likesCount: 0,
+        createdAt: Timestamp.now(),
+      })
+    )
+    await expectDenied(
+      addDoc(collection(db, 'project_messages'), {
+        projectId: 'p1',
+        senderId: user.uid,
+        content: 'adjuntos',
+        fileUrls: Array.from({ length: 5 }, () => dataUrl),
+        createdAt: Timestamp.now(),
+      })
+    )
+
+    // A normal post with one attachment still works.
+    const ok = await addDoc(collection(db, 'posts'), {
+      authorId: user.uid,
+      content: 'una foto',
+      imageUrls: [dataUrl],
+      likedBy: [],
+      likesCount: 0,
+      createdAt: Timestamp.now(),
+    })
+    expect(ok.id).toBeTruthy()
   })
 })

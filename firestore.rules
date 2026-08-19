@@ -87,13 +87,23 @@ service cloud.firestore {
     }
 
     // Size caps for the self-editable free-text / media fields. The caps are generous relative
-    // to the UI limits (PortfolioGallery caps at 8 images / ~900 KB total) and exist so a member
-    // cannot script oversized profile documents as a storage/egress-abuse vector.
+    // to the UI limits (PortfolioGallery caps at 8 images / ~900 KB total, Profile caps the
+    // avatar data URL at ~720 KB) and exist so a member cannot script oversized profile
+    // documents as a storage/egress-abuse vector.
+    //
+    // Applied on BOTH create and update: the caps only ever ran on update, so a member could
+    // simply write the oversized document at registration time (profile creation is a client
+    // write like any other) and never touch it again, sidestepping every bound below.
     function isBoundedProfile() {
       return (!('bio' in request.resource.data) ||
           (request.resource.data.bio is string && request.resource.data.bio.size() <= 2000)) &&
         (!('title' in request.resource.data) ||
           (request.resource.data.title is string && request.resource.data.title.size() <= 120)) &&
+        // 'photoURL' holds a base64 data URL (Profile.tsx embeds the avatar in the document),
+        // so it is the single largest self-writable field and needs an explicit ceiling.
+        (!('photoURL' in request.resource.data) ||
+          (request.resource.data.photoURL is string &&
+            request.resource.data.photoURL.size() <= 750000)) &&
         (!('portfolioImages' in request.resource.data) ||
           (request.resource.data.portfolioImages is list &&
             request.resource.data.portfolioImages.size() <= 8)) &&
@@ -126,30 +136,32 @@ service cloud.firestore {
       // A user may create ONLY their own profile and may NOT self-assign privileged
       // fields. Setting 'rol'/'roles' is rejected, 'isActive' can only be true, and the
       // 'manager' team (which grants workspace management) cannot be self-assigned.
-      // The single exception is the genuine first registrant, who is allowed to bootstrap
-      // as 'maestro' — but only if they are the uid recorded in the bootstrap lock that
-      // the signup transaction created moments earlier. This closes the privilege-
-      // escalation hole where any authenticated user could create their own doc as maestro.
-      allow create: if isInstitutional() && (
-        (request.auth.uid == userId && (
-          (
-            !request.resource.data.keys().hasAny(['rol', 'roles']) &&
-            (!('isActive' in request.resource.data) || request.resource.data.isActive == true) &&
-            (!('equipos' in request.resource.data) || !('manager' in request.resource.data.equipos))
-          ) ||
-          (
-            exists(/databases/$(database)/documents/users/_bootstrap_lock) &&
-            get(/databases/$(database)/documents/users/_bootstrap_lock).data.maestroUid == request.auth.uid &&
-            request.resource.data.rol == 'maestro' &&
-            (!('equipos' in request.resource.data) || !('manager' in request.resource.data.equipos))
-          )
-        )) ||
-        (userId == '_bootstrap_lock' && !exists(/databases/$(database)/documents/users/_bootstrap_lock))
-      );
+      //
+      // There is deliberately NO self-service maestro bootstrap any more. The previous rule
+      // let any institutional caller create `/users/_bootstrap_lock` whenever that document
+      // was absent (`userId == '_bootstrap_lock' && !exists(...)`) and then create their own
+      // profile with `rol: 'maestro'`, because the elevated branch only required the lock to
+      // name their uid — a lock they had just written themselves. AuthContext.signUp performs
+      // exactly that sequence on every registration, so on any deployment where the lock is
+      // missing (it postdates the workspace: every project provisioned before the lock was
+      // introduced, or any workspace where a maestro deleted the document — `delete` on
+      // /users/{userId} is maestro-allowed and matches '_bootstrap_lock' too) the NEXT person
+      // to register silently became maestro of the whole workspace. That is a full takeover
+      // reachable by anyone who can obtain an @usm.cl / @sansano.usm.cl address, including a
+      // former member whose account still resolves.
+      //
+      // The first maestro is now provisioned out-of-band from the Firebase console (server-side
+      // writes bypass these rules), which is a one-time operator action and cannot be replayed
+      // by a client. See SECURITY.md → "Provisioning the first maestro".
+      allow create: if isInstitutional() &&
+        request.auth.uid == userId &&
+        !request.resource.data.keys().hasAny(['rol', 'roles']) &&
+        (!('isActive' in request.resource.data) || request.resource.data.isActive == true) &&
+        (!('equipos' in request.resource.data) || !('manager' in request.resource.data.equipos)) &&
+        isBoundedProfile();
 
       allow read: if isInstitutional() && (
         request.auth.uid == userId ||
-        userId == '_bootstrap_lock' ||
         hasRole('maestro') ||
         hasRole('admin')
       );
@@ -232,6 +244,25 @@ service cloud.firestore {
             'completedAt',
             'scoreAwarded'
           ]) &&
+          // Cotas de forma y tamaño para la ruta del asignado. La lista blanca de campos dice
+          // QUÉ puede tocar, pero no CUÁNTO: `progressUpdates`, `deliverables` y
+          // `attachmentIds` son arreglos que el cliente hace crecer append-only, de modo que un
+          // asignado podía inflar el documento de la tarea hasta el tope de 1 MiB de Firestore
+          // (y repetirlo en cada tarea asignada) como vector de abuso de almacenamiento/egress,
+          // igual que ya se acota en `posts`, `comments`, `files` y perfiles. `estado` además se
+          // restringe al enum TaskStatus: era un string libre, así que un asignado podía dejar
+          // la tarea en un estado inexistente que ninguna vista sabe filtrar.
+          (!('estado' in request.resource.data) ||
+            request.resource.data.estado in ['pendiente', 'en_progreso', 'completado']) &&
+          (!('progressUpdates' in request.resource.data) ||
+            (request.resource.data.progressUpdates is list &&
+              request.resource.data.progressUpdates.size() <= 200)) &&
+          (!('deliverables' in request.resource.data) ||
+            (request.resource.data.deliverables is list &&
+              request.resource.data.deliverables.size() <= 50)) &&
+          (!('attachmentIds' in request.resource.data) ||
+            (request.resource.data.attachmentIds is list &&
+              request.resource.data.attachmentIds.size() <= 100)) &&
           // Anti-fraude de ranking (1/2): un asignado no puede auto-otorgarse un score arbitrario.
           // Siempre que scoreAwarded esté presente en el documento entrante, debe igualar el
           // puntaje de importancia fijado por un manager. Se compara contra get(...,0) para que
@@ -331,8 +362,32 @@ service cloud.firestore {
     }
 
     match /mail/{mailId} {
-      // Only workspace managers/admins/maestros may enqueue mail to prevent spam abuse.
-      allow create: if isInstitutional() && canManageWorkspace();
+      // Documents in /mail are consumed by the Firebase "Trigger Email" extension, which sends
+      // whatever it finds from the project's configured SMTP identity. Gating creation on
+      // canManageWorkspace() stops *members* from spamming, but it still left the extension as
+      // an open relay for anyone holding that privilege — note that `manager` is a self-service
+      // TEAM, granted by any admin via updateUserTeams, not a vetted role. A manager could
+      // enqueue arbitrary HTML to arbitrary external recipients and it would leave as
+      // authenticated mail from the team's address (phishing with perfect provenance, plus
+      // reputation damage to the sending domain).
+      //
+      // The legitimate producer (EmailNotificationService.sendWeeklyDigest) only ever mails
+      // registered members, whose addresses are institutional by construction, so the recipient
+      // is constrained to the same anchored institutional pattern used everywhere else and the
+      // payload is size-capped.
+      allow create: if isInstitutional() && canManageWorkspace() &&
+        request.resource.data.to is string &&
+        request.resource.data.to.lower().matches('^[a-z0-9._%+-]+@(sansano[.])?usm[.]cl$') &&
+        request.resource.data.message is map &&
+        (!('subject' in request.resource.data.message) ||
+          (request.resource.data.message.subject is string &&
+            request.resource.data.message.subject.size() <= 300)) &&
+        (!('html' in request.resource.data.message) ||
+          (request.resource.data.message.html is string &&
+            request.resource.data.message.html.size() <= 200000)) &&
+        (!('text' in request.resource.data.message) ||
+          (request.resource.data.message.text is string &&
+            request.resource.data.message.text.size() <= 200000));
     }
 
     match /mail_digests/{digestId} {
@@ -357,10 +412,16 @@ service cloud.firestore {
 
     match /posts/{postId} {
       allow read: if isInstitutional();
+      // 'imageUrls' holds base64 data URLs (PostCreator embeds the picture in the document
+      // itself, there is no Storage bucket), so it — not 'content' — is what actually drives
+      // the document size. Capping only the text left the real storage/egress vector open, so
+      // the array length is bounded on create and update alike.
       allow create: if isInstitutional() &&
         request.resource.data.authorId == request.auth.uid &&
         (!('content' in request.resource.data) ||
-          (request.resource.data.content is string && request.resource.data.content.size() <= 10000));
+          (request.resource.data.content is string && request.resource.data.content.size() <= 10000)) &&
+        (!('imageUrls' in request.resource.data) ||
+          (request.resource.data.imageUrls is list && request.resource.data.imageUrls.size() <= 4));
       // The author can edit their own post. Any other authenticated user may ONLY toggle their
       // own like: the previous rule let anyone overwrite likedBy/likesCount with arbitrary
       // values (wipe others' likes, set an arbitrary count). We now require that the only change
@@ -373,7 +434,9 @@ service cloud.firestore {
       allow update: if isInstitutional() &&
         request.resource.data.get('authorId', '') == resource.data.get('authorId', '') &&
         (!('content' in request.resource.data) ||
-          (request.resource.data.content is string && request.resource.data.content.size() <= 10000)) && (
+          (request.resource.data.content is string && request.resource.data.content.size() <= 10000)) &&
+        (!('imageUrls' in request.resource.data) ||
+          (request.resource.data.imageUrls is list && request.resource.data.imageUrls.size() <= 4)) && (
         resource.data.authorId == request.auth.uid ||
         (
           // affectedKeys(), not changedKeys(): a post created without a 'likedBy'/'likesCount'
@@ -412,10 +475,14 @@ service cloud.firestore {
 
     match /project_messages/{messageId} {
       allow read: if isInstitutional();
+      // Like posts, 'fileUrls' carries base64 data URLs inlined by ProjectChat, so the array
+      // length is bounded alongside the text.
       allow create: if isInstitutional() &&
         request.resource.data.senderId == request.auth.uid &&
         (!('content' in request.resource.data) ||
-          (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
+          (request.resource.data.content is string && request.resource.data.content.size() <= 5000)) &&
+        (!('fileUrls' in request.resource.data) ||
+          (request.resource.data.fileUrls is list && request.resource.data.fileUrls.size() <= 4));
       allow delete: if isInstitutional() && (
         resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
@@ -425,7 +492,9 @@ service cloud.firestore {
         (resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')) &&
         request.resource.data.get('senderId', '') == resource.data.get('senderId', '') &&
         (!('content' in request.resource.data) ||
-          (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
+          (request.resource.data.content is string && request.resource.data.content.size() <= 5000)) &&
+        (!('fileUrls' in request.resource.data) ||
+          (request.resource.data.fileUrls is list && request.resource.data.fileUrls.size() <= 4));
     }
   }
 }

@@ -13,6 +13,27 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <title>USM Cubesat Team</title>
+    <!--
+      Anti-clickjacking guard. The two header-based defenses (`X-Frame-Options` and CSP
+      `frame-ancestors`) are both ignored when delivered in a <meta> tag, and GitHub Pages does
+      not let us set response headers, so the app could be framed by any origin and used for UI
+      redress — overlaying an invisible frame of the workspace over attacker content to harvest
+      clicks on privileged controls (role changes, member deletion, digest dispatch) from a
+      signed-in maestro. Blanking the document when framed removes the target; the top-level
+      navigation is best effort and may be blocked, which is why it is not the primary defense.
+    -->
+    <script type="text/javascript">
+      (function () {
+        if (window.top !== window.self) {
+          document.documentElement.style.display = 'none';
+          try {
+            window.top.location = window.self.location.href;
+          } catch (e) {
+            /* cross-origin parent: staying blanked is the defense */
+          }
+        }
+      })();
+    </script>
     <!-- GitHub Pages SPA redirect handler -->
     <script type="text/javascript">
       (function(l) {

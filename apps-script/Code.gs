@@ -140,14 +140,32 @@ function getOrCreateFolder(parent, name) {
   return folders.hasNext() ? folders.next() : parent.createFolder(name);
 }
 
+/**
+ * Firestore auto-ids are `[A-Za-z0-9]{20}`. `taskId` / `projectId` arrive straight from the
+ * caller and are used as Drive folder NAMES, so an unvalidated value let any authenticated
+ * member create arbitrarily-named folders in the team Drive (one per request: an unbounded
+ * folder-spam / quota-exhaustion vector, and a way to plant folders whose names impersonate
+ * real ones). Anything that is not a plausible document id is rejected so the upload lands in
+ * `general/` instead of minting a new folder.
+ */
+const SAFE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+function safeFolderSegment_(value) {
+  if (value === undefined || value === null) return null;
+  const candidate = String(value).trim();
+  return SAFE_ID_PATTERN.test(candidate) ? candidate : null;
+}
+
 function resolveTargetFolder(root, params) {
-  if (params.taskId) {
+  const taskId = safeFolderSegment_(params.taskId);
+  if (taskId) {
     const tasksFolder = getOrCreateFolder(root, 'tasks');
-    return getOrCreateFolder(tasksFolder, String(params.taskId));
+    return getOrCreateFolder(tasksFolder, taskId);
   }
-  if (params.projectId) {
+  const projectId = safeFolderSegment_(params.projectId);
+  if (projectId) {
     const projectsFolder = getOrCreateFolder(root, 'projects');
-    return getOrCreateFolder(projectsFolder, String(params.projectId));
+    return getOrCreateFolder(projectsFolder, projectId);
   }
   return getOrCreateFolder(root, 'general');
 }
@@ -272,6 +290,15 @@ function handleUpload(params) {
   const mimeType = String(params.mimeType || '').toLowerCase().trim();
   if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
     throw new Error('file type not allowed: ' + mimeType);
+  }
+
+  // Check the encoded length BEFORE decoding and before touching Drive. base64 inflates by 4/3,
+  // so the ceiling below is the smallest encoded payload that could exceed MAX_FILE_BYTES;
+  // decoding first materialised the whole (attacker-sized) blob in the script's memory just to
+  // reject it, turning an oversized upload into a cheap resource-exhaustion request.
+  const encodedLength = String(params.fileBase64).length;
+  if (encodedLength > Math.ceil(MAX_FILE_BYTES / 3) * 4 + 4) {
+    throw new Error('file exceeds 35 MB limit');
   }
 
   const root = DriveApp.getFolderById(FOLDER_ID);
