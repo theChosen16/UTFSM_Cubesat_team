@@ -13,7 +13,7 @@ import {
   where,
   type DocumentReference,
 } from 'firebase/firestore'
-import { getTestFirebase, clearFirestoreData, clearAuthUsers } from '../emulator-config'
+import { getTestFirebase, clearFirestoreData, clearAuthUsers, adminSetDoc } from '../emulator-config'
 
 describe('Notifications E2E', () => {
   const { auth, db } = getTestFirebase()
@@ -26,15 +26,11 @@ describe('Notifications E2E', () => {
     await clearAuthUsers()
 
     // Create sender. The 'system' notification type is now reserved for workspace managers
-    // (anti-phishing hardening), so the sender is bootstrapped as maestro — replicating the
-    // real signup lock — to exercise every notification type below.
+    // (anti-phishing hardening), so the sender is provisioned as maestro out-of-band — the
+    // rules give no client path to a role — to exercise every notification type below.
     const { user: sender } = await createUserWithEmailAndPassword(auth, 'sender@usm.cl', PW)
     senderUid = sender.uid
-    await setDoc(doc(db, 'users', '_bootstrap_lock'), {
-      maestroUid: senderUid,
-      createdAt: new Date(),
-    })
-    await setDoc(doc(db, 'users', senderUid), {
+    await adminSetDoc(`users/${senderUid}`, {
       email: 'sender@usm.cl',
       nombre: 'Sender',
       apellido: 'User',

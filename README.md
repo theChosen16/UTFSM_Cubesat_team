@@ -158,6 +158,8 @@ La asignación de equipos se realiza desde la sección "Miembros" mediante check
 
 El usuario **maestro** actual es el primer usuario registrado en la plataforma. **Solo el maestro** puede asignar el rol de administrador a otros usuarios. Los usuarios **admin** pueden gestionar miembros y roles (excepto admin y maestro) desde la sección "Miembros" del menú lateral.
 
+> **Nota de seguridad:** el registro ya **no** otorga automáticamente el rol de maestro al primer usuario. Ese mecanismo (un "bootstrap lock" que el propio cliente creaba) permitía que, en cualquier despliegue donde ese documento faltara, la siguiente persona en registrarse se convirtiera en maestro del espacio de trabajo. En un despliegue nuevo, el primer maestro se asigna una sola vez desde la consola de Firebase; ver [SECURITY.md → Provisioning the first maestro](SECURITY.md#provisioning-the-first-maestro).
+
 ### Visibilidad de roles
 
 En el directorio de miembros, solo los badges de **admin** y **maestro** son visibles públicamente. El equipo al que pertenece cada miembro siempre se muestra.

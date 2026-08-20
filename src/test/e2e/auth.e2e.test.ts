@@ -28,8 +28,14 @@ describe('Auth E2E', () => {
 
     const { user } = await createUserWithEmailAndPassword(auth, email, password)
 
-    // First registrant bootstraps as maestro via the lock (mirrors AuthContext.signUp).
-    await bootstrapMaestro(db, user.uid, email, { nombre, apellido })
+    // Mirrors AuthContext.signUp: registration writes a plain, role-less profile.
+    await setDoc(doc(db, 'users', user.uid), {
+      email,
+      nombre,
+      apellido,
+      createdAt: new Date(),
+      isActive: true,
+    })
 
     const userDoc = await getDoc(doc(db, 'users', user.uid))
     expect(userDoc.exists()).toBe(true)
@@ -41,7 +47,9 @@ describe('Auth E2E', () => {
     expect(data.isActive).toBe(true)
   })
 
-  it('should assign maestro role to the first registered user', async () => {
+  it('carries the maestro role once it is provisioned out-of-band', async () => {
+    // Registration never grants a role; the first maestro is written from the Firebase console
+    // (here: the emulator's rule-bypassing admin endpoint). See SECURITY.md.
     const email = 'first.user@usm.cl'
     const { user } = await createUserWithEmailAndPassword(auth, email, 'FirstPass123!')
 
@@ -52,14 +60,13 @@ describe('Auth E2E', () => {
   })
 
   it('should not assign maestro role to subsequent users', async () => {
-    // First user bootstraps as maestro via the lock.
     const { user: first } = await createUserWithEmailAndPassword(auth, 'first@usm.cl', 'Pass123!')
     await bootstrapMaestro(db, first.uid, 'first@usm.cl', { nombre: 'First', apellido: 'User' })
 
     await signOut(auth)
 
     // Second user self-creates a plain profile and cannot grant itself maestro
-    // (the create rule rejects rol once the bootstrap lock is held by someone else).
+    // (the create rule refuses any write carrying 'rol'/'roles').
     const { user: second } = await createUserWithEmailAndPassword(auth, 'second@usm.cl', 'Pass123!')
     await setDoc(doc(db, 'users', second.uid), {
       email: 'second@usm.cl',

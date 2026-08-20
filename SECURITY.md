@@ -15,6 +15,21 @@ If you discover a security vulnerability in this project, please report it by:
 
 Please do not create public issues for security vulnerabilities.
 
+## Provisioning the first maestro
+
+Registration never grants a role. On a **new** deployment, promote the founding account once,
+out-of-band:
+
+1. The person registers normally through the app (this creates `users/{uid}` with no `rol`).
+2. In the [Firebase console](https://console.firebase.google.com) → Firestore Database → `users`
+   → their document, add the field `rol` (string) with the value `maestro`.
+
+Console and Admin SDK writes bypass `firestore.rules`, which is exactly why this is safe: there
+is no client-reachable path to a role, so the promotion cannot be replayed or raced by anyone
+else. From then on the maestro assigns `admin` from **Miembros** inside the app.
+
+The previous self-service bootstrap is documented under *Role bootstrap* below and was removed.
+
 ## Security Measures
 
 This project implements the following security practices:
@@ -46,6 +61,58 @@ This project implements the following security practices:
   - **Roster confidentiality**: `mail_digests` embeds the full `recipients` list (every active member's email address) and is now readable only by workspace managers, matching where it is actually consumed in the UI.
   - **Bounded assistant-authored events**: `events` free-text fields are size-capped, since events are also created programmatically from model output.
 - **AI blast-radius control**: in a chat turn that carries a file attachment, only read-only assistant tools may run. The previous policy blocked just the mass-broadcast action, leaving the rest of the write surface reachable by an injected document — including `auditarActaDrive` (mass task/event creation driven by the document's own text) and `registrarCumpleanos`/`gestionarCubeDesign`, which write to *other* users' documents. `auditarActaDrive` is additionally bounded in input length and in the number of documents a single turn may create, so a poisoned or oversized minute cannot amplify into unbounded Firestore writes.
+- **Role bootstrap is not client-reachable**: registration writes a role-less profile, and no rule
+  authorizes a client write that carries `rol`/`roles` on create. The removed mechanism worked the
+  other way round: `AuthContext.signUp` claimed a one-time `users/_bootstrap_lock` document inside
+  a transaction, and the create rule then honoured `rol: 'maestro'` *because the lock named that
+  uid* — a lock the same client had written milliseconds earlier. The lock was therefore not
+  evidence of being first, only evidence of having gone first in that request. On any workspace
+  where the document was absent — every project provisioned before the lock was introduced, and
+  any workspace where a maestro deleted it (`delete` on `/users/{userId}` is maestro-allowed and
+  matches `_bootstrap_lock` too) — the **next person to register silently became maestro of the
+  entire workspace**, with an `@usm.cl` / `@sansano.usm.cl` address as the only prerequisite.
+  Verified against the Firestore emulator: with the previous ruleset the self-claimed lock write
+  succeeds; it is now denied, and covered by a regression test in
+  `src/test/e2e/security-rules.e2e.test.ts`. See *Provisioning the first maestro* above.
+- **CI/CD provenance — no deploy from unreviewed pull requests**: `deploy.yml` runs on
+  `workflow_run` after CI, which executes in *this* repository's context with its secrets and
+  `pages: write`. The `branches:` filter matches the **triggering run's head branch**, and CI runs
+  on `pull_request`, so a fork whose default branch is named `main` produced a completed CI run
+  with `head_branch == 'main'` — satisfying the old condition. The deploy job then checked out
+  `workflow_run.head_sha` (the fork's commit) and ran `npm ci` + `npm run build` on it: arbitrary
+  code execution from an unreviewed pull request, able to exfiltrate every configured secret and
+  publish attacker-controlled content to the live GitHub Pages site (the classic "pwn request").
+  The job now additionally requires the triggering run to be a `push`, on `main`, from this
+  repository. Publishing scopes (`pages`, `id-token`) were also moved from the workflow level down
+  to the single job that deploys.
+- **Clickjacking**: `X-Frame-Options` and CSP `frame-ancestors` are both ignored in a `<meta>` tag
+  and GitHub Pages does not let us set response headers, so the app could be framed by any origin
+  and used for UI redress against a signed-in maestro (role changes, member deletion, digest
+  dispatch are all one click). `index.html` now blanks the document when it detects it is framed.
+- **Mail is not an open relay**: documents in `/mail` are dispatched by the Firebase *Trigger
+  Email* extension from the team's own SMTP identity. Gating creation on `canManageWorkspace()`
+  stopped members from spamming but still left arbitrary HTML to arbitrary recipients available to
+  anyone holding that privilege — and `manager` is a self-service *team*, granted by any admin, not
+  a vetted role. Recipients are now constrained to the same anchored institutional pattern used
+  everywhere else (the legitimate digest only ever mails registered members) and the payload is
+  size-capped.
+- **Bounds are enforced where the data actually is**: several caps guarded the wrong field or the
+  wrong operation. Profile size limits ran only on `update`, so a member could simply write the
+  oversized document at registration and never touch it again. `posts.imageUrls` and
+  `project_messages.fileUrls` hold **base64 data URLs** (there is no Storage bucket — the picture
+  lives in the document), so capping only the text left the real storage/egress vector open; both
+  arrays are now length-bounded, as is `photoURL`, the largest self-writable field. On the
+  assignee path of `tasks`, the field allowlist said *which* fields could be written but nothing
+  said *how much*: `progressUpdates`, `deliverables` and `attachmentIds` are append-only arrays a
+  member could grow to Firestore's 1 MiB ceiling on every task assigned to them. `estado` was
+  likewise an allowlisted field with an unconstrained value and is now pinned to the `TaskStatus`
+  enum.
+- **Drive bridge input validation**: `taskId` / `projectId` are used verbatim as Drive **folder
+  names**, so an unvalidated value let any authenticated member mint arbitrarily-named folders in
+  the team Drive, one per request (folder spam / quota exhaustion, and folders whose names
+  impersonate real ones). Both are now matched against a document-id pattern and fall back to
+  `general/` otherwise. Oversized uploads are also rejected on the *encoded* length, before the
+  blob is decoded into the script's memory and before any Drive I/O.
 - **Branch protection**: Main branch requires pull request reviews before merging
 
 ## Response Time
