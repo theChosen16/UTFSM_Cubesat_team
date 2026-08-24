@@ -22,7 +22,7 @@
     "cookie": "^2.0.1",
     "firebase": "^12.17.1",
     "jszip": "^3.10.1",
-    "lucide-react": "^0.441.0",
+    "lucide-react": "^1.33.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-hook-form": "^7.85.0",
