@@ -126,15 +126,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (userDoc.exists()) {
             const userData = userDoc.data() as Record<string, unknown>
-            // Auto-repair: if Firestore doc is missing email, backfill from Auth
-            const needsRepair = !userData.email && fbUser.email
-            if (needsRepair) {
-              const repairData: Record<string, string> = { email: fbUser.email! }
-              if (!userData.nombre && fbUser.displayName) {
-                repairData.nombre = fbUser.displayName.split(' ')[0]
-                const rest = fbUser.displayName.split(' ').slice(1).join(' ')
-                if (rest) repairData.apellido = rest
-              }
+            // Auto-repair: backfill fields the Firestore profile is missing from the Auth record.
+            //
+            // 'nombre'/'apellido' are repaired even when the email is present. mapFirestoreUser
+            // derives a display name from the email when the document has none, so the UI shows a
+            // name the profile never actually stored — and the notification rules verify the
+            // *stored* name (an identity check cannot trust a value the sender supplies). Healing
+            // the document keeps what the client shows and what the rules accept in agreement,
+            // which is what lets those rules stay strict instead of carrying a "no name stored,
+            // allow anything" exemption that any member could re-enter by blanking their name.
+            const repairData: Record<string, string> = {}
+            if (!userData.email && fbUser.email) {
+              repairData.email = fbUser.email
+            }
+            if (!userData.nombre || !userData.apellido) {
+              const displayName = fbUser.displayName?.trim()
+              const derived = displayName
+                ? {
+                    nombre: displayName.split(' ')[0],
+                    apellido: displayName.split(' ').slice(1).join(' '),
+                  }
+                : extractFullNameFromEmail(
+                    (typeof userData.email === 'string' && userData.email) || fbUser.email || ''
+                  )
+              if (!userData.nombre && derived.nombre) repairData.nombre = derived.nombre
+              if (!userData.apellido && derived.apellido) repairData.apellido = derived.apellido
+            }
+            if (Object.keys(repairData).length > 0) {
               await setDoc(doc(db, COLLECTIONS.USERS, fbUser.uid), repairData, { merge: true })
               Object.assign(userData, repairData)
             }

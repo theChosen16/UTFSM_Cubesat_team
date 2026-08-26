@@ -1170,4 +1170,68 @@ describe('Security rules — privilege escalation & integrity', () => {
     })
     expect(anonymous.id).toBeTruthy()
   })
+
+  it('blocks blanking your own name to bypass the sender-name check', async () => {
+    // Reported by the Seer review bot on the PR that introduced isTruthfulSenderName(). The rule
+    // originally exempted profiles whose stored `nombre` was empty, for legacy accounts. But
+    // `nombre` is in the self-update allowlist and Profile.tsx saves it verbatim from a free-text
+    // input, so a member could blank their own name and walk straight back into forging any
+    // `senderName` — an identity check satisfiable by a value its own subject controls is no
+    // check at all. The exemption is gone; legacy documents are healed by AuthContext instead.
+    const { user: member } = await createUserWithEmailAndPassword(auth, 'blanker@usm.cl', PW)
+    await setDoc(doc(db, 'users', member.uid), {
+      email: 'blanker@usm.cl',
+      nombre: 'Mallory',
+      apellido: 'Blank',
+      createdAt: new Date(),
+      isActive: true,
+    })
+
+    // Blanking your own name stays allowed — a person may legitimately have no surname, and the
+    // rules should not turn that into a product decision. What matters is that it buys nothing:
+    // with the exemption gone, an empty stored name only lets you sign as your own email or uid.
+    await updateDoc(doc(db, 'users', member.uid), { nombre: '', apellido: '' })
+
+    await expectDenied(
+      addDoc(collection(db, 'notifications'), {
+        senderId: member.uid,
+        recipientId: 'victim',
+        type: 'message',
+        title: 'Acción requerida',
+        message: 'Confirma tus credenciales.',
+        read: false,
+        createdAt: Timestamp.now(),
+        senderName: 'Maestro USM CubeSat',
+      })
+    )
+
+    const ownIdentity = await addDoc(collection(db, 'notifications'), {
+      senderId: member.uid,
+      recipientId: 'victim',
+      type: 'message',
+      title: 'Hola',
+      message: 'Mensaje legítimo',
+      read: false,
+      createdAt: Timestamp.now(),
+      senderName: 'blanker@usm.cl',
+    })
+    expect(ownIdentity.id).toBeTruthy()
+  })
+
+  it('bounds the profile name fields', async () => {
+    const { user: member } = await createUserWithEmailAndPassword(auth, 'longname@usm.cl', PW)
+    await setDoc(doc(db, 'users', member.uid), {
+      email: 'longname@usm.cl',
+      nombre: 'Nom',
+      apellido: 'Bre',
+      createdAt: new Date(),
+      isActive: true,
+    })
+
+    await expectDenied(updateDoc(doc(db, 'users', member.uid), { nombre: 'N'.repeat(81) }))
+    await expectDenied(updateDoc(doc(db, 'users', member.uid), { apellido: 'A'.repeat(81) }))
+
+    await updateDoc(doc(db, 'users', member.uid), { nombre: 'N'.repeat(80) })
+    expect((await getDoc(doc(db, 'users', member.uid))).data()!.nombre).toHaveLength(80)
+  })
 })

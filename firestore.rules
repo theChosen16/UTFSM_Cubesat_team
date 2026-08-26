@@ -70,8 +70,18 @@ service cloud.firestore {
     // The name is now bound to the caller's own profile. The accepted forms are exactly those the
     // shipped clients build: "nombre apellido" (Notifications.tsx), a bare "nombre", and the
     // email/uid fallbacks that TaskManagement.tsx uses when the profile has no name
-    // (`user.nombre || user.email || user.id`). A profile with no `nombre` stored yet is exempt,
-    // so legacy accounts whose client backfills the name from their email keep working.
+    // (`user.nombre || user.email || user.id`).
+    //
+    // There is deliberately NO "profile has no name yet, allow anything" exemption. An earlier
+    // revision of this rule carried one, to spare legacy accounts whose client backfills the
+    // display name from their email address — and it handed the whole vulnerability straight
+    // back: `nombre` is in the self-update allowlist and `Profile.tsx` saves the field verbatim
+    // from a free-text input with no minimum length, so a member could simply blank their own
+    // name and every `senderName` became forgeable again. An identity check must never be
+    // satisfiable by a value its own subject controls. With the exemption gone a nameless profile
+    // can still sign with its own email or uid — which impersonates nobody — and legacy documents
+    // are healed at the source instead: AuthContext backfills the missing `nombre`/`apellido` onto
+    // the profile on sign-in, so what the client shows and what the rules verify agree.
     function isTruthfulSenderName() {
       let claimed = request.resource.data.get('senderName', null);
       let sender = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
@@ -80,7 +90,6 @@ service cloud.firestore {
       return claimed == null || (
         claimed is string &&
         claimed.size() <= 120 && (
-          nombre == '' ||
           claimed == nombre ||
           claimed == nombre + ' ' + apellido ||
           claimed == request.auth.token.email ||
@@ -128,7 +137,14 @@ service cloud.firestore {
     // simply write the oversized document at registration time (profile creation is a client
     // write like any other) and never touch it again, sidestepping every bound below.
     function isBoundedProfile() {
-      return (!('bio' in request.resource.data) ||
+      // 'nombre'/'apellido' are self-writable free text and had no ceiling at all, so they were
+      // the one pair of unbounded strings left on the profile. The cap mirrors the 80-character
+      // limit the client-side Zod schema already applies.
+      return (!('nombre' in request.resource.data) ||
+          (request.resource.data.nombre is string && request.resource.data.nombre.size() <= 80)) &&
+        (!('apellido' in request.resource.data) ||
+          (request.resource.data.apellido is string && request.resource.data.apellido.size() <= 80)) &&
+        (!('bio' in request.resource.data) ||
           (request.resource.data.bio is string && request.resource.data.bio.size() <= 2000)) &&
         (!('title' in request.resource.data) ||
           (request.resource.data.title is string && request.resource.data.title.size() <= 120)) &&
