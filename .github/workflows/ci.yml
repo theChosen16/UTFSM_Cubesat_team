@@ -13,8 +13,108 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
+  check-unresolved-bot-reviews:
+    name: Check Unresolved Bot Reviews
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      contents: read
+    steps:
+      - name: Verify all bot review comments are resolved
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const query = `
+              query($owner: String!, $repo: String!, $pr: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $pr) {
+                    reviewThreads(first: 100) {
+                      nodes {
+                        id
+                        isResolved
+                        comments(first: 5) {
+                          nodes {
+                            id
+                            author {
+                              login
+                              __typename
+                            }
+                            body
+                            path
+                            line
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+            const variables = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pr: context.payload.pull_request.number
+            };
+            const result = await github.graphql(query, variables);
+            const threads = result.repository.pullRequest.reviewThreads.nodes || [];
+
+            const KNOWN_BOT_LOGINS = [
+              'sentry',
+              'sentry[bot]',
+              'coderabbitai',
+              'coderabbitai[bot]',
+              'codecov',
+              'codecov[bot]',
+              'sonarcloud',
+              'sonarcloud[bot]',
+              'github-actions',
+              'github-actions[bot]',
+              'copilot',
+              'copilot[bot]',
+              'gemini-code-assist',
+              'gemini-code-assist[bot]',
+            ];
+
+            const isBotAuthor = (author) => {
+              if (!author) return false;
+              if (author.__typename === 'Bot') return true;
+              const login = (author.login || '').toLowerCase();
+              if (login.endsWith('[bot]')) return true;
+              return KNOWN_BOT_LOGINS.includes(login);
+            };
+
+            const unresolvedBotThreads = [];
+            for (const thread of threads) {
+              if (thread.isResolved) continue;
+              const firstComment = thread.comments?.nodes?.[0];
+              if (!firstComment) continue;
+
+              if (isBotAuthor(firstComment.author)) {
+                unresolvedBotThreads.push({
+                  author: firstComment.author.login,
+                  path: firstComment.path,
+                  line: firstComment.line,
+                  bodyPreview: firstComment.body
+                    ? firstComment.body.substring(0, 150).replace(/\r?\n/g, ' ')
+                    : '',
+                });
+              }
+            }
+
+            if (unresolvedBotThreads.length > 0) {
+              core.setFailed(
+                `Found ${unresolvedBotThreads.length} unresolved review conversation(s) from reviewer bots:\n` +
+                unresolvedBotThreads.map(t => `- [${t.author}] at ${t.path}:${t.line || '?'} -> "${t.bodyPreview}..."`).join('\n') +
+                '\n\nPlease address the feedback and mark all bot review conversations as resolved before merging.'
+              );
+            } else {
+              core.info('✅ All bot review conversations are resolved (or none exist).');
+            }
+
   quality:
     runs-on: ubuntu-latest
 
