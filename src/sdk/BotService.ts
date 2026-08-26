@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI, ChatSession, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
+import { onAuthStateChanged } from 'firebase/auth'
 import { ProjectService } from './ProjectService'
 import { TaskService } from './TaskService'
 import { AdminActionsService } from './AdminActionsService'
@@ -29,6 +30,19 @@ export class BotService {
   private static chatHistory: any[] = []
   private static activeModelIndex = 0
   private static activeSessionRole: string | null = null
+
+  /**
+   * Marca de contaminación por dato NO confiable a nivel de SESIÓN (no de turno).
+   *
+   * El contenido de un archivo adjunto se incorpora al historial de la conversación
+   * (`chatHistory` en modo proxy, el historial interno de `ChatSession` en modo directo) y
+   * permanece allí durante los turnos siguientes. Por eso una comprobación por turno
+   * (`Boolean(fileData)`) no es una defensa: basta adjuntar el documento manipulado en un turno,
+   * responder cualquier cosa en el siguiente —ya sin adjunto— y las instrucciones ocultas del
+   * documento siguen en el contexto del modelo mientras el guardia ya no aplica. Una vez que la
+   * sesión ha ingerido contenido de archivo, la marca permanece hasta `resetSession()`.
+   */
+  private static sessionHasUntrustedFileContext = false
 
   private static isRecoverableModelError(error: unknown): boolean {
     const status = (error as { status?: number })?.status
@@ -239,11 +253,27 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
    */
   static async startSession(userRole?: string): Promise<boolean> {
     if (!isDirectMode) {
-      // Proxy Mode: No direct model initialization required
-      if (userRole !== this.activeSessionRole) {
+      // Proxy Mode: No direct model initialization required.
+      //
+      // Reset only when there is an ACTUAL session to discard. `activeSessionRole` starts as
+      // null, so on the first turn of a fresh session the old condition was true for any signed-in
+      // role and this branch called resetSession() on a session that held nothing — except the
+      // untrusted-file taint that sendMessage had just set for that very turn. The flag was
+      // cleared before sendProxyMessage ever consulted it, so an admin whose FIRST message
+      // carried a poisoned document got the state-mutating tools back: exactly the attack the
+      // taint exists to stop. Direct mode never had this because it only resets when
+      // `this.chatSession` already exists; the proxy branch now mirrors that.
+      //
+      // The comparison is also normalized. `userRole` is `undefined` for a member with no role
+      // while `activeSessionRole` is `null`, and `undefined !== null`, so the old check fired on
+      // every single turn for those users: the proxy chat silently forgot its history after each
+      // message. Comparing normalized values resets on a genuine role change and nothing else.
+      const normalizedRole = userRole || null
+      const hasLiveSession = this.chatHistory.length > 0 || this.activeSessionRole !== null
+      if (hasLiveSession && normalizedRole !== this.activeSessionRole) {
         this.resetSession()
-        this.activeSessionRole = userRole || null
       }
+      this.activeSessionRole = normalizedRole
       return true
     }
 
@@ -252,8 +282,10 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
       return false
     }
 
-    // Reinicia la sesión si cambia el rol del usuario para refrescar la inyección de herramientas
-    if (this.chatSession && userRole !== this.activeSessionRole) {
+    // Reinicia la sesión si cambia el rol del usuario para refrescar la inyección de herramientas.
+    // Se compara normalizado por la misma razón que en la rama del proxy: `undefined !== null`
+    // hacía que un miembro sin rol perdiera la sesión en cada turno.
+    if (this.chatSession && (userRole || null) !== this.activeSessionRole) {
       this.resetSession()
     }
 
@@ -291,13 +323,19 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
     userRole?: string,
     fileData?: ProcessedBotFile | null
   ): Promise<string> {
+    // Contamina la sesión completa en cuanto se ingiere un archivo: su texto queda en el
+    // historial y sigue influyendo en los turnos posteriores (ver sessionHasUntrustedFileContext).
+    if (fileData) {
+      this.sessionHasUntrustedFileContext = true
+    }
+
     // If not in direct mode, utilize the secure Google Apps Script Proxy
     if (!isDirectMode) {
       await this.startSession(userRole)
       return this.sendProxyMessage(message, userId, userRole, fileData)
     }
 
-    if (!this.chatSession || userRole !== this.activeSessionRole) {
+    if (!this.chatSession || (userRole || null) !== this.activeSessionRole) {
       const initSuccess = await this.startSession(userRole)
       if (!initSuccess || !this.chatSession) {
         return "Error crítico: El núcleo de IA no pudo ser inicializado. Verifica la configuración de la clave en el entorno local."
@@ -346,7 +384,7 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
           
           let functionResult: any
           try {
-            functionResult = await this.executeAdminAction(functionCall.name, functionCall.args, activeUserId, userRole, Boolean(fileData))
+            functionResult = await this.executeAdminAction(functionCall.name, functionCall.args, activeUserId, userRole, this.sessionHasUntrustedFileContext)
           } catch (err) {
             functionResult = {
               success: false,
@@ -633,7 +671,7 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
 
             let functionResult: any
             try {
-              functionResult = await this.executeAdminAction(functionCall.name, functionCall.args, activeUserId, userRole, Boolean(fileData))
+              functionResult = await this.executeAdminAction(functionCall.name, functionCall.args, activeUserId, userRole, this.sessionHasUntrustedFileContext)
             } catch (err) {
               functionResult = {
                 success: false,
@@ -753,5 +791,28 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
     this.chatHistory = []
     this.activeModelIndex = 0
     this.activeSessionRole = null
+    this.sessionHasUntrustedFileContext = false
   }
 }
+
+/**
+ * El estado del chat (`chatSession`, `chatHistory`) es ESTÁTICO y vive mientras viva la pestaña,
+ * pero no estaba ligado a la identidad de quien lo generó: `startSession` solo lo reinicia cuando
+ * cambia el ROL, de modo que al cerrar sesión y entrar otra persona con el mismo rol (dos miembros
+ * sin rol, dos admins…) la nueva sesión heredaba íntegro el historial anterior — incluidos los
+ * mensajes privados, el contexto de proyectos/tareas y el texto completo de cualquier documento
+ * adjuntado por el usuario previo, más la marca de contaminación de este último. En un equipo que
+ * comparte equipos de laboratorio eso es una fuga de datos entre cuentas.
+ *
+ * Se ata el ciclo de vida del chat al de la sesión de Firebase, igual que hace SecretsService con
+ * el secreto del bridge. Se ignora deliberadamente la primera notificación (la que emite Firebase
+ * al hidratar el estado inicial) para no descartar una sesión recién creada.
+ */
+let lastKnownAuthUid: string | null | undefined
+onAuthStateChanged(auth, (firebaseUser) => {
+  const uid = firebaseUser?.uid ?? null
+  if (lastKnownAuthUid !== undefined && lastKnownAuthUid !== uid) {
+    BotService.resetSession()
+  }
+  lastKnownAuthUid = uid
+})

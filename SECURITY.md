@@ -36,6 +36,7 @@ This project implements the following security practices:
 
 - **Dependency scanning**: Automated via Dependabot
 - **Code scanning**: Automated via CodeQL
+- **Automated bot review resolution gate in CI/CD**: Pull requests cannot pass CI or be merged if there are open/unresolved review comments left by reviewer bots (Seer/Sentry, CodeRabbit, Copilot, Codecov, SonarCloud, GitHub Actions, etc.). Enforced automatically via the `check-unresolved-bot-reviews` job in `.github/workflows/ci.yml` and the `scripts/check-unresolved-reviews.mjs` verification utility.
 - **Secrets protection**: Firebase credentials stored as GitHub Secrets for CI/CD. Local development uses `.env.local` (git-ignored). Production builds never embed secrets directly. The Gemini API key lives only in Apps Script Script Properties, never in the client bundle.
 - **Authenticated AI proxy**: The Apps Script chat endpoint requires a verified Firebase ID token issued for this project to an institutional (`@usm.cl` / `@sansano.usm.cl`) account. The Drive shared secret alone does not grant access to the server-side Gemini key, since that secret is distributed to every signed-in member.
 - **AI proxy abuse limits**: Because the shared secret is fetched into every member's browser, a verified token proves *who* the caller is but not that their usage is bounded. The chat endpoint therefore rate-limits per verified email (fixed window), rejects oversized `contents` payloads, and clamps `maxOutputTokens` server-side, so a single member cannot weaponize the team's paid Gemini quota as an unmetered LLM proxy (financial DoS / cost amplification).
@@ -52,6 +53,7 @@ This project implements the following security practices:
   - The institutional-email gate on `system_config` (which holds the Drive shared secret) uses the same anchored helper, so look-alike attacker-controlled domains such as `eve@usm.cl.evil.com` cannot read the secret.
   - Social `posts` likes can only be toggled for the caller's **own** uid (validated via a symmetric-difference check on `likedBy` plus a `likesCount` integrity check), preventing tampering with other users' likes or counts.
   - `notifications` are constrained to the known `NotificationType` set with size-capped `title`/`message`. The `system` type — which renders as an official platform alert — is reserved for workspace managers (`canManageWorkspace()`); a regular member can no longer forge `system`-style in-app phishing alerts.
+  - **Notification sender identity**: `senderId` was pinned to the caller's uid, but the name the Notifications page actually renders as the sender ("De: {senderName}", and the header of every inbox message) was free text, so a member could sign a message as the maestro or as any teammate — the same in-app phishing effect the `system` gate was added to prevent, reached by a different field. `senderName` must now be absent or match the caller's own profile, in exactly the shapes the shipped clients build (`nombre apellido`, a bare `nombre`, or the email/uid fallbacks `TaskManagement.tsx` uses when the profile has no name). There is deliberately **no** "profile has no name stored, allow anything" exemption: `nombre` is self-writable and `Profile.tsx` saves it verbatim from a free-text input, so such an exemption is re-entered at will by blanking your own name — an identity check must never be satisfiable by a value its own subject controls. Legacy documents are healed at the source instead: `AuthContext` backfills a missing `nombre`/`apellido` onto the profile on sign-in (the display name the UI already derived from the email is now actually persisted), so what the client shows and what the rules verify agree. A nameless profile can still sign with its own email or uid, which impersonates nobody. `nombre`/`apellido` are also size-capped — they were the last unbounded self-writable strings on the profile.
   - User-authored content (`posts`, `comments`, `project_messages`, `notifications`) is size-capped on **both create and update**, closing an author-only bypass that previously allowed unbounded growth on edit, to limit storage/egress abuse.
   - **Leaderboard integrity**: an assigned member completing their own task can only set `scoreAwarded` equal to the manager-defined `puntajeImportancia` (defaulting to `0` when absent, closing a legacy-task bypass that allowed arbitrary self-scoring), and can only credit the completion (`completedBy`) to **themselves**, not to an arbitrary third party.
   - **Audit-log integrity**: `activity_log` is the platform's append-only audit trail. Its `type` is now allowlisted to exactly the `ActivityLogType` values the app emits (mirroring the `notifications` allowlist), so a member can no longer forge audit entries of arbitrary types for themselves to pollute the shared performance feed; entries stay attributable to the caller (`userId == uid`), size-capped, and have no update/delete rule (append-only).
@@ -61,6 +63,37 @@ This project implements the following security practices:
   - **Roster confidentiality**: `mail_digests` embeds the full `recipients` list (every active member's email address) and is now readable only by workspace managers, matching where it is actually consumed in the UI.
   - **Bounded assistant-authored events**: `events` free-text fields are size-capped, since events are also created programmatically from model output.
 - **AI blast-radius control**: in a chat turn that carries a file attachment, only read-only assistant tools may run. The previous policy blocked just the mass-broadcast action, leaving the rest of the write surface reachable by an injected document — including `auditarActaDrive` (mass task/event creation driven by the document's own text) and `registrarCumpleanos`/`gestionarCubeDesign`, which write to *other* users' documents. `auditarActaDrive` is additionally bounded in input length and in the number of documents a single turn may create, so a poisoned or oversized minute cannot amplify into unbounded Firestore writes.
+- **The untrusted-attachment taint is session-scoped, not turn-scoped**: the read-only restriction
+  above keyed off *this turn carrying a file*, but the document's extracted text is appended to the
+  conversation history (`chatHistory` in proxy mode, the `ChatSession` history in direct mode) and
+  keeps influencing every later turn. The guard was therefore bypassable with a single follow-up
+  message: attach the poisoned minute, let the model answer, then send any plain text — the hidden
+  instructions were still in context while `Boolean(fileData)` was already `false`, so the full
+  write surface (`crearTarea`, `crearEvento`, `auditarActaDrive`, `registrarCumpleanos`,
+  `gestionarCubeDesign`, `forzarEnvioNoticiario`) became reachable again. Once a session has
+  ingested file content it stays tainted until `resetSession()`; the requester must start a clean
+  chat to run a mutating action. Covered by regression tests in `src/sdk/BotService.test.ts`.
+- **The assistant session is bound to the signed-in account**: `BotService` keeps its chat state in
+  **static** fields that live as long as the tab, and `startSession` only reset them when the
+  *role* changed. Signing out and signing in as someone else with the same role — two members with
+  no role, two admins — therefore inherited the previous person's entire history: their private
+  prompts, the live project/task context, the full text of any document they had attached, and
+  that session's untrusted-content taint. On the shared lab machines the team actually uses, that
+  is a cross-account data leak. The chat is now cleared on every Firebase auth-state change that
+  alters the uid, the same lifecycle binding `SecretsService` already applies to the Drive secret.
+- **The Drive bridge endpoint is maestro-only and host-pinned**: `system_config/keys` does not just
+  hold a secret — it holds `driveUploadUrl`, the endpoint to which every client posts the signed-in
+  user's **Firebase ID token** along with file bytes and the full chat history (`FileService`
+  and `BotService` attach `idToken` on every call). Write access was granted to `admin`, so an
+  admin could repoint it at an Apps Script deployment of their own — which the CSP accepts, since
+  it lives on the very same `script.google.com` host — and harvest ID tokens for the whole team,
+  the maestro included; those tokens impersonate their holder against Firestore until they expire.
+  That was a back door around the admin→maestro boundary the `/users` rules exist to enforce, so
+  writes are now maestro-only. As defence in depth the client validates the endpoint before
+  sending anything (`SecretsService.isTrustedBridgeUrl`): only `https://script.google.com` and
+  `https://script.googleusercontent.com` are accepted (plus `localhost` in dev), and anything else
+  makes the bridge report itself unconfigured rather than receive the token. Read access is
+  unchanged — every member needs the endpoint to upload at all.
 - **Role bootstrap is not client-reachable**: registration writes a role-less profile, and no rule
   authorizes a client write that carries `rol`/`roles` on create. The removed mechanism worked the
   other way round: `AuthContext.signUp` claimed a one-time `users/_bootstrap_lock` document inside

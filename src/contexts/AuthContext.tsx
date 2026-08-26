@@ -126,18 +126,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (userDoc.exists()) {
             const userData = userDoc.data() as Record<string, unknown>
-            // Auto-repair: if Firestore doc is missing email, backfill from Auth
-            const needsRepair = !userData.email && fbUser.email
-            if (needsRepair) {
-              const repairData: Record<string, string> = { email: fbUser.email! }
-              if (!userData.nombre && fbUser.displayName) {
-                repairData.nombre = fbUser.displayName.split(' ')[0]
-                const rest = fbUser.displayName.split(' ').slice(1).join(' ')
-                if (rest) repairData.apellido = rest
+            // Auto-repair: backfill fields the Firestore profile is missing from the Auth record.
+            //
+            // 'nombre'/'apellido' are repaired even when the email is present. mapFirestoreUser
+            // derives a display name from the email when the document has none, so the UI shows a
+            // name the profile never actually stored — and the notification rules verify the
+            // *stored* name (an identity check cannot trust a value the sender supplies). Healing
+            // the document keeps what the client shows and what the rules accept in agreement,
+            // which is what lets those rules stay strict instead of carrying a "no name stored,
+            // allow anything" exemption that any member could re-enter by blanking their name.
+            // Each patch is written SEPARATELY and best-effort. 'email' is deliberately absent
+            // from the rules' self-update allowlist (a member who could rewrite their stored
+            // address would redirect the digest and misrepresent themselves in every admin
+            // listing), so a regular member's email repair is always denied. Bundling it with
+            // the name fields made that denial reject the whole write, which meant the names —
+            // the part the rules *do* allow — were never healed on exactly the legacy documents
+            // this repair exists for. And because the write sat inside the try whose catch falls
+            // back to a role-less user, a denied repair also threw away the real profile (role
+            // included) for the rest of the session. Repairing is a convenience: it must never
+            // decide whether the profile loads.
+            const repairProfile = async (patch: Record<string, string>) => {
+              if (Object.keys(patch).length === 0) return
+              try {
+                await setDoc(doc(db, COLLECTIONS.USERS, fbUser.uid), patch, { merge: true })
+                Object.assign(userData, patch)
+              } catch (repairError) {
+                logger.warn('Profile auto-repair write was rejected', {
+                  fields: Object.keys(patch),
+                  error: repairError instanceof Error ? repairError : undefined,
+                })
               }
-              await setDoc(doc(db, COLLECTIONS.USERS, fbUser.uid), repairData, { merge: true })
-              Object.assign(userData, repairData)
             }
+
+            // Only a maestro/admin write can carry 'email' past the rules; for everyone else this
+            // one no-ops, without taking the name repair down with it.
+            if (!userData.email && fbUser.email) {
+              await repairProfile({ email: fbUser.email })
+            }
+
+            if (!userData.nombre || !userData.apellido) {
+              const displayName = fbUser.displayName?.trim()
+              const derived = displayName
+                ? {
+                    nombre: displayName.split(' ')[0],
+                    apellido: displayName.split(' ').slice(1).join(' '),
+                  }
+                : extractFullNameFromEmail(
+                    (typeof userData.email === 'string' && userData.email) || fbUser.email || ''
+                  )
+              const namePatch: Record<string, string> = {}
+              // Truncated to the 80-character ceiling the rules enforce on these fields, so an
+              // unusually long Auth displayName cannot make the repair write undeliverable.
+              if (!userData.nombre && derived.nombre) namePatch.nombre = derived.nombre.slice(0, 80)
+              if (!userData.apellido && derived.apellido) namePatch.apellido = derived.apellido.slice(0, 80)
+              await repairProfile(namePatch)
+            }
+
+            // Re-check staleness: the repair writes above are await points that did not exist
+            // between the check after getDoc and this setUser. If the user signs out (or another
+            // account signs in) while a repair is in flight, that handler has already run
+            // setUser(null) — and this continuation, still holding the previous account's data,
+            // would overwrite it and show a signed-out person as signed in with the old profile.
+            // Same class of bug as the cross-account chat leak this branch closes: state captured
+            // before an await has to be revalidated after it.
+            if (!isMounted || authStateVersion !== currentVersion) {
+              return
+            }
+
             setUser(mapFirestoreUser(fbUser.uid, userData, fallbackUser))
           }
         } catch (error) {
