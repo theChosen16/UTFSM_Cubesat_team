@@ -193,6 +193,58 @@ describe('AuthProvider', () => {
       })
     })
 
+    // The repair writes are await points between the staleness check after getDoc and the final
+    // setUser. A sign-out landing in that window must not be undone by the stale continuation.
+    it('does not resurrect the previous user when sign-out lands mid-repair', async () => {
+      let authStateHandler: ((user: { uid: string; email: string; displayName: string | null } | null) => Promise<void> | void) | undefined
+
+      mockOnAuthStateChanged.mockImplementation((_auth: unknown, callback: typeof authStateHandler) => {
+        authStateHandler = callback
+        return () => undefined
+      })
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({ email: 'ana.soto@usm.cl', createdAt: new Date(), isActive: true }),
+      })
+
+      let releaseRepair: (() => void) | undefined
+      mockSetDoc.mockImplementation(() => new Promise<void>((resolve) => {
+        releaseRepair = () => resolve()
+      }))
+
+      render(
+        <AuthProvider>
+          <AuthSnapshot />
+        </AuthProvider>
+      )
+
+      let signInSettled: Promise<void> | void
+      act(() => {
+        signInSettled = authStateHandler?.({
+          uid: 'user-legacy',
+          email: 'ana.soto@usm.cl',
+          displayName: null,
+        })
+      })
+
+      await waitFor(() => expect(mockSetDoc).toHaveBeenCalled())
+
+      // Sign-out arrives while the repair write is still in flight.
+      await act(async () => {
+        await authStateHandler?.(null)
+      })
+      expect(screen.getByTestId('email')).toHaveTextContent('none')
+
+      // The in-flight repair now settles and the stale continuation resumes.
+      await act(async () => {
+        releaseRepair?.()
+        await signInSettled
+      })
+
+      expect(screen.getByTestId('email')).toHaveTextContent('none')
+      expect(screen.getByTestId('nombre')).toHaveTextContent('none')
+    })
+
     it('does not write anything when the profile is already complete', async () => {
       await signIn({
         email: 'ana.soto@usm.cl',

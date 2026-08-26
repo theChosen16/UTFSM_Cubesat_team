@@ -182,6 +182,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               await repairProfile(namePatch)
             }
 
+            // Re-check staleness: the repair writes above are await points that did not exist
+            // between the check after getDoc and this setUser. If the user signs out (or another
+            // account signs in) while a repair is in flight, that handler has already run
+            // setUser(null) — and this continuation, still holding the previous account's data,
+            // would overwrite it and show a signed-out person as signed in with the old profile.
+            // Same class of bug as the cross-account chat leak this branch closes: state captured
+            // before an await has to be revalidated after it.
+            if (!isMounted || authStateVersion !== currentVersion) {
+              return
+            }
+
             setUser(mapFirestoreUser(fbUser.uid, userData, fallbackUser))
           }
         } catch (error) {
