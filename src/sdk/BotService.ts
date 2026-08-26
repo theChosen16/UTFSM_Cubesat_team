@@ -253,11 +253,27 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
    */
   static async startSession(userRole?: string): Promise<boolean> {
     if (!isDirectMode) {
-      // Proxy Mode: No direct model initialization required
-      if (userRole !== this.activeSessionRole) {
+      // Proxy Mode: No direct model initialization required.
+      //
+      // Reset only when there is an ACTUAL session to discard. `activeSessionRole` starts as
+      // null, so on the first turn of a fresh session the old condition was true for any signed-in
+      // role and this branch called resetSession() on a session that held nothing — except the
+      // untrusted-file taint that sendMessage had just set for that very turn. The flag was
+      // cleared before sendProxyMessage ever consulted it, so an admin whose FIRST message
+      // carried a poisoned document got the state-mutating tools back: exactly the attack the
+      // taint exists to stop. Direct mode never had this because it only resets when
+      // `this.chatSession` already exists; the proxy branch now mirrors that.
+      //
+      // The comparison is also normalized. `userRole` is `undefined` for a member with no role
+      // while `activeSessionRole` is `null`, and `undefined !== null`, so the old check fired on
+      // every single turn for those users: the proxy chat silently forgot its history after each
+      // message. Comparing normalized values resets on a genuine role change and nothing else.
+      const normalizedRole = userRole || null
+      const hasLiveSession = this.chatHistory.length > 0 || this.activeSessionRole !== null
+      if (hasLiveSession && normalizedRole !== this.activeSessionRole) {
         this.resetSession()
-        this.activeSessionRole = userRole || null
       }
+      this.activeSessionRole = normalizedRole
       return true
     }
 
@@ -266,8 +282,10 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
       return false
     }
 
-    // Reinicia la sesión si cambia el rol del usuario para refrescar la inyección de herramientas
-    if (this.chatSession && userRole !== this.activeSessionRole) {
+    // Reinicia la sesión si cambia el rol del usuario para refrescar la inyección de herramientas.
+    // Se compara normalizado por la misma razón que en la rama del proxy: `undefined !== null`
+    // hacía que un miembro sin rol perdiera la sesión en cada turno.
+    if (this.chatSession && (userRole || null) !== this.activeSessionRole) {
       this.resetSession()
     }
 
@@ -317,7 +335,7 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
       return this.sendProxyMessage(message, userId, userRole, fileData)
     }
 
-    if (!this.chatSession || userRole !== this.activeSessionRole) {
+    if (!this.chatSession || (userRole || null) !== this.activeSessionRole) {
       const initSuccess = await this.startSession(userRole)
       if (!initSuccess || !this.chatSession) {
         return "Error crítico: El núcleo de IA no pudo ser inicializado. Verifica la configuración de la clave en el entorno local."
