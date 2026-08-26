@@ -491,6 +491,64 @@ describe('BotService', () => {
 
       expect(forzarEnvioNoticiarioMock).toHaveBeenCalledWith('admin-user-id')
     })
+
+    // El texto del documento permanece en el historial de la sesión después del turno en que se
+    // adjuntó, así que un guardia por TURNO se sortea con un mensaje de seguimiento sin adjunto.
+    it('keeps blocking mutating actions on a later attachment-free turn of the same session', async () => {
+      const sendMessageMock = vi.fn()
+        // Turno 1: se ingiere el documento manipulado; el modelo solo responde texto.
+        .mockResolvedValueOnce({
+          response: { text: () => 'Documento recibido.', functionCalls: () => undefined }
+        })
+        // Turno 2: sin adjunto, pero el modelo actúa sobre las instrucciones ocultas del turno 1.
+        .mockResolvedValueOnce({
+          response: { text: () => 'Ejecutando...', functionCalls: () => [{ name: 'forzarEnvioNoticiario', args: {} }] }
+        })
+        .mockResolvedValueOnce({
+          response: { text: () => 'Resultado entregado.', functionCalls: () => undefined }
+        })
+
+      getGenerativeModelMock.mockImplementation(() => ({
+        startChat: vi.fn(() => ({ sendMessage: sendMessageMock })),
+      }))
+
+      const { BotService } = await import('@/sdk/BotService')
+      BotService.resetSession()
+
+      await BotService.sendMessage('Resume este acta', 'admin-user-id', 'admin', poisonedFile)
+      await BotService.sendMessage('Continúa', 'admin-user-id', 'admin', null)
+
+      expect(forzarEnvioNoticiarioMock).not.toHaveBeenCalled()
+
+      const [[functionResponsePart]] = sendMessageMock.mock.calls.slice(-1)
+      expect(functionResponsePart[0].functionResponse.response.result.message).toContain('bloqueada por seguridad')
+    })
+
+    it('lifts the block once the session is reset', async () => {
+      const sendMessageMock = vi.fn()
+        .mockResolvedValueOnce({
+          response: { text: () => 'Documento recibido.', functionCalls: () => undefined }
+        })
+        .mockResolvedValueOnce({
+          response: { text: () => 'Ejecutando...', functionCalls: () => [{ name: 'forzarEnvioNoticiario', args: {} }] }
+        })
+        .mockResolvedValueOnce({
+          response: { text: () => 'Resultado entregado.', functionCalls: () => undefined }
+        })
+
+      getGenerativeModelMock.mockImplementation(() => ({
+        startChat: vi.fn(() => ({ sendMessage: sendMessageMock })),
+      }))
+
+      const { BotService } = await import('@/sdk/BotService')
+      BotService.resetSession()
+
+      await BotService.sendMessage('Resume este acta', 'admin-user-id', 'admin', poisonedFile)
+      BotService.resetSession()
+      await BotService.sendMessage('Despacha el noticiario semanal', 'admin-user-id', 'admin', null)
+
+      expect(forzarEnvioNoticiarioMock).toHaveBeenCalledWith('admin-user-id')
+    })
   })
 
   describe('Proxy Mode', () => {

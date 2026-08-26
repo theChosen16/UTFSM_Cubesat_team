@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI, ChatSession, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
+import { onAuthStateChanged } from 'firebase/auth'
 import { ProjectService } from './ProjectService'
 import { TaskService } from './TaskService'
 import { AdminActionsService } from './AdminActionsService'
@@ -29,6 +30,19 @@ export class BotService {
   private static chatHistory: any[] = []
   private static activeModelIndex = 0
   private static activeSessionRole: string | null = null
+
+  /**
+   * Marca de contaminación por dato NO confiable a nivel de SESIÓN (no de turno).
+   *
+   * El contenido de un archivo adjunto se incorpora al historial de la conversación
+   * (`chatHistory` en modo proxy, el historial interno de `ChatSession` en modo directo) y
+   * permanece allí durante los turnos siguientes. Por eso una comprobación por turno
+   * (`Boolean(fileData)`) no es una defensa: basta adjuntar el documento manipulado en un turno,
+   * responder cualquier cosa en el siguiente —ya sin adjunto— y las instrucciones ocultas del
+   * documento siguen en el contexto del modelo mientras el guardia ya no aplica. Una vez que la
+   * sesión ha ingerido contenido de archivo, la marca permanece hasta `resetSession()`.
+   */
+  private static sessionHasUntrustedFileContext = false
 
   private static isRecoverableModelError(error: unknown): boolean {
     const status = (error as { status?: number })?.status
@@ -291,6 +305,12 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
     userRole?: string,
     fileData?: ProcessedBotFile | null
   ): Promise<string> {
+    // Contamina la sesión completa en cuanto se ingiere un archivo: su texto queda en el
+    // historial y sigue influyendo en los turnos posteriores (ver sessionHasUntrustedFileContext).
+    if (fileData) {
+      this.sessionHasUntrustedFileContext = true
+    }
+
     // If not in direct mode, utilize the secure Google Apps Script Proxy
     if (!isDirectMode) {
       await this.startSession(userRole)
@@ -346,7 +366,7 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
           
           let functionResult: any
           try {
-            functionResult = await this.executeAdminAction(functionCall.name, functionCall.args, activeUserId, userRole, Boolean(fileData))
+            functionResult = await this.executeAdminAction(functionCall.name, functionCall.args, activeUserId, userRole, this.sessionHasUntrustedFileContext)
           } catch (err) {
             functionResult = {
               success: false,
@@ -633,7 +653,7 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
 
             let functionResult: any
             try {
-              functionResult = await this.executeAdminAction(functionCall.name, functionCall.args, activeUserId, userRole, Boolean(fileData))
+              functionResult = await this.executeAdminAction(functionCall.name, functionCall.args, activeUserId, userRole, this.sessionHasUntrustedFileContext)
             } catch (err) {
               functionResult = {
                 success: false,
@@ -753,5 +773,28 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
     this.chatHistory = []
     this.activeModelIndex = 0
     this.activeSessionRole = null
+    this.sessionHasUntrustedFileContext = false
   }
 }
+
+/**
+ * El estado del chat (`chatSession`, `chatHistory`) es ESTÁTICO y vive mientras viva la pestaña,
+ * pero no estaba ligado a la identidad de quien lo generó: `startSession` solo lo reinicia cuando
+ * cambia el ROL, de modo que al cerrar sesión y entrar otra persona con el mismo rol (dos miembros
+ * sin rol, dos admins…) la nueva sesión heredaba íntegro el historial anterior — incluidos los
+ * mensajes privados, el contexto de proyectos/tareas y el texto completo de cualquier documento
+ * adjuntado por el usuario previo, más la marca de contaminación de este último. En un equipo que
+ * comparte equipos de laboratorio eso es una fuga de datos entre cuentas.
+ *
+ * Se ata el ciclo de vida del chat al de la sesión de Firebase, igual que hace SecretsService con
+ * el secreto del bridge. Se ignora deliberadamente la primera notificación (la que emite Firebase
+ * al hidratar el estado inicial) para no descartar una sesión recién creada.
+ */
+let lastKnownAuthUid: string | null | undefined
+onAuthStateChanged(auth, (firebaseUser) => {
+  const uid = firebaseUser?.uid ?? null
+  if (lastKnownAuthUid !== undefined && lastKnownAuthUid !== uid) {
+    BotService.resetSession()
+  }
+  lastKnownAuthUid = uid
+})

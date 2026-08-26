@@ -1080,4 +1080,94 @@ describe('Security rules — privilege escalation & integrity', () => {
     })
     expect(ok.id).toBeTruthy()
   })
+
+  it('blocks an admin from repointing the Drive bridge endpoint (system_config is maestro-only)', async () => {
+    // system_config/keys holds `driveUploadUrl`, the endpoint every client posts its Firebase ID
+    // token, file bytes and chat history to. A writer of that field points it at an Apps Script
+    // deployment of their own — same `script.google.com` host the CSP allows — and harvests
+    // usable credentials for the whole team, the maestro included. Granting that to `admin`
+    // reopened exactly the admin -> maestro escalation the /users rules close.
+    const maestroEmail = 'bridgeboss@usm.cl'
+    await bootstrapMaestro(maestroEmail)
+    await setDoc(doc(db, 'system_config', 'keys'), {
+      driveUploadUrl: 'https://script.google.com/macros/s/legit/exec',
+      driveUploadSecret: 'top-secret-bridge',
+    })
+    await signOut(auth)
+
+    // A genuine admin (role granted out-of-band by the maestro) may NOT rewrite the endpoint.
+    const { user: admin } = await createUserWithEmailAndPassword(auth, 'bridgeadmin@usm.cl', PW)
+    await adminSetDoc(`users/${admin.uid}`, {
+      email: 'bridgeadmin@usm.cl',
+      nombre: 'Bridge',
+      apellido: 'Admin',
+      rol: 'admin',
+      createdAt: new Date(),
+      isActive: true,
+    })
+    await expectDenied(
+      setDoc(doc(db, 'system_config', 'keys'), {
+        driveUploadUrl: 'https://script.google.com/macros/s/attacker/exec',
+        driveUploadSecret: 'top-secret-bridge',
+      })
+    )
+    // Reading it is still allowed (the client needs the endpoint to upload at all).
+    const snap = await getDoc(doc(db, 'system_config', 'keys'))
+    expect(snap.data()!.driveUploadUrl).toBe('https://script.google.com/macros/s/legit/exec')
+    await signOut(auth)
+
+    // The maestro remains able to rotate it.
+    await signInWithEmailAndPassword(auth, maestroEmail, PW)
+    await setDoc(doc(db, 'system_config', 'keys'), {
+      driveUploadUrl: 'https://script.google.com/macros/s/rotated/exec',
+      driveUploadSecret: 'rotated-secret',
+    })
+    expect((await getDoc(doc(db, 'system_config', 'keys'))).data()!.driveUploadSecret).toBe('rotated-secret')
+  })
+
+  it('blocks signing a notification with someone else\'s display name', async () => {
+    // The Notifications page renders `senderName` verbatim as the sender identity. Pinning only
+    // `senderId` left the name on screen forgeable, so a member could send a message signed by
+    // the maestro — the setup for in-app phishing.
+    const { user: member } = await createUserWithEmailAndPassword(auth, 'impostor@usm.cl', PW)
+    await setDoc(doc(db, 'users', member.uid), {
+      email: 'impostor@usm.cl',
+      nombre: 'Eve',
+      apellido: 'Impostor',
+      createdAt: new Date(),
+      isActive: true,
+    })
+
+    const forged = (senderName: string) =>
+      addDoc(collection(db, 'notifications'), {
+        senderId: member.uid,
+        recipientId: 'victim',
+        type: 'message',
+        title: 'Acción requerida',
+        message: 'Confirma tus credenciales en este enlace.',
+        read: false,
+        createdAt: Timestamp.now(),
+        senderName,
+      })
+
+    await expectDenied(forged('Maestro USM CubeSat'))
+    await expectDenied(forged('Master Boot'))
+
+    // The caller's own identity — in any of the shapes the shipped clients build — is accepted.
+    expect((await forged('Eve Impostor')).id).toBeTruthy()
+    expect((await forged('Eve')).id).toBeTruthy()
+    expect((await forged('impostor@usm.cl')).id).toBeTruthy()
+
+    // Omitting the field entirely stays valid too.
+    const anonymous = await addDoc(collection(db, 'notifications'), {
+      senderId: member.uid,
+      recipientId: 'victim',
+      type: 'message',
+      title: 'Hola',
+      message: 'Sin firma',
+      read: false,
+      createdAt: Timestamp.now(),
+    })
+    expect(anonymous.id).toBeTruthy()
+  })
 })

@@ -56,6 +56,39 @@ service cloud.firestore {
         request.auth.token.email.lower().matches('^[a-z0-9._%+-]+@(sansano[.])?usm[.]cl$');
     }
 
+    // Truthfulness check for the display name attached to a notification.
+    //
+    // The Notifications page renders `senderName` verbatim as the identity of whoever sent the
+    // item ("De: {senderName}" for alerts, and as the message header in the inbox). It was free
+    // text: `senderId` was pinned to the caller's uid, but nothing tied the *name shown on screen*
+    // to that uid, so any member could enqueue a `message` notification signed "Maestro USM
+    // CubeSat" or the name of any teammate. The earlier hardening closed the `type: 'system'`
+    // impersonation path but left this one, which produces the same effect in the UI — a message
+    // that visibly comes from someone with authority — and is the natural setup for in-app
+    // phishing ("sube el acta a este enlace", "confirma tu clave").
+    //
+    // The name is now bound to the caller's own profile. The accepted forms are exactly those the
+    // shipped clients build: "nombre apellido" (Notifications.tsx), a bare "nombre", and the
+    // email/uid fallbacks that TaskManagement.tsx uses when the profile has no name
+    // (`user.nombre || user.email || user.id`). A profile with no `nombre` stored yet is exempt,
+    // so legacy accounts whose client backfills the name from their email keep working.
+    function isTruthfulSenderName() {
+      let claimed = request.resource.data.get('senderName', null);
+      let sender = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let nombre = sender == null ? '' : sender.get('nombre', '');
+      let apellido = sender == null ? '' : sender.get('apellido', '');
+      return claimed == null || (
+        claimed is string &&
+        claimed.size() <= 120 && (
+          nombre == '' ||
+          claimed == nombre ||
+          claimed == nombre + ' ' + apellido ||
+          claimed == request.auth.token.email ||
+          claimed == request.auth.uid
+        )
+      );
+    }
+
     // Fields a user is allowed to update on their own profile.
     // Excludes 'rol'/'roles', 'isActive', 'email', 'createdAt' to prevent privilege escalation.
     //
@@ -203,7 +236,10 @@ service cloud.firestore {
         (!('title' in request.resource.data) ||
           (request.resource.data.title is string && request.resource.data.title.size() <= 300)) &&
         (!('message' in request.resource.data) ||
-          (request.resource.data.message is string && request.resource.data.message.size() <= 3000));
+          (request.resource.data.message is string && request.resource.data.message.size() <= 3000)) &&
+        // Se evalúa al final para que las comprobaciones baratas corten antes y el get() del
+        // perfil solo ocurra en escrituras que ya pasaron el resto de las validaciones.
+        isTruthfulSenderName();
 
       // Users can update or delete their own notifications (e.g., mark as read / dismiss)
       allow update, delete: if isInstitutional() &&
@@ -406,8 +442,21 @@ service cloud.firestore {
       // 'eve@usm.cl.evil.com' (the regex matches a substring), letting an external user read the
       // secret. Anchor with ^...$ and restrict the local part so only true @usm.cl /
       // @sansano.usm.cl addresses pass. The email claim is also guarded as a string.
+      //
+      // La ESCRITURA es exclusiva del maestro. Este documento no guarda solo un secreto: guarda
+      // `driveUploadUrl`, el endpoint al que cada navegador del equipo envía el **ID token de
+      // Firebase del usuario** junto con los bytes de los archivos y el historial completo del
+      // chat (FileService.callBridge y BotService.sendProxyMessage adjuntan `idToken` en cada
+      // llamada). Quien pueda reescribir ese campo lo apunta a un despliegue de Apps Script
+      // propio —que la CSP admite, porque vive en el mismo `script.google.com`— y cosecha
+      // credenciales efímeras válidas de TODO el equipo, maestro incluido, con las que suplantar
+      // a cualquiera frente a Firestore. Dárselo a `admin` contradice de plano la frontera que
+      // este mismo archivo levanta en /users, donde un admin no puede tocar a un usuario con rol
+      // elevado precisamente para que no pueda escalar a maestro: `system_config` era la puerta
+      // trasera a esa misma escalada. El cliente ancla además el host del bridge
+      // (SecretsService.isTrustedBridgeUrl) como segunda línea de defensa.
       allow read: if isInstitutional();
-      allow write: if isInstitutional() && (hasRole('maestro') || hasRole('admin'));
+      allow write: if isInstitutional() && hasRole('maestro');
     }
 
     match /posts/{postId} {
