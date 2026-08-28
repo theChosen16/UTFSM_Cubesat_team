@@ -43,7 +43,7 @@
     "@vitejs/plugin-react": "^6.1.0",
     "autoprefixer": "^10.5.4",
     "chrome-devtools-mcp": "^1.7.0",
-    "eslint": "^10.9.0",
+    "eslint": "^10.9.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.4",
     "firebase-tools": "^15.28.1",
