@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { doc, setDoc, getDoc, getDocs, collection } from 'firebase/firestore'
-import { getTestFirebase, clearFirestoreData, clearAuthUsers, bootstrapMaestro } from '../emulator-config'
+import { getTestFirebase, clearFirestoreData, clearAuthUsers, bootstrapMaestro, createVerifiedUser } from '../emulator-config'
 import { extractFullNameFromEmail } from '@/lib/utils'
 
 describe('Members E2E', () => {
@@ -13,7 +13,7 @@ describe('Members E2E', () => {
     await clearAuthUsers()
 
     // Create maestro (secure bootstrap lock)
-    const { user } = await createUserWithEmailAndPassword(auth, 'maestro.members@usm.cl', 'Pass123!')
+    const { user } = await createVerifiedUser(auth, 'maestro.members@usm.cl', 'Pass123!')
     maestroUid = user.uid
     await bootstrapMaestro(db, maestroUid, 'maestro.members@usm.cl', {
       apellido: 'Members',
@@ -23,7 +23,7 @@ describe('Members E2E', () => {
     await signOut(auth)
 
     // Regular user self-creates a plain profile (cannot self-assign the 'manager' team)
-    const { user: regular } = await createUserWithEmailAndPassword(auth, 'regular@usm.cl', 'Pass123!')
+    const { user: regular } = await createVerifiedUser(auth, 'regular@usm.cl', 'Pass123!')
     await setDoc(doc(db, 'users', regular.uid), {
       email: 'regular@usm.cl',
       nombre: 'Regular',
@@ -35,7 +35,7 @@ describe('Members E2E', () => {
     await signOut(auth)
 
     // Create user without nombre (simulates pre-auto-name registration)
-    const { user: legacy } = await createUserWithEmailAndPassword(auth, 'sofia.galaz@usm.cl', 'Pass123!')
+    const { user: legacy } = await createVerifiedUser(auth, 'sofia.galaz@usm.cl', 'Pass123!')
     await setDoc(doc(db, 'users', legacy.uid), {
       email: 'sofia.galaz@usm.cl',
       nombre: '',

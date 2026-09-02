@@ -130,6 +130,34 @@ describe('EmailNotificationService', () => {
     expect(html).toContain('BOLETÍN SEMANAL CUBESAT')
   })
 
+  it('escapes untrusted event fields, including the date, before they reach the mailed HTML', async () => {
+    // `fechaInicio` is written verbatim by AdminActionsService.auditarActaDrive from text the
+    // model derived from an uploaded minute, so it is attacker-influenceable, and it was the
+    // one event field interpolated into this template without escaping.
+    const { EmailNotificationService } = await import('@/sdk/EmailNotificationService')
+
+    const payload = '"><img src=x onerror=alert(1)>'
+    const html = EmailNotificationService.generateHTMLTemplate('Constanza', {
+      upcomingEvents: [
+        {
+          id: 'ev1',
+          titulo: payload,
+          descripcion: payload,
+          fechaInicio: payload,
+          tipo: 'reunion',
+          creadoPor: 'admin',
+          createdAt: new Date(),
+        },
+      ] as any,
+      completedTasks: [] as any,
+      inProgressTasks: [] as any,
+      newTasks: [] as any,
+    })
+
+    expect(html).not.toContain('<img src=x onerror=alert(1)>')
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+  })
+
   it('sends weekly digest to all active users', async () => {
     const { EmailNotificationService } = await import('@/sdk/EmailNotificationService')
 

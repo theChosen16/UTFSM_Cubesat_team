@@ -170,6 +170,14 @@ Las opciones del menú lateral que requieren permisos especiales (como "Gestión
 
 > **Nota:** Solo correos institucionales de la USM (`@usm.cl` o `@sansano.usm.cl`) son aceptados para registro.
 
+> **Verificación de correo obligatoria.** Tras registrarte recibirás un enlace de verificación. El
+> espacio de trabajo (proyectos, tareas, archivos, calendario, feed) permanece cerrado hasta que lo
+> abras: recién entonces se crea tu documento de miembro en Firestore. El motivo es que el endpoint
+> de registro de Firebase es público y **no** comprueba que quien dice tener una dirección `@usm.cl`
+> realmente la controle, de modo que el dominio por sí solo nunca fue una credencial. Las cuentas
+> creadas antes de esta medida conservan el acceso y ven un aviso para verificarse; ver
+> [SECURITY.md](SECURITY.md).
+
 ## Equipos
 
 Los usuarios pueden seleccionar los equipos a los que desean pertenecer desde su perfil (máximo 2 equipos simultáneamente). La asignación de equipo es independiente del rol. Los equipos disponibles son:

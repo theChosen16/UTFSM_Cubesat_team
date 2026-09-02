@@ -1,11 +1,10 @@
 import { describe, it, expect, afterAll, beforeEach } from 'vitest'
 import {
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { getTestFirebase, clearFirestoreData, clearAuthUsers, bootstrapMaestro } from '../emulator-config'
+import { getTestFirebase, clearFirestoreData, clearAuthUsers, bootstrapMaestro, createVerifiedUser } from '../emulator-config'
 
 describe('Auth E2E', () => {
   const { auth, db } = getTestFirebase()
@@ -26,7 +25,7 @@ describe('Auth E2E', () => {
     const nombre = 'Test'
     const apellido = 'User'
 
-    const { user } = await createUserWithEmailAndPassword(auth, email, password)
+    const { user } = await createVerifiedUser(auth, email, password)
 
     // Mirrors AuthContext.signUp: registration writes a plain, role-less profile.
     await setDoc(doc(db, 'users', user.uid), {
@@ -51,7 +50,7 @@ describe('Auth E2E', () => {
     // Registration never grants a role; the first maestro is written from the Firebase console
     // (here: the emulator's rule-bypassing admin endpoint). See SECURITY.md.
     const email = 'first.user@usm.cl'
-    const { user } = await createUserWithEmailAndPassword(auth, email, 'FirstPass123!')
+    const { user } = await createVerifiedUser(auth, email, 'FirstPass123!')
 
     await bootstrapMaestro(db, user.uid, email, { nombre: 'First', apellido: 'User' })
 
@@ -60,14 +59,14 @@ describe('Auth E2E', () => {
   })
 
   it('should not assign maestro role to subsequent users', async () => {
-    const { user: first } = await createUserWithEmailAndPassword(auth, 'first@usm.cl', 'Pass123!')
+    const { user: first } = await createVerifiedUser(auth, 'first@usm.cl', 'Pass123!')
     await bootstrapMaestro(db, first.uid, 'first@usm.cl', { nombre: 'First', apellido: 'User' })
 
     await signOut(auth)
 
     // Second user self-creates a plain profile and cannot grant itself maestro
     // (the create rule refuses any write carrying 'rol'/'roles').
-    const { user: second } = await createUserWithEmailAndPassword(auth, 'second@usm.cl', 'Pass123!')
+    const { user: second } = await createVerifiedUser(auth, 'second@usm.cl', 'Pass123!')
     await setDoc(doc(db, 'users', second.uid), {
       email: 'second@usm.cl',
       nombre: 'Second',
@@ -84,7 +83,7 @@ describe('Auth E2E', () => {
     const email = 'login.test@usm.cl'
     const password = 'LoginPass123!'
 
-    await createUserWithEmailAndPassword(auth, email, password)
+    await createVerifiedUser(auth, email, password)
     await signOut(auth)
 
     const { user } = await signInWithEmailAndPassword(auth, email, password)
@@ -96,7 +95,7 @@ describe('Auth E2E', () => {
 
   it('should reject sign in with wrong password', async () => {
     const email = 'wrong.pass@usm.cl'
-    await createUserWithEmailAndPassword(auth, email, 'CorrectPass123!')
+    await createVerifiedUser(auth, email, 'CorrectPass123!')
     await signOut(auth)
 
     await expect(

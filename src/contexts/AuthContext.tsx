@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { 
-  User as FirebaseUser, 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword, 
+import {
+  User as FirebaseUser,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
+  updateProfile as updateAuthProfile,
   signOut as firebaseSignOut
 } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
@@ -19,6 +21,16 @@ interface AuthContextType {
   user: User | null
   firebaseUser: FirebaseUser | null
   loading: boolean
+  /**
+   * Whether a `/users/{uid}` profile document exists for the signed-in account.
+   *
+   * `null` while it is still unknown. An account whose institutional address is not verified
+   * AND that has no profile yet cannot read or write anything (see `isInstitutional()` in
+   * firestore.rules), so this is what tells the UI to show the verification gate instead of a
+   * workspace full of permission errors.
+   */
+  hasProfile: boolean | null
+  emailVerified: boolean
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, nombre: string, apellido: string) => Promise<void>
   signOut: () => Promise<void>
@@ -26,6 +38,8 @@ interface AuthContextType {
   updateUserTeams: (userId: string, newTeams: TeamType[]) => Promise<void>
   updateUserProfile: (data: Partial<User>) => Promise<void>
   resetPassword: (email: string) => Promise<void>
+  sendVerificationEmail: () => Promise<void>
+  refreshVerificationStatus: () => Promise<boolean>
   getAllUsers: () => Promise<User[]>
 }
 
@@ -92,6 +106,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const [hasProfile, setHasProfile] = useState<boolean | null>(null)
+  const [emailVerified, setEmailVerified] = useState(false)
 
   useEffect(() => {
     let isMounted = true
@@ -105,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setFirebaseUser(fbUser)
+      setEmailVerified(Boolean(fbUser?.emailVerified))
       if (fbUser) {
         const extractedName = fbUser.email ? extractFullNameFromEmail(fbUser.email) : { nombre: '', apellido: '' }
         const fallbackUser: User = {
@@ -193,7 +210,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               return
             }
 
+            setHasProfile(true)
             setUser(mapFirestoreUser(fbUser.uid, userData, fallbackUser))
+          } else if (fbUser.emailVerified) {
+            // Deferred profile provisioning.
+            //
+            // Registration used to write `/users/{uid}` immediately after
+            // createUserWithEmailAndPassword, i.e. for an address nobody had proven they own.
+            // The rules now require a verified institutional address to create a profile
+            // (otherwise an unverified newcomer would grandfather themselves past
+            // `isInstitutional()` in one write), so the document is created here instead — on
+            // the first sign-in that carries a verified token. The display name captured at
+            // registration survives the gap on the Firebase Auth record.
+            const displayName = fbUser.displayName?.trim()
+            const derived = displayName
+              ? {
+                  nombre: displayName.split(' ')[0],
+                  apellido: displayName.split(' ').slice(1).join(' '),
+                }
+              : extractFullNameFromEmail(fbUser.email || '')
+            const provisioned: Omit<User, 'id'> = {
+              email: fbUser.email || '',
+              nombre: (derived.nombre || '').slice(0, 80),
+              apellido: (derived.apellido || '').slice(0, 80),
+              createdAt: new Date(),
+              isActive: true,
+            }
+
+            try {
+              await setDoc(doc(db, COLLECTIONS.USERS, fbUser.uid), provisioned)
+              if (!isMounted || authStateVersion !== currentVersion) {
+                return
+              }
+              setHasProfile(true)
+              setUser({ ...provisioned, id: fbUser.uid })
+            } catch (provisionError) {
+              if (!isMounted || authStateVersion !== currentVersion) {
+                return
+              }
+              logger.warn('Could not provision the workspace profile for a verified account', {
+                error: provisionError instanceof Error ? provisionError : undefined,
+              })
+              setHasProfile(false)
+              setUser(fallbackUser)
+            }
+          } else {
+            // Verified === false and no profile: the account exists in Firebase Auth but is not
+            // a workspace member yet. Every Firestore path is denied by the rules, so the UI
+            // shows the verification gate rather than a dashboard full of errors.
+            setHasProfile(false)
+            setUser(fallbackUser)
           }
         } catch (error) {
           if (!isMounted || authStateVersion !== currentVersion) {
@@ -201,6 +267,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
 
           logger.warn('Could not fetch Firestore user data – may be blocked by ad-blocker', { error: error instanceof Error ? error : undefined })
+          // A denied read is exactly what an unverified, not-yet-provisioned account gets, so
+          // do not claim a profile exists; the gate decides from `emailVerified` as well.
+          setHasProfile(fbUser.emailVerified ? null : false)
           setUser(fallbackUser)
         } finally {
           if (isMounted && authStateVersion === currentVersion) {
@@ -209,6 +278,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else {
         setUser(null)
+        setHasProfile(null)
         setLoading(false)
       }
     })
@@ -235,6 +305,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     const { user: newUser } = await createUserWithEmailAndPassword(auth, normalizedEmail, password)
 
+    // Registration NEVER provisions a workspace profile either, because at this point nobody
+    // has proven they can receive mail at the address. Firebase's sign-up endpoint is public
+    // and keyed by the Web API key that ships in the client bundle, so an @usm.cl address is
+    // free to assert; without verification the "private institutional workspace" was open to
+    // anyone on the internet. The profile — the document that makes an account a member — is
+    // created on the first sign-in with a VERIFIED address (see the auth-state handler above),
+    // which is also what firestore.rules now requires.
+    //
+    // The name typed during registration is parked on the Firebase Auth record so it survives
+    // the round-trip through the verification e-mail.
+    const displayName = `${nombre} ${apellido}`.trim()
+    if (displayName) {
+      await updateAuthProfile(newUser, { displayName }).catch(profileError => {
+        logger.warn('Could not store the display name on the Auth record', {
+          error: profileError instanceof Error ? profileError : undefined,
+        })
+      })
+    }
+
+    await sendEmailVerification(newUser).catch(verificationError => {
+      // Non-fatal: the account exists and the gate offers a "resend" action.
+      logger.warn('Could not send the verification e-mail at registration', {
+        error: verificationError instanceof Error ? verificationError : undefined,
+      })
+    })
+
     // Registration NEVER grants a role. The previous flow claimed a one-time
     // `users/_bootstrap_lock` document inside a transaction and, when it won the claim, wrote
     // `rol: 'maestro'` on the new profile — with the Firestore rules authorizing that write
@@ -245,16 +341,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     //
     // The first maestro is now provisioned once from the Firebase console (server-side writes
     // bypass the security rules); see SECURITY.md → "Provisioning the first maestro".
-    const userData: Omit<User, 'id'> = {
-      email: normalizedEmail,
-      nombre,
-      apellido,
-      createdAt: new Date(),
-      isActive: true,
-    }
-
-    await setDoc(doc(db, COLLECTIONS.USERS, newUser.uid), userData)
-    setUser({ ...userData, id: newUser.uid })
+    setHasProfile(false)
   }
 
   const updateUserProfile = async (data: Partial<User>) => {
@@ -269,10 +356,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await sendPasswordResetEmail(auth, email)
   }
 
+  /** Re-sends the institutional-address verification e-mail to the signed-in account. */
+  const sendVerificationEmail = async () => {
+    const current = auth.currentUser
+    if (!current) throw new Error('No hay una sesión activa')
+    await sendEmailVerification(current)
+  }
+
+  /**
+   * Re-reads the verification state from Firebase and, when it has flipped, forces a fresh ID
+   * token.
+   *
+   * `email_verified` is a claim baked into the ID token at issue time, and firestore.rules
+   * reads it from there. Without the forced refresh the browser would keep presenting the old
+   * (unverified) token for up to an hour after the user clicks the link, so the workspace would
+   * stay locked even though the account is verified.
+   */
+  const refreshVerificationStatus = async (): Promise<boolean> => {
+    const current = auth.currentUser
+    if (!current) return false
+    await current.reload()
+    const verified = auth.currentUser?.emailVerified ?? false
+    if (verified) {
+      await auth.currentUser?.getIdToken(true).catch(() => undefined)
+    }
+    setEmailVerified(verified)
+    setFirebaseUser(auth.currentUser)
+    return verified
+  }
+
   const signOut = async () => {
     await firebaseSignOut(auth)
     setUser(null)
     setFirebaseUser(null)
+    setHasProfile(null)
+    setEmailVerified(false)
   }
 
   const updateUserRole = async (userId: string, newRole: UserRole | undefined) => {
@@ -301,17 +419,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      firebaseUser, 
-      loading, 
-      signIn, 
-      signUp, 
+    <AuthContext.Provider value={{
+      user,
+      firebaseUser,
+      loading,
+      hasProfile,
+      emailVerified,
+      signIn,
+      signUp,
       signOut,
       updateUserRole,
       updateUserTeams,
       updateUserProfile,
       resetPassword,
+      sendVerificationEmail,
+      refreshVerificationStatus,
       getAllUsers
     }}>
       {children}
