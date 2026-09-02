@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import {
   doc,
   setDoc,
@@ -13,7 +13,7 @@ import {
   where,
   type DocumentReference,
 } from 'firebase/firestore'
-import { getTestFirebase, clearFirestoreData, clearAuthUsers, adminSetDoc } from '../emulator-config'
+import { getTestFirebase, clearFirestoreData, clearAuthUsers, adminSetDoc, createVerifiedUser } from '../emulator-config'
 
 describe('Notifications E2E', () => {
   const { auth, db } = getTestFirebase()
@@ -28,7 +28,7 @@ describe('Notifications E2E', () => {
     // Create sender. The 'system' notification type is now reserved for workspace managers
     // (anti-phishing hardening), so the sender is provisioned as maestro out-of-band — the
     // rules give no client path to a role — to exercise every notification type below.
-    const { user: sender } = await createUserWithEmailAndPassword(auth, 'sender@usm.cl', PW)
+    const { user: sender } = await createVerifiedUser(auth, 'sender@usm.cl', PW)
     senderUid = sender.uid
     await adminSetDoc(`users/${senderUid}`, {
       email: 'sender@usm.cl',
@@ -42,7 +42,7 @@ describe('Notifications E2E', () => {
     await signOut(auth)
 
     // Create recipient
-    const { user: recipient } = await createUserWithEmailAndPassword(auth, 'recipient@usm.cl', PW)
+    const { user: recipient } = await createVerifiedUser(auth, 'recipient@usm.cl', PW)
     recipientUid = recipient.uid
     await setDoc(doc(db, 'users', recipientUid), {
       email: 'recipient@usm.cl',

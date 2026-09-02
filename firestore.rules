@@ -46,14 +46,51 @@ service cloud.firestore {
     // the same fully ANCHORED pattern as the system_config gate, so look-alike domains such
     // as `eve@usm.cl.evil.com` are rejected (matches() is not implicitly anchored).
     //
-    // Note: this restricts the domain but intentionally does NOT require email_verified,
-    // to avoid locking out existing email/password members who have not verified. Requiring
-    // verified institutional emails end-to-end (as the Apps Script bridge already does) is
-    // the recommended hardening once an in-app verification flow exists.
-    function isInstitutional() {
+    // The domain half of the boundary: the token claims an @usm.cl / @sansano.usm.cl address.
+    // Fully ANCHORED, so look-alike domains such as `eve@usm.cl.evil.com` are rejected
+    // (matches() is not implicitly anchored).
+    function isInstitutionalDomain() {
       return request.auth != null &&
         request.auth.token.email is string &&
         request.auth.token.email.lower().matches('^[a-z0-9._%+-]+@(sansano[.])?usm[.]cl$');
+    }
+
+    // The ownership half. Until now the boundary was the domain claim ALONE, and that claim is
+    // self-asserted: Firebase email/password sign-up neither verifies the address nor requires
+    // the caller to receive anything at it. `identitytoolkit.googleapis.com/v1/accounts:signUp`
+    // is a public endpoint keyed by the Web API key, which ships in the client bundle of a
+    // public GitHub Pages site, so ANY anonymous person on the internet could mint a token for
+    // an @usm.cl address they do not own — no @usm.cl mailbox, no relationship with the
+    // university — and immediately read the entire private workspace: every project, task,
+    // file record, calendar event, post, chat message and audit entry, plus the Drive bridge
+    // shared secret in `system_config/keys`. The client-side domain check in Register.tsx never
+    // entered the picture; the REST endpoint is reachable directly.
+    //
+    // Requiring `email_verified` restores the missing half: the caller must actually control an
+    // institutional mailbox. AuthContext now sends the verification mail at registration and
+    // provisions the profile document only once the address is verified.
+    function hasVerifiedInstitutionalEmail() {
+      return isInstitutionalDomain() &&
+        request.auth.token.get('email_verified', false) == true;
+    }
+
+    // Server-side membership boundary for the private institutional workspace.
+    //
+    // A caller is a member if they hold a VERIFIED institutional address, or if the workspace
+    // already carries a profile document for their uid. The second clause is a migration path,
+    // not a hole: `/users/{uid}` can only be created by `hasVerifiedInstitutionalEmail()` (and
+    // out-of-band by an operator), so an unverified newcomer cannot manufacture the very
+    // document that would grandfather them — while members who registered before verification
+    // was enforced keep working and can verify at their own pace. Once every account is
+    // verified the `exists()` clause can be dropped outright.
+    //
+    // Ordered so the cheap token check short-circuits: the exists() document read only happens
+    // for callers whose token is not verified.
+    function isInstitutional() {
+      return isInstitutionalDomain() && (
+        request.auth.token.get('email_verified', false) == true ||
+        exists(/databases/$(database)/documents/users/$(request.auth.uid))
+      );
     }
 
     // Truthfulness check for the display name attached to a notification.
@@ -202,7 +239,13 @@ service cloud.firestore {
       // The first maestro is now provisioned out-of-band from the Firebase console (server-side
       // writes bypass these rules), which is a one-time operator action and cannot be replayed
       // by a client. See SECURITY.md → "Provisioning the first maestro".
-      allow create: if isInstitutional() &&
+      //
+      // Creation requires a VERIFIED institutional address — deliberately stricter than
+      // isInstitutional(), whose `exists(users/$(uid))` clause grandfathers accounts that
+      // predate verification. If an unverified caller could create their own profile they
+      // would grandfather themselves into the workspace in a single write, and the whole
+      // boundary would collapse back to a self-asserted email claim.
+      allow create: if hasVerifiedInstitutionalEmail() &&
         request.auth.uid == userId &&
         !request.resource.data.keys().hasAny(['rol', 'roles']) &&
         (!('isActive' in request.resource.data) || request.resource.data.isActive == true) &&
@@ -257,16 +300,54 @@ service cloud.firestore {
         // perfil solo ocurra en escrituras que ya pasaron el resto de las validaciones.
         isTruthfulSenderName();
 
-      // Users can update or delete their own notifications (e.g., mark as read / dismiss)
-      allow update, delete: if isInstitutional() &&
+      // Users can mark their own notifications as read, or delete them.
+      //
+      // The previous rule authorized an arbitrary `update` on any document whose *pre-image*
+      // named the caller as recipient, and checked nothing about the post-image. Every control
+      // on this collection — the `system`-type gate, `isTruthfulSenderName()`, the size caps,
+      // the `senderId == uid` pin — is enforced on `create` only, so all of them were
+      // bypassable in two writes:
+      //
+      //   1. create a perfectly legitimate `message` notification addressed to YOURSELF
+      //      (passes every create check, since you are both sender and recipient), then
+      //   2. update it, rewriting `recipientId` to the victim, `type` to `system`, `senderName`
+      //      to "Maestro USM CubeSat" and title/message to whatever you like.
+      //
+      // The update rule only looked at the old recipientId, so step 2 was allowed — and the
+      // read rule keys on the *current* recipientId, so the forged document lands in the
+      // victim's inbox and renders as an official platform alert signed by someone with
+      // authority. That is exactly the in-app phishing the create-side gates exist to prevent,
+      // reached through the back door.
+      //
+      // An update is now confined to what the client actually performs
+      // (`NotificationService.markAsRead` writes `{ read: true }` and nothing else): the
+      // recipient must match on BOTH sides of the write, and `read` is the only field a write
+      // may touch. Everything identity-bearing is therefore immutable after creation.
+      allow update: if isInstitutional() &&
+        resource.data.recipientId == request.auth.uid &&
+        request.resource.data.recipientId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) &&
+        request.resource.data.read is bool;
+
+      allow delete: if isInstitutional() &&
         resource.data.recipientId == request.auth.uid;
     }
 
     match /projects/{projectId} {
       // Institutional members can read projects (private team tool — the boundary is enforced
       // here, not only in the client). Managers create/update; deletion is maestro-only.
+      //
+      // Free-text fields are size-capped like every other member-writable collection.
+      // `manager` is a self-service TEAM (any admin can grant it), not a vetted role, so the
+      // manager write surface gets the same storage/egress bounds as the member one — projects
+      // were the last manager-writable documents with no ceiling at all.
       allow read: if isInstitutional();
-      allow create, update: if isInstitutional() && canManageWorkspace();
+      allow create, update: if isInstitutional() && canManageWorkspace() &&
+        (!('nombre' in request.resource.data) ||
+          (request.resource.data.nombre is string && request.resource.data.nombre.size() <= 200)) &&
+        (!('descripcion' in request.resource.data) ||
+          (request.resource.data.descripcion is string &&
+            request.resource.data.descripcion.size() <= 20000));
       allow delete: if isInstitutional() &&
         hasRole('maestro');
     }
@@ -404,12 +485,25 @@ service cloud.firestore {
       // Free-text fields are size-capped: events are also created programmatically by the
       // assistant (AdminActionsService.crearEvento / auditarActaDrive) from model output, so the
       // rules bound what a manipulated model turn can persist per document.
+      //
+      // The date fields are bounded too, and not only for storage reasons. `fechaInicio` is
+      // written verbatim by `AdminActionsService.auditarActaDrive` from text the model derived
+      // from an uploaded minute, and it is later interpolated into the weekly digest e-mail
+      // sent to every member. Keeping it to a short, plausible date string stops an event from
+      // carrying a payload-sized value into that template at all (the template also escapes
+      // it now — see EmailNotificationService.formatDate).
       allow read: if isInstitutional();
       allow create, update: if isInstitutional() && canManageWorkspace() &&
         (!('titulo' in request.resource.data) ||
           (request.resource.data.titulo is string && request.resource.data.titulo.size() <= 300)) &&
         (!('descripcion' in request.resource.data) ||
-          (request.resource.data.descripcion is string && request.resource.data.descripcion.size() <= 5000));
+          (request.resource.data.descripcion is string && request.resource.data.descripcion.size() <= 5000)) &&
+        (!('fechaInicio' in request.resource.data) ||
+          (request.resource.data.fechaInicio is string &&
+            request.resource.data.fechaInicio.size() <= 64)) &&
+        (!('fechaFin' in request.resource.data) ||
+          (request.resource.data.fechaFin is string &&
+            request.resource.data.fechaFin.size() <= 64));
       allow delete: if isInstitutional() && canManageWorkspace();
     }
 
@@ -427,10 +521,28 @@ service cloud.firestore {
       // registered members, whose addresses are institutional by construction, so the recipient
       // is constrained to the same anchored institutional pattern used everywhere else and the
       // payload is size-capped.
+      //
+      // Constraining `to` alone did NOT close the relay. The Trigger Email extension resolves
+      // its recipients from a whole family of fields — `cc`, `bcc`, `toUids`, `ccUids`,
+      // `bccUids` — and also honours `from`, `replyTo`, `headers`, `template` and
+      // `message.attachments` (whose `path`/`href` form makes the extension fetch an arbitrary
+      // URL and attach the response). None of those were mentioned by the rule, so they were
+      // simply unconstrained: a `manager` could enqueue a document with an institutional `to`
+      // and `bcc: ["victim@example.com"]`, and the extension would deliver attacker-authored
+      // HTML to any address on the internet, signed by the team's own SMTP identity and
+      // passing its SPF/DKIM — the exact open-relay/phishing outcome the recipient check was
+      // added to prevent, plus reputation damage to the sending domain.
+      //
+      // The rule therefore pins the DOCUMENT SHAPE to exactly what the digest writes rather
+      // than blocklisting fields one at a time: any key the extension might interpret that the
+      // legitimate producer does not write is rejected outright, and new extension features
+      // cannot silently reopen the hole.
       allow create: if isInstitutional() && canManageWorkspace() &&
+        request.resource.data.keys().hasOnly(['to', 'message', 'createdAt']) &&
         request.resource.data.to is string &&
         request.resource.data.to.lower().matches('^[a-z0-9._%+-]+@(sansano[.])?usm[.]cl$') &&
         request.resource.data.message is map &&
+        request.resource.data.message.keys().hasOnly(['subject', 'html', 'text']) &&
         (!('subject' in request.resource.data.message) ||
           (request.resource.data.message.subject is string &&
             request.resource.data.message.subject.size() <= 300)) &&

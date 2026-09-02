@@ -71,19 +71,29 @@ export class EmailNotificationService {
     const now = new Date()
     const { upcomingEvents, completedTasks, inProgressTasks } = data
 
-    // Formateador de fechas
+    // Formateador de fechas.
+    //
+    // `fechaInicio` NO es un dato de confianza: `AdminActionsService.auditarActaDrive` lo
+    // escribe literalmente a partir del texto que el modelo extrajo de un acta adjunta, y el
+    // resultado termina aquí, dentro del HTML que se envía por correo a todo el equipo. Tanto
+    // la ruta normal como el fallback de error se escapan, para que ningún valor de evento
+    // pueda inyectar marcado en el boletín (el resto de los campos ya se escapan; este era el
+    // único que llegaba crudo a la plantilla).
     const formatDate = (isoString: string) => {
       try {
         const d = new Date(isoString)
-        return d.toLocaleDateString('es-CL', {
+        if (Number.isNaN(d.getTime())) {
+          return escapeHtml(String(isoString))
+        }
+        return escapeHtml(d.toLocaleDateString('es-CL', {
           weekday: 'long',
           day: 'numeric',
           month: 'long',
           hour: '2-digit',
           minute: '2-digit',
-        })
+        }))
       } catch {
-        return isoString
+        return escapeHtml(String(isoString))
       }
     }
 

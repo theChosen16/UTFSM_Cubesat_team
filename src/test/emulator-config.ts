@@ -1,5 +1,13 @@
 import { initializeApp, getApps, deleteApp } from 'firebase/app'
-import { getAuth, connectAuthEmulator } from 'firebase/auth'
+import {
+  getAuth,
+  connectAuthEmulator,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  applyActionCode,
+  type Auth,
+  type UserCredential,
+} from 'firebase/auth'
 import {
   getFirestore,
   connectFirestoreEmulator,
@@ -53,6 +61,71 @@ export async function clearAuthUsers() {
   if (!response.ok) {
     throw new Error(`Failed to clear Auth users: ${response.statusText}`)
   }
+}
+
+interface EmulatorOobCode {
+  email: string
+  requestType: string
+  oobCode: string
+}
+
+/**
+ * Verifies an Auth-emulator account by actually consuming the verification link, the same way
+ * a real member does: `sendEmailVerification` mints an out-of-band code, the emulator exposes
+ * the "mailbox" over `/emulator/v1/projects/{p}/oobCodes`, and `applyActionCode` redeems it.
+ *
+ * The workspace boundary in `firestore.rules` requires a VERIFIED institutional address, so a
+ * fixture that only calls `createUserWithEmailAndPassword` is — correctly — not a member.
+ */
+export async function verifyEmailViaOobCode(auth: Auth, email: string) {
+  const user = auth.currentUser
+  if (!user) throw new Error('verifyEmailViaOobCode requires a signed-in user')
+
+  await sendEmailVerification(user)
+
+  // The Auth emulator files out-of-band codes under the project it was STARTED with. With
+  // `singleProjectMode` on (the default) that is the CLI's project — `demo-no-project` when
+  // `firebase emulators:exec` runs without one — even though the SDK connects as
+  // TEST_PROJECT_ID, so both have to be probed for the helper to work either way.
+  const candidates = [TEST_PROJECT_ID, 'demo-no-project']
+  let match: EmulatorOobCode | undefined
+  for (const project of candidates) {
+    const response = await fetch(
+      `http://127.0.0.1:9099/emulator/v1/projects/${project}/oobCodes`
+    )
+    if (!response.ok) continue
+    const body = (await response.json()) as { oobCodes?: EmulatorOobCode[] }
+    match = [...(body.oobCodes ?? [])]
+      .reverse()
+      .find(code => code.email === email && code.requestType === 'VERIFY_EMAIL')
+    if (match) break
+  }
+  if (!match) {
+    throw new Error(`No VERIFY_EMAIL code issued for ${email}`)
+  }
+
+  await applyActionCode(auth, match.oobCode)
+  await user.reload()
+  // `email_verified` is a claim baked into the ID token at issue time and is what the rules
+  // read, so the token has to be reminted before the account counts as a member.
+  await user.getIdToken(true)
+}
+
+/**
+ * Registers a member the way the product does end to end: create the account, verify the
+ * address, then refresh the ID token.
+ *
+ * Returns the same `UserCredential` as `createUserWithEmailAndPassword`, so it is a drop-in
+ * replacement at the call sites.
+ */
+export async function createVerifiedUser(
+  auth: Auth,
+  email: string,
+  password: string
+): Promise<UserCredential> {
+  const credential = await createUserWithEmailAndPassword(auth, email, password)
+  await verifyEmailViaOobCode(auth, email)
+  return credential
 }
 
 /** Encodes a plain JS value into the Firestore REST `Value` representation. */

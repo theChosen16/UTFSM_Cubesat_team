@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth'
+import { signOut } from 'firebase/auth'
 import {
   setDoc,
   getDoc,
@@ -10,7 +10,7 @@ import {
   query,
   where,
 } from 'firebase/firestore'
-import { getTestFirebase, clearFirestoreData, clearAuthUsers, bootstrapMaestro } from '../emulator-config'
+import { getTestFirebase, clearFirestoreData, clearAuthUsers, bootstrapMaestro, createVerifiedUser } from '../emulator-config'
 
 describe('Tasks E2E', () => {
   const { auth, db } = getTestFirebase()
@@ -22,7 +22,7 @@ describe('Tasks E2E', () => {
     await clearAuthUsers()
 
     // Create maestro user (via the secure bootstrap lock)
-    const { user } = await createUserWithEmailAndPassword(auth, 'maestro.tasks@usm.cl', 'Pass123!')
+    const { user } = await createVerifiedUser(auth, 'maestro.tasks@usm.cl', 'Pass123!')
     maestroUid = user.uid
     await bootstrapMaestro(db, maestroUid, 'maestro.tasks@usm.cl', { apellido: 'Tasks' })
 

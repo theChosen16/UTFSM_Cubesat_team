@@ -7,23 +7,31 @@ const {
   mockGetDoc,
   mockSetDoc,
   mockDoc,
+  mockCreateUser,
+  mockSendEmailVerification,
+  mockUpdateAuthProfile,
 } = vi.hoisted(() => ({
   mockOnAuthStateChanged: vi.fn(),
   mockGetDoc: vi.fn(),
   mockSetDoc: vi.fn(),
   mockDoc: vi.fn(() => ({})),
+  mockCreateUser: vi.fn(),
+  mockSendEmailVerification: vi.fn(),
+  mockUpdateAuthProfile: vi.fn(),
 }))
 
 vi.mock('@/lib/firebase', () => ({
-  auth: {},
+  auth: { currentUser: null },
   db: {},
 }))
 
 vi.mock('firebase/auth', () => ({
   onAuthStateChanged: (...args: unknown[]) => mockOnAuthStateChanged(...args),
   signInWithEmailAndPassword: vi.fn(),
-  createUserWithEmailAndPassword: vi.fn(),
+  createUserWithEmailAndPassword: (...args: unknown[]) => mockCreateUser(...args),
   sendPasswordResetEmail: vi.fn(),
+  sendEmailVerification: (...args: unknown[]) => mockSendEmailVerification(...args),
+  updateProfile: (...args: unknown[]) => mockUpdateAuthProfile(...args),
   signOut: vi.fn(),
 }))
 
@@ -255,6 +263,117 @@ describe('AuthProvider', () => {
       })
 
       expect(mockSetDoc).not.toHaveBeenCalled()
+    })
+  })
+
+
+  // --------------------------------------------------------------------------------------
+  // Institutional-address verification.
+  //
+  // Firebase's sign-up endpoint neither verifies the address nor requires the caller to
+  // receive anything at it, so a `@usm.cl` claim on its own proved nothing. Membership is now
+  // gated on a VERIFIED address, and the profile document — which is what firestore.rules
+  // treats as "this account is a member" — is provisioned only once that holds.
+  // --------------------------------------------------------------------------------------
+  describe('email verification', () => {
+    function AuthActions() {
+      const { signUp, hasProfile, emailVerified } = useAuth()
+      return (
+        <div>
+          <span data-testid="has-profile">{String(hasProfile)}</span>
+          <span data-testid="verified">{String(emailVerified)}</span>
+          <button
+            onClick={() => void signUp('nueva.persona@usm.cl', 'Passw0rd!', 'Nueva', 'Persona')}
+          >
+            registrar
+          </button>
+        </div>
+      )
+    }
+
+    it('sends the verification e-mail at registration and writes no profile yet', async () => {
+      mockOnAuthStateChanged.mockImplementation(() => () => undefined)
+      const newUser = { uid: 'new-1', email: 'nueva.persona@usm.cl' }
+      mockCreateUser.mockResolvedValue({ user: newUser })
+      mockUpdateAuthProfile.mockResolvedValue(undefined)
+      mockSendEmailVerification.mockResolvedValue(undefined)
+
+      render(
+        <AuthProvider>
+          <AuthActions />
+        </AuthProvider>
+      )
+
+      await act(async () => {
+        screen.getByText('registrar').click()
+      })
+
+      expect(mockSendEmailVerification).toHaveBeenCalledWith(newUser)
+      expect(mockUpdateAuthProfile).toHaveBeenCalledWith(newUser, { displayName: 'Nueva Persona' })
+      // No membership document is created for an address nobody has proven they own.
+      expect(mockSetDoc).not.toHaveBeenCalled()
+    })
+
+    const signInAs = async (fbUser: Record<string, unknown>, docExists: boolean) => {
+      let handler: ((user: Record<string, unknown> | null) => Promise<void> | void) | undefined
+      mockOnAuthStateChanged.mockImplementation((_auth: unknown, callback: typeof handler) => {
+        handler = callback
+        return () => undefined
+      })
+      mockGetDoc.mockResolvedValue({ exists: () => docExists, data: () => ({}) })
+
+      render(
+        <AuthProvider>
+          <AuthActions />
+        </AuthProvider>
+      )
+
+      await act(async () => {
+        await handler?.(fbUser)
+      })
+    }
+
+    it('provisions the workspace profile on the first verified sign-in', async () => {
+      mockSetDoc.mockResolvedValue(undefined)
+
+      await signInAs(
+        {
+          uid: 'verified-1',
+          email: 'nueva.persona@usm.cl',
+          displayName: 'Nueva Persona',
+          emailVerified: true,
+        },
+        false
+      )
+
+      expect(mockSetDoc).toHaveBeenCalledTimes(1)
+      expect(mockSetDoc.mock.calls[0][1]).toMatchObject({
+        email: 'nueva.persona@usm.cl',
+        nombre: 'Nueva',
+        apellido: 'Persona',
+        isActive: true,
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('has-profile')).toHaveTextContent('true')
+      })
+    })
+
+    it('provisions nothing while the address is still unverified', async () => {
+      await signInAs(
+        {
+          uid: 'unverified-1',
+          email: 'nueva.persona@usm.cl',
+          displayName: 'Nueva Persona',
+          emailVerified: false,
+        },
+        false
+      )
+
+      expect(mockSetDoc).not.toHaveBeenCalled()
+      await waitFor(() => {
+        expect(screen.getByTestId('has-profile')).toHaveTextContent('false')
+        expect(screen.getByTestId('verified')).toHaveTextContent('false')
+      })
     })
   })
 })

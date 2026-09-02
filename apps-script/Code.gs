@@ -493,9 +493,14 @@ function handleChat(params) {
   const responseText = response.getContentText();
 
   if (responseCode !== 200) {
+    // The upstream body is NOT relayed to the caller. Gemini error payloads echo back request
+    // metadata and provider-side details that only help someone probing this proxy; the client
+    // has no use for them beyond the status code, and everything here is reachable by any
+    // member holding the shared secret. The full text is kept in the Apps Script execution log
+    // for the owner instead.
+    console.error('Gemini API error ' + responseCode + ': ' + responseText);
     return {
-      error: 'Gemini API returned status ' + responseCode,
-      details: responseText
+      error: 'Gemini API returned status ' + responseCode
     };
   }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth'
+import { signOut } from 'firebase/auth'
 import { doc, setDoc, getDoc } from 'firebase/firestore'
-import { getTestFirebase, clearFirestoreData, clearAuthUsers } from '../emulator-config'
+import { getTestFirebase, clearFirestoreData, clearAuthUsers, createVerifiedUser } from '../emulator-config'
 
 describe('Profile E2E', () => {
   const { auth, db } = getTestFirebase()
@@ -11,7 +11,7 @@ describe('Profile E2E', () => {
     await clearFirestoreData()
     await clearAuthUsers()
 
-    const { user } = await createUserWithEmailAndPassword(auth, 'profile.test@usm.cl', 'Pass123!')
+    const { user } = await createVerifiedUser(auth, 'profile.test@usm.cl', 'Pass123!')
     userUid = user.uid
     await setDoc(doc(db, 'users', userUid), {
       email: 'profile.test@usm.cl',
@@ -100,7 +100,7 @@ describe('Profile E2E', () => {
     // Create a second user. A user self-creates only a non-privileged profile
     // (rol cannot be self-assigned on create under the hardened rules).
     await signOut(auth)
-    const { user: other } = await createUserWithEmailAndPassword(auth, 'other.profile@usm.cl', 'Pass123!')
+    const { user: other } = await createVerifiedUser(auth, 'other.profile@usm.cl', 'Pass123!')
     await setDoc(doc(db, 'users', other.uid), {
       email: 'other.profile@usm.cl',
       nombre: 'Other',
