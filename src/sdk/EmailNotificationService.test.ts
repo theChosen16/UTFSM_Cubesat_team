@@ -239,4 +239,35 @@ describe('EmailNotificationService', () => {
     expect(log!.tasksCount).toBe(10)
     expect(log!.recipients).toEqual(['a@usm.cl', 'b@usm.cl'])
   })
+  /**
+   * Every untrusted field interpolated into the digest is escaped — except `fechaInicio`, which
+   * was returned raw whenever it could not be formatted. It is workspace-writable text (managers
+   * set it, and the assistant writes it from model output), and this HTML is mailed to every
+   * active member, so an unparseable value was an unescaped injection point in an outbound mail.
+   */
+  it('escapes an unparseable event date instead of interpolating it raw', async () => {
+    const { EmailNotificationService } = await import('@/sdk/EmailNotificationService')
+
+    const events = [
+      {
+        id: 'ev1',
+        titulo: 'Revisión',
+        descripcion: 'x',
+        fechaInicio: '<img src=x onerror="alert(1)">',
+        tipo: 'reunion',
+        creadoPor: 'admin',
+        createdAt: new Date(),
+      },
+    ]
+
+    const html = EmailNotificationService.generateHTMLTemplate('Constanza', {
+      upcomingEvents: events as any,
+      completedTasks: [],
+      inProgressTasks: [],
+      newTasks: [],
+    })
+
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('&lt;img src=x onerror=&quot;alert(1)&quot;&gt;')
+  })
 })

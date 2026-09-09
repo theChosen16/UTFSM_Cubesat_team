@@ -46,14 +46,36 @@ service cloud.firestore {
     // the same fully ANCHORED pattern as the system_config gate, so look-alike domains such
     // as `eve@usm.cl.evil.com` are rejected (matches() is not implicitly anchored).
     //
-    // Note: this restricts the domain but intentionally does NOT require email_verified,
-    // to avoid locking out existing email/password members who have not verified. Requiring
-    // verified institutional emails end-to-end (as the Apps Script bridge already does) is
-    // the recommended hardening once an in-app verification flow exists.
-    function isInstitutional() {
+    // The domain half of the boundary: the address *looks* institutional.
+    function isInstitutionalDomain() {
       return request.auth != null &&
         request.auth.token.email is string &&
         request.auth.token.email.lower().matches('^[a-z0-9._%+-]+@(sansano[.])?usm[.]cl$');
+    }
+
+    // The full boundary: the address is institutional AND its owner proved they control it.
+    //
+    // The domain check alone was never a membership proof. Firebase's email/password sign-up
+    // does not verify the address, so `createUserWithEmailAndPassword` with ANY string that
+    // matches the pattern minted a fully-privileged workspace account: nobody has to receive a
+    // single mail at that address. An outsider who picked `rector@usm.cl`, or a plausible
+    // `nombre.apellido@sansano.usm.cl`, thereby obtained read access to every task, project,
+    // file record, post, event and member profile of a workspace whose whole premise is that it
+    // is private — plus write access to the feed and the project chats, under the *name of the
+    // real person whose address they claimed*, since the client derives the display name from
+    // the email local part. It is the cheapest possible path past every other rule in this file.
+    //
+    // The previous revision documented this gap and deferred it "until an in-app verification
+    // flow exists", to avoid locking out members who had never verified. That flow now exists:
+    // AuthContext sends the verification mail at sign-up, and ProtectedRoute blocks the whole
+    // app behind a self-service gate (resend + re-check) for anyone still unverified — so a
+    // legacy member is one click away from passing this check rather than locked out, and the
+    // check can finally hold where it matters. The Apps Script bridge has required a verified
+    // token all along (verifyIdTokenViaIdentityToolkit_), so this also brings the two halves of
+    // the platform back into agreement instead of leaving uploads and the bot fail-closed for
+    // exactly the accounts Firestore was still admitting.
+    function isInstitutional() {
+      return isInstitutionalDomain() && request.auth.token.email_verified == true;
     }
 
     // Truthfulness check for the display name attached to a notification.
@@ -157,7 +179,51 @@ service cloud.firestore {
           (request.resource.data.portfolioImages is list &&
             request.resource.data.portfolioImages.size() <= 8)) &&
         (!('equipos' in request.resource.data) ||
-          (request.resource.data.equipos is list && request.resource.data.equipos.size() <= 2));
+          (request.resource.data.equipos is list && request.resource.data.equipos.size() <= 2)) &&
+        // The remaining self-writable fields had no ceiling at all, which left the profile
+        // bounded only where someone had thought to look. 'socialLinks' and 'questionnaire' are
+        // free-text MAPS (Profile.tsx and the onboarding questionnaire save them verbatim from
+        // text inputs) and were the largest hole: unbounded strings under a key the allowlist
+        // explicitly permits, i.e. the same storage/egress-abuse vector the caps above exist to
+        // close, reachable in one write. 'career', 'year' and 'fechaCumpleanos' are short
+        // enumerable values in every real flow, so a generous ceiling costs nothing.
+        //
+        // (Rules cannot iterate a list, so the per-ELEMENT size of 'portfolioImages' stays
+        // unbounded by construction; the array length above plus Firestore's own 1 MiB document
+        // ceiling is the bound available here. See SECURITY.md.)
+        isBoundedSocialLinks() &&
+        isBoundedQuestionnaire() &&
+        (!('career' in request.resource.data) ||
+          (request.resource.data.career is string && request.resource.data.career.size() <= 120)) &&
+        (!('year' in request.resource.data) ||
+          (request.resource.data.year is string && request.resource.data.year.size() <= 20)) &&
+        (!('fechaCumpleanos' in request.resource.data) ||
+          (request.resource.data.fechaCumpleanos is string &&
+            request.resource.data.fechaCumpleanos.size() <= 40));
+    }
+
+    function isBoundedSocialLinks() {
+      let links = request.resource.data.get('socialLinks', {});
+      return !('socialLinks' in request.resource.data) || (
+        links is map &&
+        links.keys().hasOnly(['linkedin', 'github', 'website']) &&
+        links.get('linkedin', '') is string && links.get('linkedin', '').size() <= 500 &&
+        links.get('github', '') is string && links.get('github', '').size() <= 500 &&
+        links.get('website', '') is string && links.get('website', '').size() <= 500
+      );
+    }
+
+    function isBoundedQuestionnaire() {
+      let q = request.resource.data.get('questionnaire', {});
+      return !('questionnaire' in request.resource.data) || (
+        q is map &&
+        q.keys().hasOnly(['intereses', 'habilidades', 'motivacion', 'disponibilidad', 'proyectosPrevios']) &&
+        q.get('intereses', '') is string && q.get('intereses', '').size() <= 2000 &&
+        q.get('habilidades', '') is string && q.get('habilidades', '').size() <= 2000 &&
+        q.get('motivacion', '') is string && q.get('motivacion', '').size() <= 2000 &&
+        q.get('disponibilidad', '') is string && q.get('disponibilidad', '').size() <= 2000 &&
+        q.get('proyectosPrevios', '') is string && q.get('proyectosPrevios', '').size() <= 2000
+      );
     }
 
     // Vertical privilege boundary between 'admin' and 'maestro'.
@@ -202,18 +268,27 @@ service cloud.firestore {
       // The first maestro is now provisioned out-of-band from the Firebase console (server-side
       // writes bypass these rules), which is a one-time operator action and cannot be replayed
       // by a client. See SECURITY.md → "Provisioning the first maestro".
-      allow create: if isInstitutional() &&
+      //
+      // This is the ONE write that deliberately runs on `isInstitutionalDomain()` rather than
+      // the verified `isInstitutional()`: AuthContext.signUp writes the profile in the same
+      // breath as creating the account, before the verification mail can possibly have been
+      // opened. The document it creates carries no privilege (roles are rejected outright, the
+      // 'manager' team cannot be self-assigned and the size caps apply), so admitting it
+      // unverified grants nothing — while every other collection, and every other operation on
+      // this one, still requires a verified address.
+      allow create: if isInstitutionalDomain() &&
         request.auth.uid == userId &&
         !request.resource.data.keys().hasAny(['rol', 'roles']) &&
         (!('isActive' in request.resource.data) || request.resource.data.isActive == true) &&
         (!('equipos' in request.resource.data) || !('manager' in request.resource.data.equipos)) &&
         isBoundedProfile();
 
-      allow read: if isInstitutional() && (
-        request.auth.uid == userId ||
-        hasRole('maestro') ||
-        hasRole('admin')
-      );
+      // Reading YOUR OWN profile is likewise allowed before verification: the client needs it to
+      // hydrate the session and render the verification gate, and it exposes nothing that the
+      // caller did not write. Reading anyone ELSE's profile (the admin/maestro branch) requires
+      // a verified address like the rest of the workspace.
+      allow read: if (isInstitutionalDomain() && request.auth.uid == userId) ||
+        (isInstitutional() && (hasRole('maestro') || hasRole('admin')));
 
       // Maestro can update any field on any user document (including roles).
       // Admin can manage regular members but may NOT grant/revoke roles and may not modify a
@@ -257,27 +332,83 @@ service cloud.firestore {
         // perfil solo ocurra en escrituras que ya pasaron el resto de las validaciones.
         isTruthfulSenderName();
 
-      // Users can update or delete their own notifications (e.g., mark as read / dismiss)
-      allow update, delete: if isInstitutional() &&
+      // Users can delete their own notifications (dismiss).
+      allow delete: if isInstitutional() &&
         resource.data.recipientId == request.auth.uid;
+
+      // ...and may only ever flip the read flag on them.
+      //
+      // The previous rule allowed the recipient to update ANY field, which handed back every
+      // impersonation guarantee the create rule above establishes. The create path pins
+      // `senderId` to the caller, forces `senderName` to match the caller's own profile
+      // (isTruthfulSenderName) and reserves `type: 'system'` for workspace managers — but all
+      // three are checked ONLY on create, and `recipientId` was not immutable on update. So any
+      // member could: (1) create a perfectly legitimate `message` notification addressed to
+      // THEMSELVES, then (2) update that same document — the rule was satisfied, they are still
+      // the recipient at the time of the write — rewriting `recipientId` to a victim's uid,
+      // `type` to 'system', `senderName` to "Maestro USM CubeSat" and title/message to anything.
+      // The victim's inbox then renders an official-looking platform alert from an authority
+      // figure, which is precisely the in-app phishing setup ("sube el acta a este enlace",
+      // "confirma tu clave") that the create-side hardening was written to prevent. The size
+      // caps were create-only too, so the same write could grow the document without bound.
+      //
+      // The only update any shipped client performs is NotificationService.markAsRead
+      // ({ read: true }); dismissal is a delete. Restricting the write to that single key closes
+      // the hole without touching a real flow.
+      allow update: if isInstitutional() &&
+        resource.data.recipientId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) &&
+        request.resource.data.read is bool;
     }
 
     match /projects/{projectId} {
       // Institutional members can read projects (private team tool — the boundary is enforced
       // here, not only in the client). Managers create/update; deletion is maestro-only.
       allow read: if isInstitutional();
-      allow create, update: if isInstitutional() && canManageWorkspace();
+      // Same size discipline as /tasks and /events (ProjectService.create writes these fields
+      // verbatim); the client schema already caps `nombre` at 80 characters.
+      allow create, update: if isInstitutional() && canManageWorkspace() &&
+        (!('nombre' in request.resource.data) ||
+          (request.resource.data.nombre is string && request.resource.data.nombre.size() <= 300)) &&
+        (!('descripcion' in request.resource.data) ||
+          (request.resource.data.descripcion is string && request.resource.data.descripcion.size() <= 5000));
       allow delete: if isInstitutional() &&
         hasRole('maestro');
+    }
+
+    // Cotas de forma/tamaño para el documento de tarea en la ruta de manager (ver /tasks).
+    function isBoundedTask() {
+      return (!('titulo' in request.resource.data) ||
+          (request.resource.data.titulo is string && request.resource.data.titulo.size() <= 300)) &&
+        (!('descripcion' in request.resource.data) ||
+          (request.resource.data.descripcion is string && request.resource.data.descripcion.size() <= 5000)) &&
+        (!('asignadoA' in request.resource.data) ||
+          (request.resource.data.asignadoA is list && request.resource.data.asignadoA.size() <= 100)) &&
+        (!('hitos' in request.resource.data) ||
+          (request.resource.data.hitos is list && request.resource.data.hitos.size() <= 100)) &&
+        (!('deliverables' in request.resource.data) ||
+          (request.resource.data.deliverables is list && request.resource.data.deliverables.size() <= 50)) &&
+        (!('progressUpdates' in request.resource.data) ||
+          (request.resource.data.progressUpdates is list && request.resource.data.progressUpdates.size() <= 200)) &&
+        (!('attachmentIds' in request.resource.data) ||
+          (request.resource.data.attachmentIds is list && request.resource.data.attachmentIds.size() <= 100));
     }
 
     match /tasks/{taskId} {
       // Institutional members can read tasks (private team tool). Managers create;
       // assignees may update a restricted field set (guarded below); deletion is maestro-only.
       allow read: if isInstitutional();
-      allow create: if isInstitutional() && canManageWorkspace();
+      // Shape/size caps on the manager path, for the same reason /events carries them: tasks are
+      // ALSO created programmatically by the assistant from model output — AdminActionsService
+      // .crearTarea writes `titulo`/`descripcion` straight from the tool arguments, and
+      // .auditarActaDrive derives a whole batch of them from the text of an uploaded document —
+      // so an admin turn steered by a manipulated acta could persist arbitrarily large task
+      // documents. The /events rule was capped on exactly this reasoning while /tasks, the
+      // busier of the two write paths, was left unbounded. Limits are far above anything the
+      // client Zod schema (titulo <= 100) or the UI produces.
+      allow create: if isInstitutional() && canManageWorkspace() && isBoundedTask();
       allow update: if isInstitutional() && (
-        canManageWorkspace() ||
+        (canManageWorkspace() && isBoundedTask()) ||
         (
           resource.data.asignadoA is list &&
           request.auth.uid in resource.data.asignadoA &&
@@ -364,7 +495,24 @@ service cloud.firestore {
         request.resource.data.description is string &&
         request.resource.data.description.size() <= 2000 &&
         (!('relatedId' in request.resource.data) ||
-          (request.resource.data.relatedId is string && request.resource.data.relatedId.size() <= 300));
+          (request.resource.data.relatedId is string && request.resource.data.relatedId.size() <= 300)) &&
+        // The remaining fields were uncapped, so bounding only `description`/`relatedId` bounded
+        // nothing in practice: `metadata` is a free-form map the client fills at every call site
+        // (and the assistant fills from model output), and the id fields are plain strings. The
+        // log is append-only and world-readable inside the workspace, so an oversized entry is
+        // permanent, replicated to every member's Dashboard/Members query, and cannot be pruned
+        // by anyone but the operator. Rules cannot measure a nested map, so `metadata` is bounded
+        // by its key count and the document by its total key count — enough to stop the abuse
+        // shape (a few enormous keys, or hundreds of them) without constraining any real entry.
+        request.resource.data.keys().size() <= 15 &&
+        (!('metadata' in request.resource.data) ||
+          (request.resource.data.metadata is map && request.resource.data.metadata.keys().size() <= 20)) &&
+        (!('taskId' in request.resource.data) ||
+          (request.resource.data.taskId is string && request.resource.data.taskId.size() <= 300)) &&
+        (!('projectId' in request.resource.data) ||
+          (request.resource.data.projectId is string && request.resource.data.projectId.size() <= 300)) &&
+        (!('deliverableId' in request.resource.data) ||
+          (request.resource.data.deliverableId is string && request.resource.data.deliverableId.size() <= 300));
     }
 
     match /files/{fileId} {
@@ -427,10 +575,23 @@ service cloud.firestore {
       // registered members, whose addresses are institutional by construction, so the recipient
       // is constrained to the same anchored institutional pattern used everywhere else and the
       // payload is size-capped.
+      //
+      // Constraining `to` closed exactly ONE of the recipient fields the extension honours. It
+      // also resolves `cc`, `bcc`, `toUids`, `ccUids` and `bccUids`, and acts on `from`,
+      // `replyTo`, `headers`, `template` and `message.attachments` — whose `path`/`href` form
+      // makes the extension FETCH AN ARBITRARY URL and attach it. So the institutional-recipient
+      // check was decorative: a manager could enqueue an institutional `to` alongside
+      // `bcc: ['victima@example.com']` and deliver their own HTML to any address on earth from
+      // the team's SMTP identity, with its SPF/DKIM and a spoofable `from`. Blocking those field
+      // names one by one is a losing game against an extension whose schema can grow, so the rule
+      // instead pins the DOCUMENT SHAPE to exactly what the only legitimate producer writes
+      // (EmailNotificationService.sendWeeklyDigest → `to`, `message.{subject,html}`, `createdAt`).
       allow create: if isInstitutional() && canManageWorkspace() &&
+        request.resource.data.keys().hasOnly(['to', 'message', 'createdAt']) &&
         request.resource.data.to is string &&
         request.resource.data.to.lower().matches('^[a-z0-9._%+-]+@(sansano[.])?usm[.]cl$') &&
         request.resource.data.message is map &&
+        request.resource.data.message.keys().hasOnly(['subject', 'html', 'text']) &&
         (!('subject' in request.resource.data.message) ||
           (request.resource.data.message.subject is string &&
             request.resource.data.message.subject.size() <= 300)) &&
@@ -531,9 +692,14 @@ service cloud.firestore {
       );
       // Update keeps the same content size cap as create to bound storage/egress abuse, and
       // pins 'authorId' so a comment can never be re-attributed to another member.
+      // 'postId' is pinned for the mirror-image reason: leaving it writable let an author move
+      // an existing comment onto a DIFFERENT post after the fact, so text written (and read, and
+      // possibly reacted to) in one thread reappears under another — the same "content ends up
+      // somewhere its author never put it" problem the authorId pin solves in the other axis.
       allow update: if isInstitutional() &&
         (resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')) &&
         request.resource.data.get('authorId', '') == resource.data.get('authorId', '') &&
+        request.resource.data.get('postId', '') == resource.data.get('postId', '') &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
     }
@@ -552,10 +718,13 @@ service cloud.firestore {
         resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
       // Update keeps the same content size cap as create to bound storage/egress abuse, and
-      // pins 'senderId' so a message can never be re-attributed to another member.
+      // pins 'senderId' so a message can never be re-attributed to another member. 'projectId'
+      // is pinned for the same reason 'postId' is on /comments: without it a member could move
+      // an existing message into a different project's chat after the fact.
       allow update: if isInstitutional() &&
         (resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')) &&
         request.resource.data.get('senderId', '') == resource.data.get('senderId', '') &&
+        request.resource.data.get('projectId', '') == resource.data.get('projectId', '') &&
         (!('content' in request.resource.data) ||
           (request.resource.data.content is string && request.resource.data.content.size() <= 5000)) &&
         (!('fileUrls' in request.resource.data) ||

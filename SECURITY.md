@@ -49,7 +49,8 @@ This project implements the following security practices:
 - **Rule helpers must not dereference missing fields**: `hasRole()` and `hasTeam()` now read through `data.get(field, default)`. Dereferencing an absent field (`userData.rol`, `userData.equipos`) raises an *evaluation error* in Firestore rules rather than yielding false, and an erroring sub-expression poisons the whole condition. Since registration writes neither `roles` nor `equipos`, that was the default state of every new account — and because `canManageWorkspace()` evaluates `hasTeam('manager')` first, a legitimate maestro/admin without an `equipos` array was denied every manager-gated write (creating tasks, projects and events, enqueuing mail). The authorization boundary was failing on well-formed data instead of on actual privileges.
 - **Admin/maestro vertical boundary**: `admin` may manage regular members but can no longer grant or revoke roles, nor modify a user who already holds an elevated role. Previously the rules gave admins a blanket update on any user document, so any admin could write `rol: 'maestro'` onto their own profile to take over the workspace, or demote/deactivate the real maestro — contradicting both the documented policy and the client-side guard in `AuthContext.updateUserRole` (which is UX, not a boundary).
 - **Firestore rules as the authorization boundary**: All privileged operations are enforced server-side by `firestore.rules`, not by the client. Notable hardening:
-  - **Institutional-membership boundary**: the private workspace collections (`projects`, `tasks`, `files`, `events`, `activity_log`, `mail_digests`, `posts`, `comments`, `project_messages`) are readable/writable only by accounts whose token email matches the institutional domain (fully **anchored** regex, so `eve@usm.cl.evil.com` is rejected). The `@usm.cl` restriction in the registration form is only UX — an attacker can register any address straight against the Firebase Auth REST API — so the boundary is enforced in the rules via a shared `isInstitutional()` helper (token-claim only, no extra document reads). *Residual risk / recommended next step:* the helper checks the domain but not `email_verified`, to avoid locking out existing unverified email/password members; requiring verified institutional emails end-to-end (as the Apps Script bridge already does) is the recommended hardening once an in-app verification flow exists.
+  - **Institutional-membership boundary**: the private workspace collections (`projects`, `tasks`, `files`, `events`, `activity_log`, `mail_digests`, `posts`, `comments`, `project_messages`) are readable/writable only by accounts whose token email matches the institutional domain (fully **anchored** regex, so `eve@usm.cl.evil.com` is rejected). The `@usm.cl` restriction in the registration form is only UX — an attacker can register any address straight against the Firebase Auth REST API — so the boundary is enforced in the rules via a shared `isInstitutional()` helper (token-claim only, no extra document reads).
+  - **Verified institutional membership** *(closes the residual risk previously noted here)*: `isInstitutional()` now requires `request.auth.token.email_verified == true`, not just the domain. Firebase's email/password sign-up never checks that the person registering can receive mail at the address they typed, so the domain check alone was a claim anyone could make: registering `rector@usm.cl`, or a colleague's `nombre.apellido@sansano.usm.cl`, was enough to read every task, project, file record, post, event and member profile of a workspace whose entire premise is that it is private — and to write in the feed and project chats under that person's name, since the display name is derived from the email local part. It was the cheapest path past every other rule in the file. Enforcement is now paired with the in-app flow that makes it safe for members who registered before it existed: `AuthContext.signUp` sends the verification mail, and `ProtectedRoute` blocks the app behind a self-service gate (resend + re-check, which forces `getIdToken(true)` because the rules read the claim off the **token**, not off the Auth record). The one deliberate exception is creating and reading your **own** role-less profile, which sign-up must do before the mail can possibly have been opened; it carries no privilege, and every other operation on `/users` still requires a verified address. This also realigns Firestore with the Apps Script bridge, which has required a verified token all along.
   - The institutional-email gate on `system_config` (which holds the Drive shared secret) uses the same anchored helper, so look-alike attacker-controlled domains such as `eve@usm.cl.evil.com` cannot read the secret.
   - Social `posts` likes can only be toggled for the caller's **own** uid (validated via a symmetric-difference check on `likedBy` plus a `likesCount` integrity check), preventing tampering with other users' likes or counts.
   - `notifications` are constrained to the known `NotificationType` set with size-capped `title`/`message`. The `system` type — which renders as an official platform alert — is reserved for workspace managers (`canManageWorkspace()`); a regular member can no longer forge `system`-style in-app phishing alerts.
@@ -146,6 +147,76 @@ This project implements the following security practices:
   impersonate real ones). Both are now matched against a document-id pattern and fall back to
   `general/` otherwise. Oversized uploads are also rejected on the *encoded* length, before the
   blob is decoded into the script's memory and before any Drive I/O.
+- **Notification integrity after creation**: the `notifications` create rule pins `senderId`,
+  forces a truthful `senderName` and reserves `type: 'system'` for workspace managers — but all
+  three ran **only on create**, and the recipient could update any field, `recipientId` included.
+  A member could therefore address a perfectly legitimate `message` notification to themselves and
+  then *update* it (the rule was satisfied: they were still the recipient at the time of the
+  write), re-pointing it at a colleague as an official-looking `system` alert signed "Maestro USM
+  CubeSat" — every impersonation guarantee bypassed, and the size caps with them. The recipient
+  may now change only the `read` flag, which is the single update any shipped client performs
+  (`NotificationService.markAsRead`); dismissal remains a delete.
+- **`/mail` is not an open relay**: constraining `to` closed exactly one of the recipient fields
+  the Firebase *Trigger Email* extension honours. It also resolves `cc`, `bcc`, `toUids`, `ccUids`
+  and `bccUids`, and acts on `from`, `replyTo`, `headers`, `template` and `message.attachments` —
+  whose `path` / `href` form makes the extension **fetch an arbitrary URL** and attach it. A
+  `manager` (a self-service *team* any admin can grant, not a vetted role) could therefore enqueue
+  an institutional `to` alongside `bcc: ['victima@example.com']` and deliver their own HTML to any
+  address on earth from the team's SMTP identity, with its SPF/DKIM and a spoofable `from`.
+  Blocking field names one at a time loses against an extension whose schema can grow, so the rule
+  now pins the **document shape** to exactly what the only legitimate producer writes
+  (`EmailNotificationService.sendWeeklyDigest`: `to`, `message.{subject,html,text}`, `createdAt`).
+- **Avatars cannot become tracking beacons**: `img-src` was `'self' data: https:`, while
+  `photoURL`, `posts.imageUrls`, `portfolioImages` and `project_messages.fileUrls` are
+  self-writable free-text fields that the clients only ever fill with `data:` URLs. Any member
+  could point their own avatar at a URL they control and turn Members, Feed, Dashboard and the
+  project chat into a beacon logging every teammate's IP, user-agent and visit time — passively,
+  just by being listed. `img-src` is now `'self' data:`, which covers every image the app actually
+  renders (bundled assets and client-built data URLs).
+- **Content cannot be relocated after the fact**: `comments.postId` and
+  `project_messages.projectId` are pinned on update, the mirror image of the existing `authorId` /
+  `senderId` pins. Without them an author could move an existing comment or message onto a
+  different post or project chat after it had been written and read.
+- **Bounded assistant-written documents**: `tasks` (create and the manager update path) and
+  `projects` now carry the same size/shape caps `events` already had, and for the same reason —
+  `AdminActionsService.crearTarea` and `.auditarActaDrive` write these fields straight from model
+  output, often derived from an uploaded document, so the rules bound what one manipulated
+  assistant turn can persist. The busier of the two write paths was the uncapped one.
+- **Bounded audit entries**: `activity_log` capped `description` and `relatedId` while `metadata`
+  stayed a free-form map with no ceiling, which made the other caps decorative. Entries are now
+  bounded by total key count, by `metadata` key count (rules cannot measure a nested map's bytes)
+  and on the `taskId` / `projectId` / `deliverableId` fields. The log is append-only, permanent
+  and read by every member's Dashboard/Members query, so an oversized entry cannot be pruned by
+  anyone but the operator.
+- **Fully bounded profiles**: `socialLinks` and `questionnaire` are free-text **maps** in the
+  self-update allowlist and had no ceiling at all — the profile was bounded everywhere someone had
+  thought to look, and unbounded here. Both are now key-allowlisted and per-field size-capped,
+  alongside `career`, `year` and `fechaCumpleanos`. *Known limitation:* rules cannot iterate a
+  list, so the per-element size of `portfolioImages` stays bounded only by the array length (8)
+  and Firestore's own 1 MiB document ceiling.
+- **AI proxy cost controls cannot be bypassed by the caller's config**: the chat proxy used to
+  forward `params.generationConfig` verbatim and then clamp a single field. `maxOutputTokens`
+  bounds one *candidate*, not the request: a caller who kept it at the cap and asked for
+  `candidateCount: 8` got eight times the tokens the clamp exists to prevent, per call, within the
+  rate limit — and since the shared secret reaches every member's browser, "the caller" is anyone
+  who can read it. The config is now **rebuilt from an allowlist** (clamped `maxOutputTokens` and
+  `temperature`, `candidateCount` pinned to 1, everything else dropped), and `contents` must be a
+  non-empty array within a turn cap instead of merely being truthy.
+- **Validated assistant tool arguments**: tool arguments are written by the *model*, not the
+  person, and may have been influenced by an attached document. `registrarCumpleanos` and
+  `gestionarCubeDesign` are the only actions that write to **another** user's document, so
+  `miembroId` is matched against a document-id pattern (the Firestore SDK joins path segments with
+  `/`, so a value containing slashes addresses a different path than intended) and `fecha` against
+  the `MM-DD` / `YYYY-MM-DD` formats the tool declares — both before any Firestore call. The
+  proxy-mode declaration of `auditarActaDrive` was also realigned with the parameters the action
+  actually consumes, so undefined arguments no longer reach a bulk-write action.
+- **Escaped digest output**: every untrusted field interpolated into the weekly digest is escaped;
+  the event-date helper returned its input **raw** when it could not be formatted, which was an
+  unescaped injection point in HTML mailed to every active member.
+- **Dependency hygiene**: the production dependency tree is clean (`npm audit --omit=dev`) after
+  raising the `fast-uri` override past the host-confusion / SSRF advisories. The remaining
+  moderate advisories are dev-only and live inside `firebase-tools`' transitive tree, where the
+  available fixes are breaking; they never reach the shipped bundle.
 - **Branch protection**: Main branch requires pull request reviews before merging
 
 ## Response Time

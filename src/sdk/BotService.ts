@@ -555,11 +555,20 @@ IMPORTANTE: Siempre invoca la función respectiva ante estas solicitudes del adm
                 name: 'auditarActaDrive',
                 description: 'Audita y procesa un acta o minuta de reunión resumida del equipo de Google Drive para poblar Firestore con tareas y reuniones masivas.',
                 parameters: {
+                  // Debe declarar los MISMOS parámetros que consume AdminActionsService
+                  // .auditarActaDrive (`fechaActa`, `acuerdosResumen`) y que declara la rama de
+                  // modo directo. Esta rama —la que corre en producción— declaraba en su lugar un
+                  // único `actaTexto`, así que el modelo nunca podía entregar los campos que la
+                  // acción lee: `acuerdosResumen` llegaba `undefined` y el acta se procesaba
+                  // vacía, mientras la descripción de cada documento creado se redactaba con
+                  // "fecha undefined". Alinear la declaración evita que argumentos indefinidos
+                  // lleguen a una acción que escribe en el espacio de trabajo compartido.
                   type: 'OBJECT',
                   properties: {
-                    actaTexto: { type: 'STRING', description: 'El fragmento de texto o acuerdos contenidos en el acta de reunión.' }
+                    fechaActa: { type: 'STRING', description: 'La fecha de la reunión o acta en formato YYYY-MM-DD.' },
+                    acuerdosResumen: { type: 'STRING', description: 'El bloque de texto con los acuerdos de la reunión del Drive para procesar.' }
                   },
-                  required: ['actaTexto']
+                  required: ['fechaActa', 'acuerdosResumen']
                 }
               },
               {

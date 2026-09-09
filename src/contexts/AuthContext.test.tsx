@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 
@@ -7,11 +7,15 @@ const {
   mockGetDoc,
   mockSetDoc,
   mockDoc,
+  mockCreateUser,
+  mockSendEmailVerification,
 } = vi.hoisted(() => ({
   mockOnAuthStateChanged: vi.fn(),
   mockGetDoc: vi.fn(),
   mockSetDoc: vi.fn(),
   mockDoc: vi.fn(() => ({})),
+  mockCreateUser: vi.fn(),
+  mockSendEmailVerification: vi.fn(),
 }))
 
 vi.mock('@/lib/firebase', () => ({
@@ -22,8 +26,9 @@ vi.mock('@/lib/firebase', () => ({
 vi.mock('firebase/auth', () => ({
   onAuthStateChanged: (...args: unknown[]) => mockOnAuthStateChanged(...args),
   signInWithEmailAndPassword: vi.fn(),
-  createUserWithEmailAndPassword: vi.fn(),
+  createUserWithEmailAndPassword: (...args: unknown[]) => mockCreateUser(...args),
   sendPasswordResetEmail: vi.fn(),
+  sendEmailVerification: (...args: unknown[]) => mockSendEmailVerification(...args),
   signOut: vi.fn(),
 }))
 
@@ -255,6 +260,65 @@ describe('AuthProvider', () => {
       })
 
       expect(mockSetDoc).not.toHaveBeenCalled()
+    })
+  })
+  /**
+   * Firebase's email/password sign-up never checks that the person registering can receive mail
+   * at the address they typed, so "@usm.cl" alone was never proof of membership: anyone could
+   * claim a colleague's address — or the rector's — and walk into the private workspace under
+   * that name. `isInstitutional()` in firestore.rules now requires `email_verified`, and this is
+   * the mail that lets a legitimate member satisfy it.
+   */
+  describe('sign-up email verification', () => {
+    beforeEach(() => {
+      mockCreateUser.mockResolvedValue({ user: { uid: 'new-uid' } })
+      mockSendEmailVerification.mockResolvedValue(undefined)
+      mockSetDoc.mockResolvedValue(undefined)
+      mockOnAuthStateChanged.mockImplementation(() => () => {})
+    })
+
+    function renderSignUp() {
+      const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
+      return () => result.current.signUp
+    }
+
+    it('sends the verification mail after creating the profile', async () => {
+      const getSignUp = renderSignUp()
+
+      await act(async () => {
+        await getSignUp()('nueva.persona@usm.cl', 'Pass123!', 'Nueva', 'Persona')
+      })
+
+      expect(mockSetDoc).toHaveBeenCalled()
+      expect(mockSendEmailVerification).toHaveBeenCalledWith({ uid: 'new-uid' })
+    })
+
+    it('does not fail the registration when the verification mail cannot be sent', async () => {
+      // A transient mail failure must not leave the account created but the profile missing;
+      // the gate in ProtectedRoute can resend.
+      mockSendEmailVerification.mockRejectedValue(new Error('quota exceeded'))
+      const getSignUp = renderSignUp()
+
+      await act(async () => {
+        await expect(
+          getSignUp()('otra.persona@usm.cl', 'Pass123!', 'Otra', 'Persona')
+        ).resolves.toBeUndefined()
+      })
+
+      expect(mockSetDoc).toHaveBeenCalled()
+    })
+
+    it('still refuses a non-institutional address before touching Firebase', async () => {
+      const getSignUp = renderSignUp()
+
+      await act(async () => {
+        await expect(
+          getSignUp()('intruso@gmail.com', 'Pass123!', 'Intruso', 'Externo')
+        ).rejects.toThrow(/correo institucional/i)
+      })
+
+      expect(mockCreateUser).not.toHaveBeenCalled()
+      expect(mockSendEmailVerification).not.toHaveBeenCalled()
     })
   })
 })
