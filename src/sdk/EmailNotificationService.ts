@@ -72,18 +72,24 @@ export class EmailNotificationService {
     const { upcomingEvents, completedTasks, inProgressTasks } = data
 
     // Formateador de fechas
+    // `fechaInicio` is workspace-writable text (managers set it, and the assistant writes it
+    // from model output), and this value is interpolated straight into the digest HTML. The
+    // formatted branch is safe, but the fallback returned the raw string — so a malformed date
+    // would be injected unescaped into a mail sent to every member. Escaped like every other
+    // untrusted field in this template.
     const formatDate = (isoString: string) => {
       try {
         const d = new Date(isoString)
-        return d.toLocaleDateString('es-CL', {
+        if (Number.isNaN(d.getTime())) return escapeHtml(isoString)
+        return escapeHtml(d.toLocaleDateString('es-CL', {
           weekday: 'long',
           day: 'numeric',
           month: 'long',
           hour: '2-digit',
           minute: '2-digit',
-        })
+        }))
       } catch {
-        return isoString
+        return escapeHtml(isoString)
       }
     }
 

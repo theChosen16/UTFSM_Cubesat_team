@@ -1,5 +1,11 @@
 import { initializeApp, getApps, deleteApp } from 'firebase/app'
-import { getAuth, connectAuthEmulator } from 'firebase/auth'
+import {
+  getAuth,
+  connectAuthEmulator,
+  createUserWithEmailAndPassword,
+  type Auth,
+  type UserCredential,
+} from 'firebase/auth'
 import {
   getFirestore,
   connectFirestoreEmulator,
@@ -53,6 +59,63 @@ export async function clearAuthUsers() {
   if (!response.ok) {
     throw new Error(`Failed to clear Auth users: ${response.statusText}`)
   }
+}
+
+/**
+ * Marks an account's email as verified through the Auth emulator's privileged REST endpoint —
+ * the emulator stand-in for the user clicking the link in their mailbox.
+ */
+export async function markEmailVerified(uid: string) {
+  // The emulator's privileged (Bearer owner) account-update endpoint is NOT project-scoped;
+  // the /projects/{id}/ form answers USER_NOT_FOUND for accounts created through the client SDK.
+  const response = await fetch(
+    'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:update',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer owner',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ localId: uid, emailVerified: true }),
+    }
+  )
+  if (!response.ok) {
+    throw new Error(`Failed to verify ${uid}: ${response.status} ${await response.text()}`)
+  }
+}
+
+/**
+ * Registers a member the way the real flow ends up: account created, verification link followed.
+ *
+ * `isInstitutional()` in the rules requires `email_verified` — an @usm.cl address alone was never
+ * proof of membership, since Firebase's email/password sign-up never checks that anyone can
+ * receive mail there. Fixtures therefore have to mint VERIFIED sessions to represent a real
+ * member, and the token has to be re-minted after flipping the flag: the rules read the claim off
+ * the ID token, and the cached one still says false.
+ */
+export async function createVerifiedUser(
+  auth: Auth,
+  email: string,
+  password: string
+): Promise<UserCredential> {
+  const credential = await createUserWithEmailAndPassword(auth, email, password)
+  await markEmailVerified(credential.user.uid)
+  await credential.user.reload()
+  await credential.user.getIdToken(true)
+  return credential
+}
+
+/**
+ * Registers an account WITHOUT following the verification link — i.e. exactly what an outsider
+ * gets by typing a plausible @usm.cl address into the sign-up form. Named explicitly so a test
+ * that relies on the unverified state says so.
+ */
+export function createUnverifiedUser(
+  auth: Auth,
+  email: string,
+  password: string
+): Promise<UserCredential> {
+  return createUserWithEmailAndPassword(auth, email, password)
 }
 
 /** Encodes a plain JS value into the Firestore REST `Value` representation. */

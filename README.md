@@ -551,3 +551,20 @@ Todo Pull Request debe cumplir **dos requisitos** antes de ser fusionado:
 ## Seguridad
 
 Consulta [SECURITY.md](./SECURITY.md) para conocer la política de seguridad del proyecto y cómo reportar vulnerabilidades de forma responsable.
+
+### Verificación de correo institucional
+
+El acceso a la plataforma exige una dirección `@usm.cl` / `@sansano.usm.cl` **verificada**: el
+dominio por sí solo nunca fue una prueba de pertenencia, porque el registro con correo y
+contraseña de Firebase no comprueba que quien se inscribe pueda recibir correo en la dirección
+que escribió.
+
+- Al registrarte, la plataforma envía automáticamente el correo de verificación.
+- Hasta que abras ese enlace verás una pantalla de verificación con las opciones **"Ya verifiqué
+  mi correo"** y **"Reenviar correo de verificación"**; el resto de la aplicación queda bloqueado.
+- Las reglas de Firestore leen la marca `email_verified` del **token de identidad**, no del
+  registro de Auth, por lo que la pantalla vuelve a emitir el token al comprobar el estado. Si
+  acabas de abrir el enlace, pulsa "Ya verifiqué mi correo" en vez de recargar a ciegas.
+
+Las cuentas creadas antes de esta medida no quedan bloqueadas: al iniciar sesión llegan a la misma
+pantalla y se verifican por sí mismas en un clic.

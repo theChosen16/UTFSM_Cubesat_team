@@ -1,11 +1,18 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest'
 import {
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, updateDoc, addDoc, collection, Timestamp } from 'firebase/firestore'
-import { getTestFirebase, clearFirestoreData, clearAuthUsers, adminSetDoc } from '../emulator-config'
+import { doc, setDoc, getDoc, getDocs, updateDoc, addDoc, collection, Timestamp } from 'firebase/firestore'
+import {
+  getTestFirebase,
+  clearFirestoreData,
+  clearAuthUsers,
+  adminSetDoc,
+  createVerifiedUser,
+  createUnverifiedUser,
+  markEmailVerified,
+} from '../emulator-config'
 
 /**
  * Validates the security-hardening rules added during the cybersecurity audit:
@@ -32,7 +39,7 @@ describe('Security rules — privilege escalation & integrity', () => {
    * Leaves the session signed in as the maestro.
    */
   async function bootstrapMaestro(email: string): Promise<string> {
-    const { user } = await createUserWithEmailAndPassword(auth, email, PW)
+    const { user } = await createVerifiedUser(auth, email, PW)
     await adminSetDoc(`users/${user.uid}`, {
       email,
       nombre: 'Master',
@@ -68,7 +75,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     // `rol: 'maestro'` because the lock named that uid. Any holder of an @usm.cl address could
     // therefore take over any deployment provisioned before the lock existed, or one where the
     // lock document had been deleted.
-    const { user } = await createUserWithEmailAndPassword(auth, 'firstever@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'firstever@usm.cl', PW)
 
     // The lock is no longer client-writable...
     await expectDenied(
@@ -106,7 +113,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     await bootstrapMaestro('boss1@usm.cl')
     await signOut(auth)
 
-    const { user } = await createUserWithEmailAndPassword(auth, 'attacker@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'attacker@usm.cl', PW)
     await expectDenied(
       setDoc(doc(db, 'users', user.uid), {
         email: 'attacker@usm.cl',
@@ -123,7 +130,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     await bootstrapMaestro('boss2@usm.cl')
     await signOut(auth)
 
-    const { user } = await createUserWithEmailAndPassword(auth, 'eve2@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'eve2@usm.cl', PW)
     await expectDenied(
       setDoc(doc(db, 'users', user.uid), {
         email: 'eve2@usm.cl',
@@ -140,7 +147,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     await bootstrapMaestro('boss3@usm.cl')
     await signOut(auth)
 
-    const { user } = await createUserWithEmailAndPassword(auth, 'reg@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'reg@usm.cl', PW)
     await setDoc(doc(db, 'users', user.uid), {
       email: 'reg@usm.cl',
       nombre: 'Reg',
@@ -158,7 +165,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     await bootstrapMaestro(maestroEmail)
 
     // Member registers (this signs in as the member) and creates a plain profile.
-    const { user: member } = await createUserWithEmailAndPassword(auth, 'member@usm.cl', PW)
+    const { user: member } = await createVerifiedUser(auth, 'member@usm.cl', PW)
     const memberUid = member.uid
     await setDoc(doc(db, 'users', memberUid), {
       email: 'member@usm.cl',
@@ -210,7 +217,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     const maestroEmail = 'legacyboss@usm.cl'
     await bootstrapMaestro(maestroEmail)
 
-    const { user: member } = await createUserWithEmailAndPassword(auth, 'legacymem@usm.cl', PW)
+    const { user: member } = await createVerifiedUser(auth, 'legacymem@usm.cl', PW)
     const memberUid = member.uid
     await setDoc(doc(db, 'users', memberUid), {
       email: 'legacymem@usm.cl',
@@ -261,7 +268,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     const maestroEmail = 'creditboss@usm.cl'
     await bootstrapMaestro(maestroEmail)
 
-    const { user: member } = await createUserWithEmailAndPassword(auth, 'creditmem@usm.cl', PW)
+    const { user: member } = await createVerifiedUser(auth, 'creditmem@usm.cl', PW)
     const memberUid = member.uid
     await setDoc(doc(db, 'users', memberUid), {
       email: 'creditmem@usm.cl',
@@ -313,7 +320,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     await bootstrapMaestro(maestroEmail)
 
     // Regular member cannot write to /mail.
-    const { user: member } = await createUserWithEmailAndPassword(auth, 'm2@usm.cl', PW)
+    const { user: member } = await createVerifiedUser(auth, 'm2@usm.cl', PW)
     await setDoc(doc(db, 'users', member.uid), {
       email: 'm2@usm.cl',
       nombre: 'M',
@@ -352,13 +359,13 @@ describe('Security rules — privilege escalation & integrity', () => {
 
     // Attacker registers a domain they control that *contains* usm.cl as a substring.
     // With an unanchored regex this leaked the Drive secret; anchoring must deny it.
-    const { user: attacker } = await createUserWithEmailAndPassword(auth, 'eve@usm.cl.evil.com', PW)
+    const { user: attacker } = await createVerifiedUser(auth, 'eve@usm.cl.evil.com', PW)
     expect(attacker).toBeTruthy()
     await expectDenied(getDoc(doc(db, 'system_config', 'keys')))
     await signOut(auth)
 
     // A genuine institutional account is still allowed to read it.
-    await createUserWithEmailAndPassword(auth, 'real@usm.cl', PW)
+    await createVerifiedUser(auth, 'real@usm.cl', PW)
     const snap = await getDoc(doc(db, 'system_config', 'keys'))
     expect(snap.data()!.driveUploadSecret).toBe('top-secret')
   })
@@ -389,7 +396,7 @@ describe('Security rules — privilege escalation & integrity', () => {
 
     // An outsider registers with a non-institutional email. Firebase Auth accepts any domain,
     // so the domain restriction MUST be enforced by the security rules, not just the UI.
-    const { user: outsider } = await createUserWithEmailAndPassword(auth, 'intruder@gmail.com', PW)
+    const { user: outsider } = await createVerifiedUser(auth, 'intruder@gmail.com', PW)
     expect(outsider).toBeTruthy()
 
     // Every private collection read must be denied for the outsider.
@@ -410,13 +417,13 @@ describe('Security rules — privilege escalation & integrity', () => {
     await signOut(auth)
 
     // A genuine institutional member CAN read the same task (control case).
-    await createUserWithEmailAndPassword(auth, 'insider@sansano.usm.cl', PW)
+    await createVerifiedUser(auth, 'insider@sansano.usm.cl', PW)
     const snap = await getDoc(taskRef)
     expect(snap.data()!.titulo).toBe('Confidential mission task')
   })
 
   it('lets a user toggle their own like but blocks tampering with arbitrary like counts', async () => {
-    const { user: author } = await createUserWithEmailAndPassword(auth, 'author@usm.cl', PW)
+    const { user: author } = await createVerifiedUser(auth, 'author@usm.cl', PW)
     const postRef = await addDoc(collection(db, 'posts'), {
       authorId: author.uid,
       content: 'hola equipo',
@@ -426,7 +433,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     })
     await signOut(auth)
 
-    const { user: liker } = await createUserWithEmailAndPassword(auth, 'liker@usm.cl', PW)
+    const { user: liker } = await createVerifiedUser(auth, 'liker@usm.cl', PW)
 
     // Legit: adding only my own uid, with a consistent count.
     await updateDoc(postRef, { likedBy: [liker.uid], likesCount: 1 })
@@ -441,7 +448,7 @@ describe('Security rules — privilege escalation & integrity', () => {
   })
 
   it('blocks creating a notification with an out-of-allowlist type', async () => {
-    const { user: sender } = await createUserWithEmailAndPassword(auth, 'notifier@usm.cl', PW)
+    const { user: sender } = await createVerifiedUser(auth, 'notifier@usm.cl', PW)
 
     // Valid type is accepted.
     const ok = await addDoc(collection(db, 'notifications'), {
@@ -475,7 +482,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     await signOut(auth)
 
     // Regular member cannot emit an official-looking 'system' alert (in-app phishing).
-    const { user: member } = await createUserWithEmailAndPassword(auth, 'sysmem@usm.cl', PW)
+    const { user: member } = await createVerifiedUser(auth, 'sysmem@usm.cl', PW)
     await setDoc(doc(db, 'users', member.uid), {
       email: 'sysmem@usm.cl',
       nombre: 'Sys',
@@ -534,13 +541,13 @@ describe('Security rules — privilege escalation & integrity', () => {
 
     // An outsider registers a NON-institutional account (bypassing the client-side domain
     // check by talking to Auth directly). The server-side rules must deny workspace reads.
-    await createUserWithEmailAndPassword(auth, 'outsider@gmail.com', PW)
+    await createVerifiedUser(auth, 'outsider@gmail.com', PW)
     await expectDenied(getDoc(taskRef))
     await expectDenied(getDoc(projectRef))
     await signOut(auth)
 
     // A genuine institutional member can still read the same documents.
-    await createUserWithEmailAndPassword(auth, 'insider@usm.cl', PW)
+    await createVerifiedUser(auth, 'insider@usm.cl', PW)
     const taskSnap = await getDoc(taskRef)
     expect(taskSnap.data()!.titulo).toBe('Secreto interno')
   })
@@ -553,12 +560,12 @@ describe('Security rules — privilege escalation & integrity', () => {
     })
     await signOut(auth)
 
-    await createUserWithEmailAndPassword(auth, 'evil@gmail.com', PW)
+    await createVerifiedUser(auth, 'evil@gmail.com', PW)
     await expectDenied(getDoc(doc(db, 'system_config', 'keys')))
   })
 
   it('allows a legitimate activity_log entry but blocks a forged type (audit-log integrity)', async () => {
-    const { user } = await createUserWithEmailAndPassword(auth, 'logger@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'logger@usm.cl', PW)
 
     // A genuine entry with a known ActivityLogType for the caller's own uid is accepted.
     const ok = await addDoc(collection(db, 'activity_log'), {
@@ -584,7 +591,7 @@ describe('Security rules — privilege escalation & integrity', () => {
   })
 
   it('blocks writing an activity_log entry attributed to another user', async () => {
-    const { user } = await createUserWithEmailAndPassword(auth, 'logger2@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'logger2@usm.cl', PW)
 
     // userId must equal the caller's uid: a member cannot forge audit entries in
     // someone else's name.
@@ -601,7 +608,7 @@ describe('Security rules — privilege escalation & integrity', () => {
   })
 
   it('rejects an over-cap description on an activity_log entry (storage/egress abuse)', async () => {
-    const { user } = await createUserWithEmailAndPassword(auth, 'logger3@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'logger3@usm.cl', PW)
 
     await expectDenied(
       addDoc(collection(db, 'activity_log'), {
@@ -615,7 +622,7 @@ describe('Security rules — privilege escalation & integrity', () => {
   })
 
   it('requires the uploader to be the caller and bounds file metadata size', async () => {
-    const { user } = await createUserWithEmailAndPassword(auth, 'uploader@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'uploader@usm.cl', PW)
 
     // A legitimate, correctly-sized file metadata record for the caller is accepted.
     const ok = await addDoc(collection(db, 'files'), {
@@ -661,7 +668,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     const maestroUid = await bootstrapMaestro(maestroEmail)
     await signOut(auth)
 
-    const { user: adminUser } = await createUserWithEmailAndPassword(auth, adminEmail, PW)
+    const { user: adminUser } = await createVerifiedUser(auth, adminEmail, PW)
     const adminUid = adminUser.uid
     await setDoc(doc(db, 'users', adminUid), {
       email: adminEmail,
@@ -691,7 +698,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     await bootstrapMaestro('boss14@usm.cl')
     await signOut(auth)
 
-    const { user } = await createUserWithEmailAndPassword(auth, 'climber@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'climber@usm.cl', PW)
     await setDoc(doc(db, 'users', user.uid), {
       email: 'climber@usm.cl',
       nombre: 'Cli',
@@ -731,7 +738,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     })
     await signOut(auth)
 
-    const { user: assignee } = await createUserWithEmailAndPassword(auth, 'assignee9@usm.cl', PW)
+    const { user: assignee } = await createVerifiedUser(auth, 'assignee9@usm.cl', PW)
     await setDoc(doc(db, 'users', assignee.uid), {
       email: 'assignee9@usm.cl',
       nombre: 'As',
@@ -779,7 +786,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     await bootstrapAdmin('ada3@usm.cl')
     await signOut(auth)
 
-    const { user: member } = await createUserWithEmailAndPassword(auth, 'member9@usm.cl', PW)
+    const { user: member } = await createVerifiedUser(auth, 'member9@usm.cl', PW)
     await setDoc(doc(db, 'users', member.uid), {
       email: 'member9@usm.cl',
       nombre: 'Reg',
@@ -803,7 +810,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     await bootstrapMaestro('boss10@usm.cl')
     await signOut(auth)
 
-    const { user } = await createUserWithEmailAndPassword(auth, 'profiler@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'profiler@usm.cl', PW)
     await setDoc(doc(db, 'users', user.uid), {
       email: 'profiler@usm.cl',
       nombre: 'Pro',
@@ -832,7 +839,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     await bootstrapMaestro('boss11@usm.cl')
     await signOut(auth)
 
-    const { user } = await createUserWithEmailAndPassword(auth, 'bloater@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'bloater@usm.cl', PW)
     await setDoc(doc(db, 'users', user.uid), {
       email: 'bloater@usm.cl',
       nombre: 'B',
@@ -856,7 +863,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     await bootstrapMaestro('boss12@usm.cl')
     await signOut(auth)
 
-    const { user } = await createUserWithEmailAndPassword(auth, 'poster@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'poster@usm.cl', PW)
     const post = await addDoc(collection(db, 'posts'), {
       authorId: user.uid,
       content: 'Avance del subsistema estructural.',
@@ -889,7 +896,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     expect(asMaestro.data()!.recipientCount).toBe(2)
 
     await signOut(auth)
-    const { user } = await createUserWithEmailAndPassword(auth, 'nosy@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'nosy@usm.cl', PW)
     await setDoc(doc(db, 'users', user.uid), {
       email: 'nosy@usm.cl',
       nombre: 'No',
@@ -948,7 +955,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     // The size caps only ran on update, so a member could simply write the oversized document
     // at registration — profile creation is a client write like any other — and never touch it
     // again, sidestepping every bound.
-    const { user } = await createUserWithEmailAndPassword(auth, 'fatprofile@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'fatprofile@usm.cl', PW)
 
     await expectDenied(
       setDoc(doc(db, 'users', user.uid), {
@@ -1001,7 +1008,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     })
     await signOut(auth)
 
-    const { user: assignee } = await createUserWithEmailAndPassword(auth, 'bounded@usm.cl', PW)
+    const { user: assignee } = await createVerifiedUser(auth, 'bounded@usm.cl', PW)
     await setDoc(doc(db, 'users', assignee.uid), {
       email: 'bounded@usm.cl',
       nombre: 'Bo',
@@ -1044,7 +1051,7 @@ describe('Security rules — privilege escalation & integrity', () => {
   })
 
   it('bounds the inlined base64 media arrays on posts and project messages', async () => {
-    const { user } = await createUserWithEmailAndPassword(auth, 'mediaposter@usm.cl', PW)
+    const { user } = await createVerifiedUser(auth, 'mediaposter@usm.cl', PW)
     const dataUrl = 'data:image/jpeg;base64,AAAA'
 
     // 'imageUrls'/'fileUrls' hold base64 data URLs, so they — not the text — are what drives
@@ -1096,7 +1103,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     await signOut(auth)
 
     // A genuine admin (role granted out-of-band by the maestro) may NOT rewrite the endpoint.
-    const { user: admin } = await createUserWithEmailAndPassword(auth, 'bridgeadmin@usm.cl', PW)
+    const { user: admin } = await createVerifiedUser(auth, 'bridgeadmin@usm.cl', PW)
     await adminSetDoc(`users/${admin.uid}`, {
       email: 'bridgeadmin@usm.cl',
       nombre: 'Bridge',
@@ -1129,7 +1136,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     // The Notifications page renders `senderName` verbatim as the sender identity. Pinning only
     // `senderId` left the name on screen forgeable, so a member could send a message signed by
     // the maestro — the setup for in-app phishing.
-    const { user: member } = await createUserWithEmailAndPassword(auth, 'impostor@usm.cl', PW)
+    const { user: member } = await createVerifiedUser(auth, 'impostor@usm.cl', PW)
     await setDoc(doc(db, 'users', member.uid), {
       email: 'impostor@usm.cl',
       nombre: 'Eve',
@@ -1178,7 +1185,7 @@ describe('Security rules — privilege escalation & integrity', () => {
     // input, so a member could blank their own name and walk straight back into forging any
     // `senderName` — an identity check satisfiable by a value its own subject controls is no
     // check at all. The exemption is gone; legacy documents are healed by AuthContext instead.
-    const { user: member } = await createUserWithEmailAndPassword(auth, 'blanker@usm.cl', PW)
+    const { user: member } = await createVerifiedUser(auth, 'blanker@usm.cl', PW)
     await setDoc(doc(db, 'users', member.uid), {
       email: 'blanker@usm.cl',
       nombre: 'Mallory',
@@ -1219,7 +1226,7 @@ describe('Security rules — privilege escalation & integrity', () => {
   })
 
   it('bounds the profile name fields', async () => {
-    const { user: member } = await createUserWithEmailAndPassword(auth, 'longname@usm.cl', PW)
+    const { user: member } = await createVerifiedUser(auth, 'longname@usm.cl', PW)
     await setDoc(doc(db, 'users', member.uid), {
       email: 'longname@usm.cl',
       nombre: 'Nom',
@@ -1233,5 +1240,324 @@ describe('Security rules — privilege escalation & integrity', () => {
 
     await updateDoc(doc(db, 'users', member.uid), { nombre: 'N'.repeat(80) })
     expect((await getDoc(doc(db, 'users', member.uid))).data()!.nombre).toHaveLength(80)
+  })
+
+  it('bounds the remaining free-text profile fields (socialLinks, questionnaire, career, year)', async () => {
+    const { user: member } = await createVerifiedUser(auth, 'freetext@usm.cl', PW)
+    const ref = doc(db, 'users', member.uid)
+    await setDoc(ref, {
+      email: 'freetext@usm.cl',
+      nombre: 'Free',
+      apellido: 'Text',
+      createdAt: new Date(),
+      isActive: true,
+    })
+
+    // 'socialLinks' and 'questionnaire' are free-text MAPS in the self-update allowlist and had
+    // no ceiling at all — the profile was bounded everywhere someone had looked, and unbounded
+    // here.
+    await expectDenied(updateDoc(ref, { socialLinks: { linkedin: 'L'.repeat(501) } }))
+    await expectDenied(updateDoc(ref, { socialLinks: { evil: 'x' } }))
+    await expectDenied(updateDoc(ref, { questionnaire: { intereses: 'I'.repeat(2001) } }))
+    await expectDenied(updateDoc(ref, { career: 'C'.repeat(121) }))
+    await expectDenied(updateDoc(ref, { year: 'Y'.repeat(21) }))
+    await expectDenied(updateDoc(ref, { fechaCumpleanos: 'F'.repeat(41) }))
+
+    // Realistic values still go through.
+    await updateDoc(ref, {
+      socialLinks: { linkedin: 'https://linkedin.com/in/free', github: 'https://github.com/free' },
+      questionnaire: { intereses: 'Aviónica', habilidades: 'C++' },
+      career: 'Ingeniería Civil Telemática',
+      year: '2026',
+      fechaCumpleanos: '11-14',
+    })
+    expect((await getDoc(ref)).data()!.career).toBe('Ingeniería Civil Telemática')
+  })
+
+  it('lets a notification recipient flip only the read flag, never re-point or rewrite it', async () => {
+    // The create rule pins senderId, forces a truthful senderName and reserves 'system' for
+    // managers — but all three were checked ONLY on create, and the recipient could update any
+    // field. So a member could address a legitimate notification to themselves and then rewrite
+    // it into an official-looking "system" alert aimed at a colleague: in-app phishing with the
+    // impersonation checks bypassed entirely.
+    const { user: attacker } = await createVerifiedUser(auth, 'hijacker@usm.cl', PW)
+    await setDoc(doc(db, 'users', attacker.uid), {
+      email: 'hijacker@usm.cl',
+      nombre: 'Hi',
+      apellido: 'Jacker',
+      createdAt: new Date(),
+      isActive: true,
+    })
+
+    const own = await addDoc(collection(db, 'notifications'), {
+      senderId: attacker.uid,
+      recipientId: attacker.uid,
+      type: 'message',
+      title: 'Nota propia',
+      message: 'Recordatorio',
+      senderName: 'Hi Jacker',
+      read: false,
+      createdAt: Timestamp.now(),
+    })
+    const ref = doc(db, 'notifications', own.id)
+
+    // Re-pointing the notification at a victim → denied.
+    await expectDenied(updateDoc(ref, { recipientId: 'victim-uid' }))
+    // Escalating the type to the manager-only 'system' → denied.
+    await expectDenied(updateDoc(ref, { type: 'system' }))
+    // Forging the displayed sender identity → denied.
+    await expectDenied(updateDoc(ref, { senderName: 'Maestro USM CubeSat' }))
+    // Rewriting the payload (and growing it past the create-time caps) → denied.
+    await expectDenied(updateDoc(ref, { message: 'M'.repeat(5000) }))
+    // The full hijack in one write → denied.
+    await expectDenied(
+      updateDoc(ref, {
+        recipientId: 'victim-uid',
+        type: 'system',
+        senderName: 'Maestro USM CubeSat',
+        title: 'Verifica tu cuenta',
+        message: 'Confirma tu clave en este enlace',
+      })
+    )
+
+    // The one legitimate update (markAsRead) still works.
+    await updateDoc(ref, { read: true })
+    expect((await getDoc(ref)).data()!.read).toBe(true)
+  })
+
+  it('pins postId on a comment and projectId on a project message', async () => {
+    const { user: author } = await createVerifiedUser(auth, 'mover@usm.cl', PW)
+
+    const comment = await addDoc(collection(db, 'comments'), {
+      postId: 'post-original',
+      authorId: author.uid,
+      content: 'Comentario',
+      createdAt: Timestamp.now(),
+    })
+    // Editing the text is fine; moving the comment onto another post is not.
+    await updateDoc(doc(db, 'comments', comment.id), { content: 'Comentario editado' })
+    await expectDenied(updateDoc(doc(db, 'comments', comment.id), { postId: 'post-victim' }))
+
+    const message = await addDoc(collection(db, 'project_messages'), {
+      projectId: 'project-original',
+      senderId: author.uid,
+      content: 'Mensaje',
+      createdAt: Timestamp.now(),
+    })
+    await updateDoc(doc(db, 'project_messages', message.id), { content: 'Mensaje editado' })
+    await expectDenied(
+      updateDoc(doc(db, 'project_messages', message.id), { projectId: 'project-victim' })
+    )
+  })
+
+  it('bounds the shape of an activity_log entry', async () => {
+    const { user } = await createVerifiedUser(auth, 'auditor@usm.cl', PW)
+
+    // The audit trail is append-only and readable by the whole workspace, so an oversized entry
+    // is permanent and reaches every member's Dashboard query. `metadata` was a free-form map
+    // with no ceiling, which made the description/relatedId caps decorative.
+    const fatMetadata: Record<string, string> = {}
+    for (let i = 0; i < 21; i++) fatMetadata[`k${i}`] = 'v'
+    await expectDenied(
+      addDoc(collection(db, 'activity_log'), {
+        userId: user.uid,
+        type: 'task_created',
+        description: 'ok',
+        metadata: fatMetadata,
+        createdAt: Timestamp.now(),
+      })
+    )
+    await expectDenied(
+      addDoc(collection(db, 'activity_log'), {
+        userId: user.uid,
+        type: 'task_created',
+        description: 'ok',
+        taskId: 'T'.repeat(301),
+        createdAt: Timestamp.now(),
+      })
+    )
+
+    const ok = await addDoc(collection(db, 'activity_log'), {
+      userId: user.uid,
+      type: 'task_created',
+      description: 'Creó la tarea "Simulación térmica"',
+      relatedId: 'task-123',
+      taskId: 'task-123',
+      metadata: { titulo: 'Simulación térmica', equipo: 'tecnico' },
+      createdAt: Timestamp.now(),
+    })
+    expect(ok.id).toBeTruthy()
+  })
+
+  it('pins the /mail document shape so the extension cannot be used as an open relay', async () => {
+    // Constraining `to` closed one of several recipient fields the Trigger Email extension
+    // honours. `cc`/`bcc` deliver to anyone on earth from the team's SMTP identity, and
+    // `message.attachments` in its `path`/`href` form makes the extension fetch an arbitrary URL.
+    // `manager` is a self-service TEAM any admin can grant, not a vetted role, so the blast radius
+    // is wide. The rule now pins the document to what the digest actually writes.
+    await bootstrapMaestro('mailboss@usm.cl')
+
+    const digest = {
+      to: 'miembro@usm.cl',
+      message: { subject: 'Boletín', html: '<p>hola</p>' },
+      createdAt: Timestamp.now(),
+    }
+
+    // The legitimate digest document is accepted.
+    expect((await addDoc(collection(db, 'mail'), digest)).id).toBeTruthy()
+
+    // Extra recipient fields → denied.
+    await expectDenied(addDoc(collection(db, 'mail'), { ...digest, bcc: ['victima@example.com'] }))
+    await expectDenied(addDoc(collection(db, 'mail'), { ...digest, cc: ['victima@example.com'] }))
+    await expectDenied(addDoc(collection(db, 'mail'), { ...digest, toUids: ['uid-1'] }))
+    // Spoofed envelope → denied.
+    await expectDenied(addDoc(collection(db, 'mail'), { ...digest, from: 'rector@usm.cl' }))
+    await expectDenied(addDoc(collection(db, 'mail'), { ...digest, replyTo: 'eve@example.com' }))
+    await expectDenied(addDoc(collection(db, 'mail'), { ...digest, headers: { 'X-Evil': '1' } }))
+    // URL-fetching attachments → denied.
+    await expectDenied(
+      addDoc(collection(db, 'mail'), {
+        ...digest,
+        message: { ...digest.message, attachments: [{ path: 'https://evil.example.com/x' }] },
+      })
+    )
+  })
+
+  it('bounds a manager-created task the same way it bounds an event', async () => {
+    // AdminActionsService.crearTarea / auditarActaDrive write these fields straight from model
+    // output (often derived from an uploaded document), so the rules bound what a single
+    // manipulated assistant turn can persist — exactly the reasoning /events already carried.
+    const maestroEmail = 'taskboss@usm.cl'
+    await bootstrapMaestro(maestroEmail)
+
+    await expectDenied(
+      addDoc(collection(db, 'tasks'), {
+        titulo: 'T'.repeat(301),
+        descripcion: 'x',
+        estado: 'pendiente',
+        asignadoA: [],
+        equipo: 'tecnico',
+        prioridad: 'media',
+        creadoPor: (auth.currentUser as { uid: string }).uid,
+        createdAt: Timestamp.now(),
+      })
+    )
+    await expectDenied(
+      addDoc(collection(db, 'tasks'), {
+        titulo: 'ok',
+        descripcion: 'D'.repeat(5001),
+        estado: 'pendiente',
+        asignadoA: [],
+        equipo: 'tecnico',
+        prioridad: 'media',
+        creadoPor: (auth.currentUser as { uid: string }).uid,
+        createdAt: Timestamp.now(),
+      })
+    )
+
+    const ok = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Validar bus I2C',
+      descripcion: 'Telemetría y watchdog',
+      estado: 'pendiente',
+      asignadoA: [],
+      equipo: 'tecnico',
+      prioridad: 'alta',
+      creadoPor: (auth.currentUser as { uid: string }).uid,
+      createdAt: Timestamp.now(),
+    })
+    expect(ok.id).toBeTruthy()
+  })
+})
+
+/**
+ * The membership boundary itself: an institutional-looking address is not membership until its
+ * owner has proved they can receive mail at it.
+ *
+ * Firebase's email/password sign-up never verifies the address, so before this every rule in the
+ * file rested on a claim anyone could type. Registering `rector@usm.cl` — or a colleague's
+ * `nombre.apellido@sansano.usm.cl` — was enough to read every task, project, file record, post,
+ * event and profile of a workspace whose entire premise is that it is private, under that
+ * person's name. These tests pin both halves: unverified is refused everywhere, and the one
+ * deliberate exception (creating and reading your OWN role-less profile, which sign-up must do
+ * before the mail can possibly have been opened) still works.
+ */
+describe('Security rules — verified institutional membership', () => {
+  const { auth, db } = getTestFirebase()
+  const PW = 'Pass123!'
+
+  const expectDenied = (p: Promise<unknown>) =>
+    expect(p).rejects.toThrow(/permission|insufficient|denied|false for/i)
+
+  beforeEach(async () => {
+    await clearFirestoreData()
+    await clearAuthUsers()
+  })
+
+  afterAll(async () => {
+    await signOut(auth).catch(() => undefined)
+    await clearFirestoreData()
+    await clearAuthUsers()
+  })
+
+  it('locks an unverified institutional account out of every shared collection', async () => {
+    const { user } = await createUnverifiedUser(auth, 'unverified@usm.cl', PW)
+
+    await expectDenied(getDocs(collection(db, 'tasks')))
+    await expectDenied(getDocs(collection(db, 'projects')))
+    await expectDenied(getDocs(collection(db, 'files')))
+    await expectDenied(getDocs(collection(db, 'events')))
+    await expectDenied(getDocs(collection(db, 'posts')))
+    await expectDenied(getDoc(doc(db, 'system_config', 'keys')))
+    await expectDenied(
+      addDoc(collection(db, 'posts'), {
+        authorId: user.uid,
+        content: 'Hola equipo',
+        createdAt: Timestamp.now(),
+      })
+    )
+  })
+
+  it('still lets an unverified account create and read its own role-less profile', async () => {
+    // AuthContext.signUp writes the profile in the same breath as creating the account, before
+    // the verification mail can have been opened. That document carries no privilege, so it is
+    // the single write admitted unverified — and reading it back is what hydrates the session
+    // that renders the verification gate.
+    const { user } = await createUnverifiedUser(auth, 'fresh@usm.cl', PW)
+
+    await setDoc(doc(db, 'users', user.uid), {
+      email: 'fresh@usm.cl',
+      nombre: 'Fresh',
+      apellido: 'Signup',
+      createdAt: new Date(),
+      isActive: true,
+    })
+    expect((await getDoc(doc(db, 'users', user.uid))).data()!.nombre).toBe('Fresh')
+
+    // ...but it still cannot read anyone ELSE's profile, or update its own.
+    await expectDenied(getDoc(doc(db, 'users', 'someone-else')))
+    await expectDenied(updateDoc(doc(db, 'users', user.uid), { bio: 'hola' }))
+  })
+
+  it('admits the same account as soon as the address is verified', async () => {
+    const { user } = await createUnverifiedUser(auth, 'later@usm.cl', PW)
+    await setDoc(doc(db, 'users', user.uid), {
+      email: 'later@usm.cl',
+      nombre: 'Later',
+      apellido: 'Member',
+      createdAt: new Date(),
+      isActive: true,
+    })
+    await expectDenied(getDocs(collection(db, 'tasks')))
+
+    // The member follows the link in their mailbox and the client re-mints the ID token — the
+    // claim lives on the token, not on the Auth record, which is why refreshVerificationStatus
+    // forces getIdToken(true).
+    await markEmailVerified(user.uid)
+    await user.reload()
+    await user.getIdToken(true)
+
+    const snap = await getDocs(collection(db, 'tasks'))
+    expect(snap.empty).toBe(true)
+    await updateDoc(doc(db, 'users', user.uid), { bio: 'Ahora sí' })
   })
 })

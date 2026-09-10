@@ -53,6 +53,11 @@ const CHAT_RATE_WINDOW_SECONDS = 60;
 const CHAT_RATE_MAX_PER_WINDOW = 15;
 const CHAT_MAX_CONTENTS_CHARS = 200000;
 const CHAT_MAX_OUTPUT_TOKENS = 1200;
+const CHAT_MAX_TEMPERATURE = 1.0;
+// BotService trims its history to MAX_CHAT_HISTORY_TURNS * 2 (= 40) entries and appends the
+// model/function turns of the current exchange, so this leaves ample headroom for a legitimate
+// conversation while bounding what a hand-rolled caller can push through the proxy.
+const CHAT_MAX_TURNS = 60;
 
 // The client builds `systemInstruction` (it injects the live project/task context), so it is
 // attacker-controllable by anyone able to reach this endpoint. Bounding its length and appending
@@ -396,9 +401,50 @@ function withinChatRateLimit_(key) {
   return withinRateLimit_('chat', key, CHAT_RATE_MAX_PER_WINDOW, CHAT_RATE_WINDOW_SECONDS);
 }
 
+/**
+ * Rebuilds the generation config from an ALLOWLIST instead of forwarding the caller's object.
+ *
+ * The previous code copied `params.generationConfig` through verbatim and then clamped a single
+ * field, `maxOutputTokens` — which bounds the length of ONE candidate, not the cost of the
+ * request. Every other knob the Gemini API accepts rode along untouched, and `candidateCount` is
+ * a straight multiplier on billed output: a caller who kept maxOutputTokens at the cap and asked
+ * for 8 candidates got 8x the tokens the clamp was written to prevent, per call, within the rate
+ * limit. Since the shared secret reaches every member's browser, "the caller" is anyone who can
+ * read it. Pass-through configs also let unknown future fields reach the API unreviewed.
+ *
+ * Only the two settings the shipped client actually sends survive, both clamped; anything else is
+ * dropped, and candidateCount is pinned to 1 so the token ceiling is a ceiling on the whole call.
+ */
+function buildGenerationConfig_(requested) {
+  const config = { maxOutputTokens: CHAT_MAX_OUTPUT_TOKENS, candidateCount: 1 };
+  const source = (requested && typeof requested === 'object') ? requested : {};
+
+  const maxOutputTokens = Number(source.maxOutputTokens);
+  if (isFinite(maxOutputTokens) && maxOutputTokens > 0 && maxOutputTokens < CHAT_MAX_OUTPUT_TOKENS) {
+    config.maxOutputTokens = Math.floor(maxOutputTokens);
+  }
+
+  const temperature = Number(source.temperature);
+  if (isFinite(temperature) && temperature >= 0) {
+    config.temperature = Math.min(temperature, CHAT_MAX_TEMPERATURE);
+  }
+
+  return config;
+}
+
 function handleChat(params) {
   if (!params.model || !params.contents) {
     throw new Error('missing model or contents');
+  }
+
+  // `contents` was only checked for truthiness, so any JSON value reached the Gemini API as-is.
+  // Requiring the documented shape keeps malformed or hostile payloads from being forwarded on
+  // the team's billed key, and caps the conversation length independently of its byte size.
+  if (!Array.isArray(params.contents) || params.contents.length === 0) {
+    throw new Error('contents must be a non-empty array of turns');
+  }
+  if (params.contents.length > CHAT_MAX_TURNS) {
+    return { error: 'too many conversation turns' };
   }
 
   // Authenticate the caller with a verified Firebase ID token. Chat ALWAYS requires a
@@ -469,17 +515,7 @@ function handleChat(params) {
     payload.tools = params.tools;
   }
 
-  if (params.generationConfig) {
-    payload.generationConfig = params.generationConfig;
-  }
-
-  // Clamp maxOutputTokens server-side regardless of what the client requested, so the proxy
-  // cannot be steered into generating (and billing for) unbounded output.
-  payload.generationConfig = payload.generationConfig || {};
-  if (!payload.generationConfig.maxOutputTokens ||
-      payload.generationConfig.maxOutputTokens > CHAT_MAX_OUTPUT_TOKENS) {
-    payload.generationConfig.maxOutputTokens = CHAT_MAX_OUTPUT_TOKENS;
-  }
+  payload.generationConfig = buildGenerationConfig_(params.generationConfig);
 
   const options = {
     method: 'post',

@@ -19,6 +19,26 @@ import { logger } from '@/lib/logger'
 const ACTA_MAX_INPUT_CHARS = 20000
 const ACTA_MAX_CREATED_DOCS = 40
 
+/**
+ * Los argumentos de las herramientas ejecutivas los redacta el MODELO, no la persona: llegan de
+ * una respuesta de Gemini que puede haber sido influida por el contenido de un documento adjunto.
+ * `miembroId` se usa además como segmento de ruta en `doc(db, 'users', miembroId)`, y el SDK une
+ * los segmentos con '/', de modo que un valor con barras apunta a una ruta distinta de la
+ * pretendida (`users/a/b/c` en vez de `users/<uid>`). Las reglas de Firestore niegan por defecto
+ * esas rutas, así que no es una escalada — pero un identificador que no es un identificador no
+ * debe llegar nunca a la base de datos, y validarlo aquí evita que el bot escriba en documentos
+ * que nadie nombró.
+ */
+const SAFE_DOCUMENT_ID = /^[A-Za-z0-9_-]{1,128}$/
+
+/**
+ * Fechas aceptadas para `registrarCumpleanos`: `MM-DD` (el formato que declara la herramienta) o
+ * `YYYY-MM-DD`. Sin esta cota el valor se escribía tal cual en el perfil de OTRA persona, así que
+ * una instrucción oculta en un acta podía plantar texto arbitrario —y de largo arbitrario— en un
+ * documento ajeno que su dueño no puede corregir desde la UI.
+ */
+const SAFE_BIRTHDAY = /^(\d{4}-)?(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
+
 export interface AdminTaskArgs {
   titulo: string
   descripcion: string
@@ -252,6 +272,19 @@ export class AdminActionsService {
     userId: string
   ): Promise<{ success: boolean; message: string }> {
     try {
+      if (!SAFE_DOCUMENT_ID.test(String(args.miembroId || ''))) {
+        return {
+          success: false,
+          message: 'El identificador de miembro no es válido. Indica el ID exacto del usuario.'
+        }
+      }
+      if (!SAFE_BIRTHDAY.test(String(args.fecha || ''))) {
+        return {
+          success: false,
+          message: 'La fecha de cumpleaños debe tener el formato MM-DD (por ejemplo "11-14") o YYYY-MM-DD.'
+        }
+      }
+
       const userRef = doc(db, COLLECTIONS.USERS, args.miembroId)
       const userSnap = await getDoc(userRef)
       if (!userSnap.exists()) {
@@ -299,6 +332,9 @@ export class AdminActionsService {
       if (args.accion === 'confirmar_miembro' || args.accion === 'desconfirmar_miembro') {
         if (!args.miembroId) {
           return { success: false, message: 'Se requiere especificar el miembroId para esta acción.' }
+        }
+        if (!SAFE_DOCUMENT_ID.test(String(args.miembroId))) {
+          return { success: false, message: 'El identificador de miembro no es válido. Indica el ID exacto del usuario.' }
         }
         const userRef = doc(db, COLLECTIONS.USERS, args.miembroId)
         const userSnap = await getDoc(userRef)

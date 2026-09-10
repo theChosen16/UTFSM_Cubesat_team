@@ -5,6 +5,7 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
   signOut as firebaseSignOut
 } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
@@ -27,6 +28,14 @@ interface AuthContextType {
   updateUserProfile: (data: Partial<User>) => Promise<void>
   resetPassword: (email: string) => Promise<void>
   getAllUsers: () => Promise<User[]>
+  /** Re-sends the verification mail to the signed-in account. */
+  resendVerificationEmail: () => Promise<void>
+  /**
+   * Re-reads the Auth record and forces an ID-token refresh, so a member who has just clicked
+   * the link in their mailbox gets a token carrying `email_verified: true` — which is what the
+   * Firestore rules actually check. Returns the fresh verification state.
+   */
+  refreshVerificationStatus: () => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -254,7 +263,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     await setDoc(doc(db, COLLECTIONS.USERS, newUser.uid), userData)
+
+    // Prove the address belongs to whoever is registering.
+    //
+    // Firebase's email/password sign-up does not check that the account holder can receive mail
+    // at the address they typed, so "institutional domain" alone was never a membership proof:
+    // anyone could claim `rector@usm.cl` (or a colleague's `nombre.apellido@sansano.usm.cl`) and
+    // walk into a workspace whose whole premise is that it is private — under that person's name,
+    // since the display name is derived from the local part. `isInstitutional()` in
+    // firestore.rules now requires `email_verified`, and this is the mail that lets a legitimate
+    // member satisfy it. Best-effort on purpose: a transient mail failure must not leave the
+    // account half-created with no profile document, and ProtectedRoute's gate can resend.
+    await sendEmailVerification(newUser).catch(verificationError => {
+      logger.warn('No se pudo enviar el correo de verificación durante el registro', {
+        error: verificationError instanceof Error ? verificationError : undefined,
+      })
+    })
+
     setUser({ ...userData, id: newUser.uid })
+  }
+
+  const resendVerificationEmail = async () => {
+    if (!auth.currentUser) {
+      throw new Error('Debes iniciar sesión para reenviar el correo de verificación')
+    }
+    await sendEmailVerification(auth.currentUser)
+  }
+
+  const refreshVerificationStatus = async (): Promise<boolean> => {
+    if (!auth.currentUser) return false
+    await auth.currentUser.reload()
+    const current = auth.currentUser
+    if (!current) return false
+    // The rules read `email_verified` off the ID TOKEN, not off the Auth record, and the cached
+    // token still says false until it is re-minted — so a plain reload() would show a verified
+    // badge in the UI while every Firestore read kept failing.
+    await current.getIdToken(true)
+    setFirebaseUser(current)
+    return current.emailVerified
   }
 
   const updateUserProfile = async (data: Partial<User>) => {
@@ -312,7 +358,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateUserTeams,
       updateUserProfile,
       resetPassword,
-      getAllUsers
+      getAllUsers,
+      resendVerificationEmail,
+      refreshVerificationStatus
     }}>
       {children}
     </AuthContext.Provider>
