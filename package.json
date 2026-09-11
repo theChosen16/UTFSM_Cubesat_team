@@ -63,6 +63,9 @@
     "uuid": "^11.1.1",
     "@opentelemetry/core": ">=2.8.0",
     "fast-uri": "^4.1.4",
-    "@hono/node-server": "^2.0.12"
+    "@hono/node-server": "^2.0.12",
+    "csv-parse": "^7.0.2",
+    "stream-json": "^3.5.0",
+    "qs": "^6.16.0"
   }
 }
