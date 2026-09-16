@@ -175,6 +175,25 @@ export class FileService {
     }
   }
 
+  /**
+   * Borra un archivo del repositorio: primero el binario en Drive y sólo después su metadato.
+   *
+   * El orden y el fallo en cascada son deliberados. Cada archivo se publica en Drive como
+   * *cualquiera con el enlace puede ver* (ver `handleUpload` en apps-script/Code.gs), y el bridge
+   * sólo autoriza el borrado a quien lo subió: el email de confianza sale del ID token, no del
+   * cliente. En cambio `firestore.rules` permite borrar el metadato tanto al autor como a
+   * cualquier gestor del espacio de trabajo. Esas dos fronteras no coinciden, así que en el
+   * camino normal —un manager limpiando el repositorio— la llamada al bridge devuelve
+   * "unauthorized: you can only delete files you uploaded".
+   *
+   * Antes ese fallo se tragaba con un warning y el metadato se borraba igual. El resultado era
+   * un archivo que la plataforma daba por eliminado y que seguía vivo en el Drive del equipo,
+   * accesible para siempre por su URL pública, sin ningún puntero en Firestore: nadie podía ya
+   * encontrarlo desde la aplicación ni volver a intentar borrarlo. Es decir, "eliminar" ocultaba
+   * el documento sin retirar el acceso — exactamente lo contrario de lo que el usuario cree que
+   * hizo, y el peor modo de fallo posible para un borrado. Ahora falla cerrado: si el binario
+   * sigue en Drive, el metadato se conserva y el llamador recibe el error.
+   */
   static async delete(record: FileRecord, actor: { email: string }): Promise<void> {
     try {
       if (this.isConfigured() && record.driveFileId) {
@@ -182,8 +201,6 @@ export class FileService {
           action: 'delete',
           userEmail: actor.email,
           fileId: record.driveFileId,
-        }).catch(driveErr => {
-          logger.warn('Drive delete failed; removing Firestore record anyway', { error: driveErr instanceof Error ? driveErr : undefined, fileId: record.id })
         })
       }
       await deleteDoc(doc(db, COLLECTIONS.FILES, record.id))

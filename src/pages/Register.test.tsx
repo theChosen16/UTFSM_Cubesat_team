@@ -103,6 +103,35 @@ describe('Register', () => {
     expect(mockSignUp).not.toHaveBeenCalled()
   })
 
+  // La política de contraseñas existía en `userRegistrationSchema` pero el formulario no la
+  // usaba: sólo comprobaba la longitud, así que "contrasena" creaba una cuenta con acceso a todo
+  // el espacio de trabajo privado y promovible a admin/maestro.
+  it('rejects a long password that does not meet the complexity policy', async () => {
+    const user = userEvent.setup()
+    renderRegister()
+
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test.usuario@sansano.usm.cl')
+    await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'contrasena')
+    await user.type(screen.getAllByPlaceholderText('••••••••')[1], 'contrasena')
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
+
+    expect(screen.getByText('Debe contener al menos una letra mayúscula')).toBeInTheDocument()
+    expect(mockSignUp).not.toHaveBeenCalled()
+  })
+
+  it('rejects a password without digits', async () => {
+    const user = userEvent.setup()
+    renderRegister()
+
+    await user.type(screen.getByPlaceholderText('nombre@usm.cl'), 'test.usuario@sansano.usm.cl')
+    await user.type(screen.getAllByPlaceholderText('••••••••')[0], 'ContrasenaSegura')
+    await user.type(screen.getAllByPlaceholderText('••••••••')[1], 'ContrasenaSegura')
+    await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
+
+    expect(screen.getByText('Debe contener al menos un número')).toBeInTheDocument()
+    expect(mockSignUp).not.toHaveBeenCalled()
+  })
+
   it('shows name step modal after valid step 1', async () => {
     const user = userEvent.setup()
     renderRegister()

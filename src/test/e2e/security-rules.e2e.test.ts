@@ -1467,6 +1467,122 @@ describe('Security rules — privilege escalation & integrity', () => {
     })
     expect(ok.id).toBeTruthy()
   })
+
+  /**
+   * Todas las cotas anteriores acotan CAMPOS ENUMERADOS. Ninguna acotaba la FORMA del documento,
+   * así que el mismo megabyte cabía en un campo que nadie había pensado en enumerar — y el Feed,
+   * el chat de proyecto y el repositorio descargan esas colecciones enteras para cada miembro.
+   */
+  it('pins the document shape of the member-writable collections', async () => {
+    const { user } = await createVerifiedUser(auth, 'shaper@usm.cl', PW)
+    const blob = 'A'.repeat(200000)
+
+    // Un post válido en todo salvo por un campo de relleno arbitrario.
+    await expectDenied(
+      addDoc(collection(db, 'posts'), {
+        authorId: user.uid,
+        content: 'hola',
+        createdAt: Timestamp.now(),
+        relleno: blob,
+      })
+    )
+    await expectDenied(
+      addDoc(collection(db, 'comments'), {
+        postId: 'post-1',
+        authorId: user.uid,
+        content: 'hola',
+        createdAt: Timestamp.now(),
+        relleno: blob,
+      })
+    )
+    await expectDenied(
+      addDoc(collection(db, 'project_messages'), {
+        projectId: 'p1',
+        senderId: user.uid,
+        content: 'hola',
+        createdAt: Timestamp.now(),
+        relleno: blob,
+      })
+    )
+    await expectDenied(
+      addDoc(collection(db, 'notifications'), {
+        senderId: user.uid,
+        recipientId: 'someone',
+        type: 'message',
+        title: 'Hola',
+        message: 'Saludo',
+        read: false,
+        createdAt: Timestamp.now(),
+        relleno: blob,
+      })
+    )
+    // En /files el vector obvio era 'mimeType', que ni siquiera estaba acotado.
+    await expectDenied(
+      addDoc(collection(db, 'files'), {
+        name: 'informe.pdf',
+        driveFileId: 'drive-abc',
+        mimeType: blob,
+        size: 1,
+        uploadedBy: user.uid,
+        createdAt: Timestamp.now(),
+      })
+    )
+
+    // Los documentos legítimos, con la forma que escriben los servicios, siguen pasando.
+    const post = await addDoc(collection(db, 'posts'), {
+      authorId: user.uid,
+      content: 'Avance del subsistema',
+      category: 'logro',
+      imageUrls: [],
+      createdAt: Timestamp.now(),
+    })
+    expect(post.id).toBeTruthy()
+    const comment = await addDoc(collection(db, 'comments'), {
+      postId: post.id,
+      authorId: user.uid,
+      content: 'Buen trabajo',
+      createdAt: Timestamp.now(),
+      isEdited: false,
+    })
+    expect(comment.id).toBeTruthy()
+  })
+
+  /**
+   * El Feed ordena por `createdAt` y /activity_log se presenta como bitácora inmutable, pero
+   * nada obligaba a que ese campo fuera siquiera un timestamp plausible.
+   */
+  it('rejects a forged createdAt and pins it on update', async () => {
+    const { user } = await createVerifiedUser(auth, 'timelord@usm.cl', PW)
+    const farFuture = Timestamp.fromDate(new Date('3000-01-01T00:00:00Z'))
+
+    // Fijar una publicación para siempre en lo más alto del muro del equipo → denegado.
+    await expectDenied(
+      addDoc(collection(db, 'posts'), {
+        authorId: user.uid,
+        content: 'siempre arriba',
+        createdAt: farFuture,
+      })
+    )
+    // Falsear cuándo ocurrió una acción en la bitácora de auditoría → denegado.
+    await expectDenied(
+      addDoc(collection(db, 'activity_log'), {
+        userId: user.uid,
+        type: 'task_completed',
+        description: 'Completó la tarea',
+        relatedId: 'task-1',
+        createdAt: farFuture,
+      })
+    )
+
+    const post = await addDoc(collection(db, 'posts'), {
+      authorId: user.uid,
+      content: 'publicación normal',
+      createdAt: Timestamp.now(),
+    })
+    // Editar el texto sigue permitido; reescribir la fecha a posteriori, no.
+    await updateDoc(doc(db, 'posts', post.id), { content: 'texto corregido' })
+    await expectDenied(updateDoc(doc(db, 'posts', post.id), { createdAt: farFuture }))
+  })
 })
 
 /**

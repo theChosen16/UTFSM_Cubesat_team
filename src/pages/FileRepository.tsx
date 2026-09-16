@@ -170,7 +170,13 @@ export default function FileRepository() {
       await loadData()
     } catch (deleteError) {
       logger.error('Error deleting repository file', { error: deleteError, fileId: file.id })
-      setError('No se pudo eliminar el archivo seleccionado.')
+      const message = deleteError instanceof Error ? deleteError.message : ''
+      // El bridge de Drive sólo autoriza el borrado a quien subió el archivo (el email de
+      // confianza sale del ID token). Se explicita, porque el metadato se conserva a propósito:
+      // borrarlo dejaría el binario publicado en Drive y sin ningún puntero para volver a él.
+      setError(message.includes('you can only delete files you uploaded') || message.includes('ownership tag')
+        ? 'Solo quien subió el archivo puede eliminarlo del Drive del equipo. El registro se mantiene para no dejar el archivo publicado sin rastro.'
+        : 'No se pudo eliminar el archivo seleccionado.')
     }
   }
 

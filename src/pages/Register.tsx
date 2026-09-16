@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { logger } from '@/lib/logger'
 import { VALID_EMAIL_DOMAINS } from '@/lib/constants'
 import { extractFullNameFromEmail } from '@/lib/utils'
+import { userRegistrationSchema } from '@/lib/schemas'
 
 export default function Register() {
   const [nombre, setNombre] = useState('')
@@ -45,8 +46,16 @@ export default function Register() {
       return
     }
 
-    if (password.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres')
+    // La política de contraseñas vive en `userRegistrationSchema` desde hace tiempo, pero este
+    // formulario —el único camino de registro de la plataforma— nunca la usó: comprobaba a mano
+    // la longitud y nada más, así que "12345678" o "password" creaban una cuenta válida. Firebase
+    // Auth tampoco impone complejidad por defecto. Y estas no son cuentas cualesquiera: el
+    // espacio de trabajo es privado, cada cuenta institucional lee todas las tareas, proyectos,
+    // archivos y perfiles del equipo, y una de ellas puede ser promovida a admin o maestro. Se
+    // aplica el esquema que ya existía en vez de mantener una validación paralela más débil.
+    const validation = userRegistrationSchema.safeParse({ email, password, confirmPassword })
+    if (!validation.success) {
+      setError(validation.error.issues[0]?.message || 'Revisa los datos ingresados')
       return
     }
 
