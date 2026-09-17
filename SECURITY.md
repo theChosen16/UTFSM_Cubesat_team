@@ -213,10 +213,79 @@ This project implements the following security practices:
 - **Escaped digest output**: every untrusted field interpolated into the weekly digest is escaped;
   the event-date helper returned its input **raw** when it could not be formatted, which was an
   unescaped injection point in HTML mailed to every active member.
+- **Stored prompt injection through the assistant's live context**: `BotService.getDomainContext()`
+  interpolates project names, project descriptions and task titles straight into
+  `systemInstruction` — the part of the prompt the model treats as the operator's own voice, not
+  as data. Those strings are workspace-writable (`manager` is a self-service *team* any admin can
+  grant) and, crucially, are also written by the assistant itself: `auditarActaDrive` turns the
+  text of an uploaded minute into a batch of tasks. That closed a loop around the
+  attachment-taint control documented above. The taint is session-scoped, so it ends at
+  `resetSession()` — but the *documents* the tainted turn created do not. Text smuggled into a
+  task title was laundered into permanent, untainted state and then re-entered the system
+  instruction of **every later session of every administrator**, with the full write surface
+  available (`forzarEnvioNoticiario` mails every active member; `registrarCumpleanos` and
+  `gestionarCubeDesign` write to other people's profiles). No attachment had to be present, so
+  no guard fired. The context is now fenced in an explicitly-marked untrusted block that the
+  security rule names, and every interpolated value is neutralised before it gets there:
+  newlines and control characters are flattened, `<`/`>` (the fence delimiters) and `[`/`]`
+  (the shape of the prompt's real headers, e.g. `[MODO ADMINISTRADOR ACTIVO]`) are stripped, and
+  each field, list and the block as a whole are length-bounded, so no stored document can close
+  the fence, forge a header or crowd out the rest of the prompt. Covered by regression tests in
+  `src/sdk/BotService.test.ts`.
+- **Document *shape* is bounded, not just the fields someone remembered**: every size cap in the
+  rules so far named a specific field — `content`, `imageUrls`, `description`, `photoURL`. None of
+  the member-writable collections (`posts`, `comments`, `project_messages`, `notifications`,
+  `files`, `events`, `mail_digests`) pinned the document's shape, so the same megabyte simply went
+  into a field nobody had enumerated: `addDoc('comments', { postId, authorId, content: 'hola',
+  relleno: 'A'.repeat(900000) })` satisfied every check and produced a ~1 MiB document, repeatable
+  at will. These are exactly the collections the Feed, the project chat and the file repository
+  download **in full** for every member, so it is a storage *and* billed-egress vector that every
+  existing cap missed by construction. Each collection now declares `keys().hasOnly(...)` matching
+  what its service actually writes (plus per-field caps on the ones that had none — `mimeType`,
+  `postId`, `projectId`, `relatedId`, the event date fields), and the manager-only `tasks` /
+  `projects` carry a total key-count cap for the same reason `activity_log` already did.
+- **`createdAt` is a claim, and was never checked**: no rule validated it. The Feed orders by
+  `orderBy('createdAt', 'desc')`, so writing a year-3000 timestamp pinned a post at the top of the
+  whole team's wall permanently; in `activity_log` — which the platform presents as an immutable
+  audit trail, with no update or delete rule — it let a member falsify *when* an action happened,
+  irreversibly. `createdAt` must now be a timestamp no further ahead than `request.time` plus five
+  minutes of clock skew (the clients that use `Timestamp.now()` rather than `serverTimestamp()`
+  are well inside that), and updates can no longer rewrite it after the fact.
+- **The password policy was written but never enforced**: `userRegistrationSchema` in
+  `src/lib/schemas.ts` has required a mixed-case password with a digit since it was added, and
+  `Register.tsx` — the only registration path in the app — never called it. It hand-rolled a bare
+  `password.length < 8` check, and Firebase Auth imposes no complexity of its own, so `12345678`
+  or `contrasena` created a real account. These are not low-value accounts: every institutional
+  account reads every task, project, file record, post, event and profile in a workspace whose
+  premise is that it is private, and any of them can be promoted to `admin` or `maestro`. The form
+  now validates against the schema instead of maintaining a weaker parallel check.
+- **Deleting a file no longer hides it while leaving it published**: every upload is published to
+  Drive as *anyone with the link can view*, and the bridge only authorises deletion by the
+  original uploader (the trusted email comes from the verified ID token). `firestore.rules`,
+  however, lets any workspace manager delete the metadata document. Those two boundaries do not
+  line up, so on the ordinary path — a manager tidying the repository — the bridge call failed
+  with `unauthorized: you can only delete files you uploaded`… and `FileService.delete` swallowed
+  it with a warning and deleted the metadata anyway. The file stayed alive in the team Drive,
+  reachable forever by its public URL, with no record left in Firestore pointing at it: nobody
+  could find it from the app again, let alone retry the deletion. "Delete" removed the pointer
+  and kept the access — the inverse of what the user was told happened, and the worst possible
+  failure mode for a deletion. It now fails closed: if the binary is still in Drive the metadata
+  is kept and the caller is told who can remove it.
 - **Dependency hygiene**: the production dependency tree is clean (`npm audit --omit=dev`) after
   raising the `fast-uri` override past the host-confusion / SSRF advisories. The remaining
   moderate advisories are dev-only and live inside `firebase-tools`' transitive tree, where the
-  available fixes are breaking; they never reach the shipped bundle.
+  available fixes are breaking; they never reach the shipped bundle. One of those overrides had
+  gone further than "breaking": forcing `stream-json` to `^3.5.0` workspace-wide (for
+  GHSA-528h-pc64-c93x) replaced a CommonJS package with a pure-ESM rewrite whose subpaths were
+  renamed, so `firebase-tools` — which requires `stream-json/filters/Filter` — could no longer
+  load **at all**. Every `firebase` CLI invocation died with `Cannot find module`, which silently
+  took out `npm run emulators`, `npm run test:e2e` and the CLI path used to deploy
+  `firestore.rules`. CI only runs `lint`/`test`/`build`, so nothing reported it: the entire
+  regression suite guarding the project's authorization boundary had stopped being runnable. The
+  override is now scoped so `firebase-tools` keeps the `1.x` line it is written against while the
+  rest of the tree stays on the patched major. The residual advisory is dev-only, moderate, and
+  reachable only by running `firebase database:import` over hostile JSON on your own machine —
+  a far smaller risk than being unable to test or deploy the security rules.
 - **Branch protection**: Main branch requires pull request reviews before merging
 
 ## Response Time

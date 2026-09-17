@@ -247,6 +247,46 @@ service cloud.firestore {
           (('maestro' in resource.data.get('roles', [])) || ('admin' in resource.data.get('roles', []))));
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────────────────
+    // Cotas transversales de FORMA y de TIEMPO.
+    //
+    // Hasta aquí las reglas acotaban campo por campo: 'content', 'imageUrls', 'description'…
+    // Eso deja fuera lo que nadie enumeró. Ninguna colección escribible por un miembro
+    // (salvo /activity_log y /mail) fijaba la FORMA del documento, así que un miembro podía
+    // adjuntar campos arbitrarios y sin techo a un documento por lo demás válido —
+    // `addDoc(comments, { postId, authorId, content: 'hola', relleno: 'A'.repeat(900000) })` —
+    // y repetirlo a voluntad. El resultado es un documento de ~1 MiB por escritura en una
+    // colección que el Feed, el chat de proyecto y el repositorio descargan ENTEROS para cada
+    // miembro del equipo: abuso de almacenamiento y, sobre todo, de egreso facturado, invisible
+    // para todos los topes existentes. Fijar la forma con `keys().hasOnly(...)` cierra la clase
+    // completa en vez de un campo a la vez.
+    //
+    // 'createdAt' tampoco se validaba nunca. El Feed ordena por ese campo
+    // (`orderBy('createdAt','desc')`), de modo que escribir una fecha en el año 3000 fija una
+    // publicación para siempre en lo más alto del muro de todo el equipo, y en /activity_log
+    // —bitácora de auditoría append-only, sin update ni delete— falsea de forma permanente
+    // CUÁNDO ocurrió algo. Se exige que sea un timestamp y que no esté en el futuro (con un
+    // margen de 5 minutos para el desfase de reloj de los clientes que usan `Timestamp.now()`),
+    // y que las actualizaciones no puedan reescribirlo a posteriori.
+    function boundedText(value, maxSize) {
+      return value == null || (value is string && value.size() <= maxSize);
+    }
+
+    function boundedList(value, maxLength) {
+      return value == null || (value is list && value.size() <= maxLength);
+    }
+
+    function hasSaneCreatedAt() {
+      return !('createdAt' in request.resource.data) || (
+        request.resource.data.createdAt is timestamp &&
+        request.resource.data.createdAt <= request.time + duration.value(5, 'm')
+      );
+    }
+
+    function keepsCreatedAt() {
+      return request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null);
+    }
+
     match /users/{userId} {
       // A user may create ONLY their own profile and may NOT self-assign privileged
       // fields. Setting 'rol'/'roles' is rejected, 'isActive' can only be true, and the
@@ -322,12 +362,19 @@ service cloud.firestore {
         request.resource.data.senderId == request.auth.uid &&
         request.resource.data.recipientId is string &&
         request.resource.data.recipientId.size() > 0 &&
+        request.resource.data.recipientId.size() <= 300 &&
         request.resource.data.type in ['task_assigned', 'deliverable_uploaded', 'deadline_reminder', 'message', 'system'] &&
         (request.resource.data.type != 'system' || canManageWorkspace()) &&
-        (!('title' in request.resource.data) ||
-          (request.resource.data.title is string && request.resource.data.title.size() <= 300)) &&
-        (!('message' in request.resource.data) ||
-          (request.resource.data.message is string && request.resource.data.message.size() <= 3000)) &&
+        // Forma exacta de NotificationService.create: sin esto, los topes de 'title'/'message'
+        // se esquivan escribiendo el texto en un campo no enumerado del mismo documento.
+        request.resource.data.keys().hasOnly([
+          'recipientId', 'type', 'title', 'message', 'read',
+          'createdAt', 'senderId', 'senderName', 'relatedId'
+        ]) &&
+        boundedText(request.resource.data.get('title', null), 300) &&
+        boundedText(request.resource.data.get('message', null), 3000) &&
+        boundedText(request.resource.data.get('relatedId', null), 300) &&
+        hasSaneCreatedAt() &&
         // Se evalúa al final para que las comprobaciones baratas corten antes y el get() del
         // perfil solo ocurra en escrituras que ya pasaron el resto de las validaciones.
         isTruthfulSenderName();
@@ -371,7 +418,11 @@ service cloud.firestore {
         (!('nombre' in request.resource.data) ||
           (request.resource.data.nombre is string && request.resource.data.nombre.size() <= 300)) &&
         (!('descripcion' in request.resource.data) ||
-          (request.resource.data.descripcion is string && request.resource.data.descripcion.size() <= 5000));
+          (request.resource.data.descripcion is string && request.resource.data.descripcion.size() <= 5000)) &&
+        // Tope de campos totales, por la misma razón que en /activity_log: acotar sólo los campos
+        // conocidos deja abierto escribir el mismo megabyte en uno que nadie enumeró. 'manager'
+        // es un equipo autoservicio que cualquier admin concede, no un rol verificado.
+        request.resource.data.keys().size() <= 20;
       allow delete: if isInstitutional() &&
         hasRole('maestro');
     }
@@ -391,7 +442,11 @@ service cloud.firestore {
         (!('progressUpdates' in request.resource.data) ||
           (request.resource.data.progressUpdates is list && request.resource.data.progressUpdates.size() <= 200)) &&
         (!('attachmentIds' in request.resource.data) ||
-          (request.resource.data.attachmentIds is list && request.resource.data.attachmentIds.size() <= 100));
+          (request.resource.data.attachmentIds is list && request.resource.data.attachmentIds.size() <= 100)) &&
+        // Tope de campos totales: el Task tipado tiene ~22 campos, así que 40 no restringe
+        // ningún flujo real, pero impide colgar campos arbitrarios y sin techo de un documento
+        // que todo el equipo descarga en cada carga de /tasks y /dashboard.
+        request.resource.data.keys().size() <= 40;
     }
 
     match /tasks/{taskId} {
@@ -406,7 +461,7 @@ service cloud.firestore {
       // documents. The /events rule was capped on exactly this reasoning while /tasks, the
       // busier of the two write paths, was left unbounded. Limits are far above anything the
       // client Zod schema (titulo <= 100) or the UI produces.
-      allow create: if isInstitutional() && canManageWorkspace() && isBoundedTask();
+      allow create: if isInstitutional() && canManageWorkspace() && isBoundedTask() && hasSaneCreatedAt();
       allow update: if isInstitutional() && (
         (canManageWorkspace() && isBoundedTask()) ||
         (
@@ -512,7 +567,12 @@ service cloud.firestore {
         (!('projectId' in request.resource.data) ||
           (request.resource.data.projectId is string && request.resource.data.projectId.size() <= 300)) &&
         (!('deliverableId' in request.resource.data) ||
-          (request.resource.data.deliverableId is string && request.resource.data.deliverableId.size() <= 300));
+          (request.resource.data.deliverableId is string && request.resource.data.deliverableId.size() <= 300)) &&
+        // La bitácora es append-only y permanente: sin acotar 'createdAt' cualquier miembro
+        // puede fechar su propia entrada en el futuro (o en el pasado remoto) y falsear de forma
+        // irreversible cuándo ocurrió una acción en el registro que la plataforma presenta como
+        // auditoría inmutable.
+        hasSaneCreatedAt();
     }
 
     match /files/{fileId} {
@@ -532,7 +592,20 @@ service cloud.firestore {
         (!('downloadURL' in request.resource.data) ||
           (request.resource.data.downloadURL is string && request.resource.data.downloadURL.size() <= 2048)) &&
         (!('driveFileId' in request.resource.data) ||
-          (request.resource.data.driveFileId is string && request.resource.data.driveFileId.size() <= 256));
+          (request.resource.data.driveFileId is string && request.resource.data.driveFileId.size() <= 256)) &&
+        // Forma exacta de FileService.upload. Acotar 'name'/'viewURL'/'downloadURL'/'driveFileId'
+        // no acotaba el documento: bastaba escribir el blob en 'mimeType', en 'taskId' o en
+        // cualquier campo no enumerado. /files lo lee entero cada miembro que abre el
+        // repositorio, las tareas y el dashboard.
+        request.resource.data.keys().hasOnly([
+          'name', 'driveFileId', 'downloadURL', 'viewURL', 'mimeType', 'size',
+          'uploadedBy', 'taskId', 'projectId', 'deliverableId', 'createdAt'
+        ]) &&
+        boundedText(request.resource.data.get('mimeType', null), 200) &&
+        boundedText(request.resource.data.get('taskId', null), 300) &&
+        boundedText(request.resource.data.get('projectId', null), 300) &&
+        boundedText(request.resource.data.get('deliverableId', null), 300) &&
+        hasSaneCreatedAt();
       allow delete: if isInstitutional() && (
         resource.data.uploadedBy == request.auth.uid ||
         canManageWorkspace()
@@ -557,7 +630,23 @@ service cloud.firestore {
         (!('titulo' in request.resource.data) ||
           (request.resource.data.titulo is string && request.resource.data.titulo.size() <= 300)) &&
         (!('descripcion' in request.resource.data) ||
-          (request.resource.data.descripcion is string && request.resource.data.descripcion.size() <= 5000));
+          (request.resource.data.descripcion is string && request.resource.data.descripcion.size() <= 5000)) &&
+        // Forma exacta de EventService.create/update. Los campos de fecha son texto libre
+        // escrito por el modelo (crearEvento / auditarActaDrive los toma de los argumentos de la
+        // herramienta), así que también se acotan, y el conjunto cerrado de campos impide colgar
+        // un blob de un evento por lo demás válido.
+        request.resource.data.keys().hasOnly([
+          'titulo', 'descripcion', 'fechaInicio', 'fechaFin', 'todoElDia', 'tipo',
+          'creadoPor', 'createdAt', 'relatedTaskId', 'relatedProjectId'
+        ]) &&
+        boundedText(request.resource.data.get('fechaInicio', null), 100) &&
+        boundedText(request.resource.data.get('fechaFin', null), 100) &&
+        boundedText(request.resource.data.get('creadoPor', null), 300) &&
+        boundedText(request.resource.data.get('relatedTaskId', null), 300) &&
+        boundedText(request.resource.data.get('relatedProjectId', null), 300) &&
+        (request.resource.data.get('tipo', null) == null ||
+          request.resource.data.tipo in ['reunion', 'deadline', 'social', 'visita', 'otro']) &&
+        hasSaneCreatedAt();
       allow delete: if isInstitutional() && canManageWorkspace();
     }
 
@@ -609,7 +698,16 @@ service cloud.firestore {
       // behind canManageWorkspace, and the bot's obtenerEstadoNoticiario is admin-only), so the
       // rule is narrowed to match instead of exposing the whole team roster to every member.
       allow read: if isInstitutional() && canManageWorkspace();
-      allow create: if isInstitutional() && canManageWorkspace();
+      // Forma exacta de EmailNotificationService.sendWeeklyDigest. 'manager' es un equipo
+      // autoservicio que cualquier admin concede, así que la bitácora de boletines también se
+      // acota: sin forma fija era una colección de escritura libre para ese perfil.
+      allow create: if isInstitutional() && canManageWorkspace() &&
+        request.resource.data.keys().hasOnly([
+          'createdAt', 'triggeredBy', 'recipientCount', 'eventsCount', 'tasksCount', 'recipients'
+        ]) &&
+        boundedText(request.resource.data.get('triggeredBy', null), 300) &&
+        boundedList(request.resource.data.get('recipients', null), 1000) &&
+        hasSaneCreatedAt();
     }
 
     match /system_config/{configId} {
@@ -636,6 +734,22 @@ service cloud.firestore {
       allow write: if isInstitutional() && hasRole('maestro');
     }
 
+    // La forma del documento es exactamente la que escriben FeedService.createPost y el
+    // alternador de "me gusta" (ver la nota sobre cotas transversales arriba): sin
+    // `keys().hasOnly(...)` los topes de 'content'/'imageUrls' se esquivan escribiendo el
+    // mismo megabyte en un campo que nadie enumeró.
+    function isBoundedPost() {
+      return request.resource.data.keys().hasOnly([
+          'authorId', 'content', 'category', 'imageUrls',
+          'likedBy', 'likesCount', 'createdAt', 'updatedAt', 'isEdited'
+        ]) &&
+        boundedText(request.resource.data.get('content', null), 10000) &&
+        boundedList(request.resource.data.get('imageUrls', null), 4) &&
+        boundedList(request.resource.data.get('likedBy', null), 500) &&
+        (request.resource.data.get('category', null) == null ||
+          request.resource.data.category in ['general', 'logro', 'duda', 'oportunidad']);
+    }
+
     match /posts/{postId} {
       allow read: if isInstitutional();
       // 'imageUrls' holds base64 data URLs (PostCreator embeds the picture in the document
@@ -644,10 +758,8 @@ service cloud.firestore {
       // the array length is bounded on create and update alike.
       allow create: if isInstitutional() &&
         request.resource.data.authorId == request.auth.uid &&
-        (!('content' in request.resource.data) ||
-          (request.resource.data.content is string && request.resource.data.content.size() <= 10000)) &&
-        (!('imageUrls' in request.resource.data) ||
-          (request.resource.data.imageUrls is list && request.resource.data.imageUrls.size() <= 4));
+        isBoundedPost() &&
+        hasSaneCreatedAt();
       // The author can edit their own post. Any other authenticated user may ONLY toggle their
       // own like: the previous rule let anyone overwrite likedBy/likesCount with arbitrary
       // values (wipe others' likes, set an arbitrary count). We now require that the only change
@@ -659,10 +771,8 @@ service cloud.firestore {
       // post to another member, planting content under a colleague's name in the shared feed.
       allow update: if isInstitutional() &&
         request.resource.data.get('authorId', '') == resource.data.get('authorId', '') &&
-        (!('content' in request.resource.data) ||
-          (request.resource.data.content is string && request.resource.data.content.size() <= 10000)) &&
-        (!('imageUrls' in request.resource.data) ||
-          (request.resource.data.imageUrls is list && request.resource.data.imageUrls.size() <= 4)) && (
+        isBoundedPost() &&
+        keepsCreatedAt() && (
         resource.data.authorId == request.auth.uid ||
         (
           // affectedKeys(), not changedKeys(): a post created without a 'likedBy'/'likesCount'
@@ -681,12 +791,21 @@ service cloud.firestore {
       );
     }
 
+    // Forma exacta de FeedService.createComment / updateComment.
+    function isBoundedComment() {
+      return request.resource.data.keys().hasOnly([
+          'postId', 'authorId', 'content', 'createdAt', 'updatedAt', 'isEdited'
+        ]) &&
+        boundedText(request.resource.data.get('content', null), 5000) &&
+        boundedText(request.resource.data.get('postId', null), 300);
+    }
+
     match /comments/{commentId} {
       allow read: if isInstitutional();
       allow create: if isInstitutional() &&
         request.resource.data.authorId == request.auth.uid &&
-        (!('content' in request.resource.data) ||
-          (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
+        isBoundedComment() &&
+        hasSaneCreatedAt();
       allow delete: if isInstitutional() && (
         resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
@@ -700,8 +819,19 @@ service cloud.firestore {
         (resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')) &&
         request.resource.data.get('authorId', '') == resource.data.get('authorId', '') &&
         request.resource.data.get('postId', '') == resource.data.get('postId', '') &&
-        (!('content' in request.resource.data) ||
-          (request.resource.data.content is string && request.resource.data.content.size() <= 5000));
+        isBoundedComment() &&
+        keepsCreatedAt();
+    }
+
+    // Forma exacta de ProjectChatService.sendMessage / updateMessage.
+    function isBoundedProjectMessage() {
+      return request.resource.data.keys().hasOnly([
+          'projectId', 'senderId', 'content', 'fileUrls',
+          'createdAt', 'updatedAt', 'isEdited', 'isAiOrchestrated'
+        ]) &&
+        boundedText(request.resource.data.get('content', null), 5000) &&
+        boundedText(request.resource.data.get('projectId', null), 300) &&
+        boundedList(request.resource.data.get('fileUrls', null), 4);
     }
 
     match /project_messages/{messageId} {
@@ -710,10 +840,8 @@ service cloud.firestore {
       // length is bounded alongside the text.
       allow create: if isInstitutional() &&
         request.resource.data.senderId == request.auth.uid &&
-        (!('content' in request.resource.data) ||
-          (request.resource.data.content is string && request.resource.data.content.size() <= 5000)) &&
-        (!('fileUrls' in request.resource.data) ||
-          (request.resource.data.fileUrls is list && request.resource.data.fileUrls.size() <= 4));
+        isBoundedProjectMessage() &&
+        hasSaneCreatedAt();
       allow delete: if isInstitutional() && (
         resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')
       );
@@ -725,10 +853,8 @@ service cloud.firestore {
         (resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')) &&
         request.resource.data.get('senderId', '') == resource.data.get('senderId', '') &&
         request.resource.data.get('projectId', '') == resource.data.get('projectId', '') &&
-        (!('content' in request.resource.data) ||
-          (request.resource.data.content is string && request.resource.data.content.size() <= 5000)) &&
-        (!('fileUrls' in request.resource.data) ||
-          (request.resource.data.fileUrls is list && request.resource.data.fileUrls.size() <= 4));
+        isBoundedProjectMessage() &&
+        keepsCreatedAt();
     }
   }
 }
