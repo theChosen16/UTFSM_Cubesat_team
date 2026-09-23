@@ -126,8 +126,27 @@ function doPost(e) {
 
     return jsonResponse({ error: 'invalid action' });
   } catch (err) {
-    return jsonResponse({ error: err && err.message ? err.message : 'server error' });
+    // Solo los errores de validación que este script lanza a propósito (clientError_) se
+    // devuelven textualmente. Cualquier otra excepción viene de un servicio de Google
+    // (UrlFetchApp, DriveApp, JSON.parse…) y su mensaje puede arrastrar datos internos: los
+    // fallos de red de UrlFetchApp ("Address unavailable", "Timeout") incluyen la URL COMPLETA
+    // de la petición, y hasta ahora la del proxy de Gemini llevaba la API key en el query
+    // string. Reenviar err.message al navegador entregaba la clave de pago del equipo a
+    // cualquier miembro verificado que provocara (o simplemente esperara) un timeout. El
+    // detalle queda en los registros de ejecución del dueño del script.
+    if (err && err.clientSafe === true) {
+      return jsonResponse({ error: err.message });
+    }
+    console.error(err);
+    return jsonResponse({ error: 'server error' });
   }
+}
+
+/** Error de validación cuyo mensaje es seguro devolver al cliente (ver doPost). */
+function clientError_(message) {
+  const err = new Error(message);
+  err.clientSafe = true;
+  return err;
 }
 
 function doGet() {
@@ -258,7 +277,7 @@ function resolveTrustedEmail_(params) {
   const tokenEmail = verifyIdToken_(params.idToken);
   if (tokenEmail) return tokenEmail;
   if (REQUIRE_ID_TOKEN) {
-    throw new Error('valid Firebase ID token required');
+    throw clientError_('valid Firebase ID token required');
   }
   return String(params.userEmail || '').trim().toLowerCase();
 }
@@ -275,11 +294,11 @@ function handleUpload(params) {
   const uploaderEmail = resolveTrustedEmail_(params);
 
   if (!withinRateLimit_('upload', uploaderEmail, FILE_RATE_MAX_PER_WINDOW, FILE_RATE_WINDOW_SECONDS)) {
-    throw new Error('rate limit exceeded: too many uploads, retry in a minute');
+    throw clientError_('rate limit exceeded: too many uploads, retry in a minute');
   }
 
   if (!params.fileBase64 || !params.fileName) {
-    throw new Error('missing fileBase64 or fileName');
+    throw clientError_('missing fileBase64 or fileName');
   }
 
   // Sanitize fileName: only allow safe characters to prevent path traversal / injection
@@ -288,13 +307,13 @@ function handleUpload(params) {
     .trim()
     .substring(0, 255);
   if (!sanitizedFileName) {
-    throw new Error('invalid fileName');
+    throw clientError_('invalid fileName');
   }
 
   // Validate MIME type against allowlist
   const mimeType = String(params.mimeType || '').toLowerCase().trim();
   if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
-    throw new Error('file type not allowed: ' + mimeType);
+    throw clientError_('file type not allowed: ' + mimeType);
   }
 
   // Check the encoded length BEFORE decoding and before touching Drive. base64 inflates by 4/3,
@@ -303,7 +322,7 @@ function handleUpload(params) {
   // reject it, turning an oversized upload into a cheap resource-exhaustion request.
   const encodedLength = String(params.fileBase64).length;
   if (encodedLength > Math.ceil(MAX_FILE_BYTES / 3) * 4 + 4) {
-    throw new Error('file exceeds 35 MB limit');
+    throw clientError_('file exceeds 35 MB limit');
   }
 
   const root = DriveApp.getFolderById(FOLDER_ID);
@@ -311,7 +330,7 @@ function handleUpload(params) {
 
   const decoded = Utilities.base64Decode(params.fileBase64);
   if (decoded.length > MAX_FILE_BYTES) {
-    throw new Error('file exceeds 35 MB limit');
+    throw clientError_('file exceeds 35 MB limit');
   }
 
   const blob = Utilities.newBlob(decoded, mimeType, sanitizedFileName);
@@ -339,17 +358,32 @@ function handleUpload(params) {
 
 function handleDelete(params) {
   if (!params.fileId) {
-    throw new Error('missing fileId');
+    throw clientError_('missing fileId');
   }
 
   // Resolve (and therefore authenticate) the requester before touching Drive at all.
   const requesterEmail = resolveTrustedEmail_(params);
 
   if (!withinRateLimit_('delete', requesterEmail, FILE_RATE_MAX_PER_WINDOW, FILE_RATE_WINDOW_SECONDS)) {
-    throw new Error('rate limit exceeded: too many delete requests, retry in a minute');
+    throw clientError_('rate limit exceeded: too many delete requests, retry in a minute');
   }
 
-  const file = DriveApp.getFileById(params.fileId);
+  // getFileById resuelve CUALQUIER archivo al que tenga acceso la cuenta dueña del script —que
+  // ejecuta la Web App "como yo"—, no solo los del repositorio del equipo. La etiqueta
+  // 'uploader:' era la única barrera, y la descripción es un campo que cualquiera con permiso
+  // de edición sobre un archivo compartido con el dueño puede escribir: bastaba con que un
+  // tercero pusiera 'uploader:<su correo>' en un documento que comparte con esa cuenta para
+  // que el bridge lo enviara a la papelera por él. El borrado queda confinado al árbol de
+  // FOLDER_ID, que es lo único que este servicio administra.
+  let file;
+  try {
+    file = DriveApp.getFileById(String(params.fileId));
+  } catch (err) {
+    return { error: 'file not found' };
+  }
+  if (!isInsideRootFolder_(file)) {
+    return { error: 'unauthorized: file is outside the team repository' };
+  }
 
   // Verify ownership: only the original uploader may delete via the bridge. The requester
   // email is derived from the verified Firebase ID token when available (spoof-resistant);
@@ -377,14 +411,53 @@ function handleDelete(params) {
 }
 
 /**
+ * Indica si el archivo cuelga (a cualquier profundidad acotada) de FOLDER_ID. La estructura
+ * que crea este script es root/{tasks|projects}/{id}/archivo o root/general/archivo, así que
+ * cuatro niveles bastan; el tope evita recorrer árboles arbitrarios del Drive del dueño.
+ */
+function isInsideRootFolder_(file) {
+  const MAX_DEPTH = 4;
+  let frontier = [];
+  const parents = file.getParents();
+  while (parents.hasNext()) frontier.push(parents.next());
+  for (let depth = 0; depth < MAX_DEPTH && frontier.length; depth++) {
+    const next = [];
+    for (let i = 0; i < frontier.length; i++) {
+      const folder = frontier[i];
+      if (folder.getId() === FOLDER_ID) return true;
+      const up = folder.getParents();
+      while (up.hasNext()) next.push(up.next());
+    }
+    frontier = next;
+  }
+  return false;
+}
+
+/**
  * Fixed-window per-key rate limiter backed by the script CacheService. Returns true when the
  * call is within budget, false when the caller has exhausted `max` calls in the current window.
- * Fails open only if the cache backend is unavailable, never on a clean hit.
+ * Fails open only if the cache backend is unavailable, never on a clean hit; fails closed if
+ * the script lock cannot be acquired.
  */
 function withinRateLimit_(scope, key, max, windowSeconds) {
+  let cache;
   try {
-    const cache = CacheService.getScriptCache();
-    if (!cache) return true;
+    cache = CacheService.getScriptCache();
+  } catch (err) {
+    return true;
+  }
+  if (!cache) return true;
+
+  // El ciclo leer-comparar-escribir no era atómico: N peticiones concurrentes leían el mismo
+  // contador y todas pasaban, así que el tope por minuto se esquivaba simplemente disparando
+  // las llamadas en paralelo (Promise.all) — justo el patrón de abuso de cuota que el límite
+  // debe frenar. El script lock serializa la sección crítica. Si el lock no se obtiene a
+  // tiempo se rechaza la llamada (falla cerrado): una contención así solo ocurre bajo ráfaga.
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) {
+    return false;
+  }
+  try {
     const bucket = scope + '_rl_' + key;
     const current = parseInt(cache.get(bucket) || '0', 10) || 0;
     if (current >= max) {
@@ -394,6 +467,8 @@ function withinRateLimit_(scope, key, max, windowSeconds) {
     return true;
   } catch (err) {
     return true;
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -434,14 +509,14 @@ function buildGenerationConfig_(requested) {
 
 function handleChat(params) {
   if (!params.model || !params.contents) {
-    throw new Error('missing model or contents');
+    throw clientError_('missing model or contents');
   }
 
   // `contents` was only checked for truthiness, so any JSON value reached the Gemini API as-is.
   // Requiring the documented shape keeps malformed or hostile payloads from being forwarded on
   // the team's billed key, and caps the conversation length independently of its byte size.
   if (!Array.isArray(params.contents) || params.contents.length === 0) {
-    throw new Error('contents must be a non-empty array of turns');
+    throw clientError_('contents must be a non-empty array of turns');
   }
   if (params.contents.length > CHAT_MAX_TURNS) {
     return { error: 'too many conversation turns' };
@@ -457,7 +532,7 @@ function handleChat(params) {
   // systemInstruction/contents), bypassing the "solo Cubesat" guardrail and burning quota.
   const callerEmail = verifyIdToken_(params.idToken);
   if (!callerEmail) {
-    throw new Error('valid Firebase ID token required for chat');
+    throw clientError_('valid Firebase ID token required for chat');
   }
 
   // Rate limit per verified email. A valid institutional token proves *who* the caller is but
@@ -478,16 +553,19 @@ function handleChat(params) {
   // Validate model against allowlist to prevent path injection / unintended API access
   const modelName = String(params.model);
   if (!ALLOWED_MODELS.includes(modelName)) {
-    throw new Error('model not allowed: ' + modelName);
+    throw clientError_('model not allowed: ' + modelName);
   }
 
   // Retrieve API Key securely from Script Properties
   const apiKey = PropertiesService.getScriptProperties().getProperty('GOOGLE_AI_KEY');
   if (!apiKey) {
-    throw new Error('Google AI API Key not configured in Apps Script properties.');
+    throw clientError_('Google AI API Key not configured in Apps Script properties.');
   }
 
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent?key=' + apiKey;
+  // La clave viaja en la cabecera x-goog-api-key, NUNCA en la URL: UrlFetchApp incluye la URL
+  // completa en el mensaje de sus excepciones de red, y una clave en el query string termina
+  // también en cualquier traza o registro que capture la URL.
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent';
 
   const payload = {
     contents: params.contents
@@ -520,6 +598,7 @@ function handleChat(params) {
   const options = {
     method: 'post',
     contentType: 'application/json',
+    headers: { 'x-goog-api-key': apiKey },
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   };
@@ -529,9 +608,12 @@ function handleChat(params) {
   const responseText = response.getContentText();
 
   if (responseCode !== 200) {
+    // El cuerpo de error de Gemini se registra para el dueño pero no se reenvía: puede
+    // describir la configuración del proyecto de Google Cloud (proyecto, cuotas, estado de
+    // facturación) y al cliente solo le sirve el código para decidir si prueba otro modelo.
+    console.error('Gemini API ' + responseCode + ': ' + responseText.substring(0, 2000));
     return {
-      error: 'Gemini API returned status ' + responseCode,
-      details: responseText
+      error: 'Gemini API returned status ' + responseCode
     };
   }
 

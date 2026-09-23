@@ -286,6 +286,40 @@ This project implements the following security practices:
   rest of the tree stays on the patched major. The residual advisory is dev-only, moderate, and
   reachable only by running `firebase database:import` over hostile JSON on your own machine —
   a far smaller risk than being unable to test or deploy the security rules.
+- **Membership revocation (`isActive`)**: the workspace boundary used to be identity only — a
+  verified `@usm.cl` / `@sansano.usm.cl` address — so there was no way to remove someone from
+  the team. A former member (or a compromised account) kept reading every task, project, file,
+  event and post, and writing to the feed, chats and notifications, for as long as the address
+  resolved. Deleting the profile did not help because `create` on `/users` lets the owner
+  recreate it. `isInstitutional()` now also requires the caller's profile not to carry
+  `isActive: false`; the member cannot flip it back (not self-editable, forced to `true` on
+  create, and they cannot delete their own profile). A missing profile or a profile without the
+  field counts as active, like the client does. **To offboard someone**, set `isActive` to
+  `false` on `users/{uid}` (Firebase console, or as maestro/admin within the role boundary); the
+  app shows them a "Cuenta desactivada" screen. The Drive/Gemini bridge still authenticates by ID
+  token only, so for a complete cut also **disable the account** in Firebase Authentication,
+  which the bridge's `accounts:lookup` check honours.
+- **Drive bridge — no API key in URLs or error bodies**: the Gemini proxy put `GOOGLE_AI_KEY` in
+  the request query string, and `doPost` returned any exception's `message` to the browser.
+  `UrlFetchApp` network failures ("Address unavailable", timeouts) quote the full request URL, so
+  a failed call handed the team's paid key to any verified member. The key now travels in the
+  `x-goog-api-key` header, only errors the script raises on purpose (`clientError_`) are echoed,
+  anything else returns a generic `server error` (details stay in the owner's execution logs),
+  and Gemini's raw error body is logged instead of forwarded.
+- **Drive bridge — deletes confined to the repository folder**: `handleDelete` resolved any file
+  the script owner can reach (`DriveApp.getFileById`) and trusted the `uploader:` tag in its
+  description. Anyone with edit access to a file shared with the owner can write that
+  description, so the bridge would trash files outside the team repository on their behalf.
+  Deletion now requires the file to live under `FOLDER_ID`.
+- **Drive bridge — atomic rate limiting**: the per-caller limiter did a non-atomic
+  read-compare-write on `CacheService`, so firing requests in parallel bypassed the per-minute
+  cap on uploads, deletes and the paid Gemini proxy. The critical section is now serialized with
+  `LockService` and fails closed if the lock cannot be acquired.
+- **Known residual risk — deliverable self-approval**: an assignee may rewrite the whole
+  `deliverables` array of their task (the field is in their allowlist), which includes each
+  item's `estado`. Rules cannot iterate a list, so they cannot stop an assignee from marking
+  their own deliverable `aprobado`. Closing it needs a data-model change (approval stored in a
+  manager-only field, e.g. `approvedDeliverableIds`), tracked for a follow-up.
 - **Branch protection**: Main branch requires pull request reviews before merging
 
 ## Response Time

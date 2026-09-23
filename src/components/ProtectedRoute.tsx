@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { User as UserIcon, AlertCircle, MailCheck, LogOut, RefreshCw } from 'lucide-react'
+import { User as UserIcon, AlertCircle, MailCheck, LogOut, RefreshCw, ShieldOff } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +30,13 @@ export default function ProtectedRoute({ children, user }: ProtectedRouteProps) 
   // members who registered before verification existed.
   if (firebaseUser && !firebaseUser.emailVerified) {
     return <VerifyEmailOverlay email={firebaseUser.email} />
+  }
+
+  // Membresía revocada. `isInstitutional()` en firestore.rules niega todo el espacio de trabajo
+  // a un perfil con `isActive: false`; esta pantalla lo explica en vez de dejar al usuario frente
+  // a consultas fallidas. Solo el propio perfil sigue siendo legible, que es lo que la alimenta.
+  if (user.isActive === false) {
+    return <DeactivatedOverlay />
   }
 
   if (!user.nombre || !user.apellido) {
@@ -137,6 +144,40 @@ function VerifyEmailOverlay({ email }: { email: string | null }) {
             onClick={() => { void signOut() }}
             variant="ghost"
             className="w-full text-muted-foreground hover:text-white"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Cerrar sesión
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function DeactivatedOverlay() {
+  const { signOut } = useAuth()
+
+  return (
+    <div className="min-safe-screen min-h-screen bg-space-900 flex items-center justify-center p-4 relative overflow-hidden">
+      <div className="absolute inset-0 stars-bg opacity-30" />
+      <Card className="w-full max-w-md bg-space-800 border-space-600 z-10">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-3">
+            <div className="p-3 rounded-full bg-red-500/20">
+              <ShieldOff className="w-6 h-6 text-red-400" />
+            </div>
+          </div>
+          <CardTitle className="text-xl text-white">Cuenta desactivada</CardTitle>
+          <CardDescription className="text-muted-foreground">
+            Tu acceso a la plataforma del equipo USM CubeSat fue desactivado. Si crees que es un
+            error, contacta a un administrador del equipo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            onClick={() => { void signOut() }}
+            variant="outline"
+            className="w-full border-space-500 text-white hover:bg-space-700"
           >
             <LogOut className="w-4 h-4 mr-2" />
             Cerrar sesión

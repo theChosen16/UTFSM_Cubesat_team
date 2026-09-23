@@ -75,7 +75,30 @@ service cloud.firestore {
     // the platform back into agreement instead of leaving uploads and the bot fail-closed for
     // exactly the accounts Firestore was still admitting.
     function isInstitutional() {
-      return isInstitutionalDomain() && request.auth.token.email_verified == true;
+      return isInstitutionalDomain() && request.auth.token.email_verified == true && isActiveMember();
+    }
+
+    // Revocación de membresía.
+    //
+    // La frontera anterior era puramente de IDENTIDAD: correo institucional verificado. Nada en
+    // estas reglas miraba si esa persona SIGUE siendo del equipo, así que no existía forma de
+    // dar de baja a un miembro. El perfil tiene un campo `isActive` (el boletín semanal ya
+    // excluye a quien lo tiene en false), pero ninguna regla lo leía: un integrante que dejó el
+    // equipo —o una cuenta comprometida— conservaba lectura de todas las tareas, proyectos,
+    // archivos, eventos y publicaciones, y escritura en el muro, los chats y las notificaciones,
+    // mientras su dirección @usm.cl siguiera resolviendo (las de exalumnos lo hacen por años).
+    // Borrar su perfil tampoco servía: `create` en /users acepta que cualquiera recree el suyo.
+    //
+    // Ahora `isActive == false` corta el acceso a todo el espacio de trabajo. Un miembro no puede
+    // revertirlo (el campo está fuera de isAllowedSelfUpdate y `create` lo fuerza a true, y no
+    // puede borrar su propio perfil para recrearlo), y lo pueden fijar el maestro sobre
+    // cualquiera y un admin sobre miembros sin rol elevado. Un perfil ausente o sin el campo se
+    // trata como activo, igual que en el cliente (mapFirestoreUser), para no dejar fuera cuentas
+    // legadas. El get() es el mismo documento que ya leen hasRole()/hasTeam(), así que dentro de
+    // una petición no suma lecturas adicionales en las rutas que ya lo consultan.
+    function isActiveMember() {
+      let profilePath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return !exists(profilePath) || get(profilePath).data.get('isActive', true) != false;
     }
 
     // Truthfulness check for the display name attached to a notification.

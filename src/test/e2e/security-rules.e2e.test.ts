@@ -1676,4 +1676,55 @@ describe('Security rules — verified institutional membership', () => {
     expect(snap.empty).toBe(true)
     await updateDoc(doc(db, 'users', user.uid), { bio: 'Ahora sí' })
   })
+
+  it('revokes the whole workspace for a deactivated member, who cannot undo it', async () => {
+    // Identity was the only boundary: a verified @usm.cl account kept full access after leaving
+    // the team, and deleting its profile did nothing because `create` lets it be recreated.
+    const { user } = await createVerifiedUser(auth, 'former@usm.cl', PW)
+    await adminSetDoc(`users/${user.uid}`, {
+      email: 'former@usm.cl',
+      nombre: 'Former',
+      apellido: 'Member',
+      createdAt: new Date(),
+      isActive: false,
+    })
+
+    await expectDenied(getDocs(collection(db, 'tasks')))
+    await expectDenied(getDocs(collection(db, 'posts')))
+    await expectDenied(getDoc(doc(db, 'system_config', 'keys')))
+    await expectDenied(
+      addDoc(collection(db, 'posts'), {
+        authorId: user.uid,
+        content: 'Sigo aquí',
+        createdAt: Timestamp.now(),
+      })
+    )
+
+    // The own profile stays readable (it renders the "cuenta desactivada" screen)...
+    expect((await getDoc(doc(db, 'users', user.uid))).data()!.isActive).toBe(false)
+    // ...but the member can neither reactivate it nor overwrite it with a fresh one.
+    await expectDenied(updateDoc(doc(db, 'users', user.uid), { isActive: true }))
+    await expectDenied(
+      setDoc(doc(db, 'users', user.uid), {
+        email: 'former@usm.cl',
+        nombre: 'Former',
+        apellido: 'Member',
+        createdAt: new Date(),
+        isActive: true,
+      })
+    )
+  })
+
+  it('treats a legacy profile without isActive as active', async () => {
+    const { user } = await createVerifiedUser(auth, 'legacy@usm.cl', PW)
+    await adminSetDoc(`users/${user.uid}`, {
+      email: 'legacy@usm.cl',
+      nombre: 'Legacy',
+      apellido: 'Member',
+      createdAt: new Date(),
+    })
+
+    const snap = await getDocs(collection(db, 'tasks'))
+    expect(snap.empty).toBe(true)
+  })
 })
