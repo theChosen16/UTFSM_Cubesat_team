@@ -114,4 +114,15 @@ describe('ProtectedRoute — verification gate', () => {
 
     expect(screen.getByText('Completa tu perfil')).toBeInTheDocument()
   })
+
+  it('blocks a deactivated member and offers only to sign out', async () => {
+    mockFirebaseUser = { email: 'sofia.galaz@usm.cl', emailVerified: true }
+    renderRoute({ ...member, isActive: false })
+
+    expect(screen.getByText('Cuenta desactivada')).toBeInTheDocument()
+    expect(screen.queryByText('Contenido privado')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /cerrar sesión/i }))
+    expect(mockSignOut).toHaveBeenCalledTimes(1)
+  })
 })
