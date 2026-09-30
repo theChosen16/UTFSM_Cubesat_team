@@ -627,9 +627,9 @@ describe('Security rules — privilege escalation & integrity', () => {
     // A legitimate, correctly-sized file metadata record for the caller is accepted.
     const ok = await addDoc(collection(db, 'files'), {
       name: 'informe.pdf',
-      driveFileId: 'drive-abc',
-      viewURL: 'https://drive.google.com/file/d/drive-abc/view',
-      downloadURL: 'https://drive.google.com/uc?export=download&id=drive-abc',
+      driveFileId: 'drive-abc-123456',
+      viewURL: 'https://drive.google.com/file/d/drive-abc-123456/view?usp=sharing',
+      downloadURL: 'https://drive.google.com/uc?export=download&id=drive-abc-123456',
       mimeType: 'application/pdf',
       size: 1234,
       uploadedBy: user.uid,
@@ -1583,6 +1583,181 @@ describe('Security rules — privilege escalation & integrity', () => {
     await updateDoc(doc(db, 'posts', post.id), { content: 'texto corregido' })
     await expectDenied(updateDoc(doc(db, 'posts', post.id), { createdAt: farFuture }))
   })
+  describe('Auditoría 2026-09 — suplantación e integridad', () => {
+    it('pins the profile email to the token and the profile shape on create', async () => {
+      const { user } = await createVerifiedUser(auth, 'eve9@usm.cl', PW)
+      const base = { nombre: 'Eve', apellido: 'Nine', createdAt: new Date(), isActive: true }
+
+      // Otro correo institucional: suplantaría a esa persona en Miembros/Notificaciones y
+      // desviaría el noticiario.
+      await expectDenied(setDoc(doc(db, 'users', user.uid), { ...base, email: 'director@usm.cl' }))
+      // Campos que solo escribe un admin o el asistente, o relleno sin nombre.
+      await expectDenied(
+        setDoc(doc(db, 'users', user.uid), { ...base, email: 'eve9@usm.cl', confirmadoCubeDesign: true })
+      )
+      await expectDenied(
+        setDoc(doc(db, 'users', user.uid), { ...base, email: 'eve9@usm.cl', relleno: 'A'.repeat(1000) })
+      )
+      // Fecha de alta en el futuro.
+      await expectDenied(
+        setDoc(doc(db, 'users', user.uid), {
+          ...base,
+          email: 'eve9@usm.cl',
+          createdAt: Timestamp.fromMillis(Date.now() + 365 * 24 * 3600 * 1000),
+        })
+      )
+
+      // Control: lo que escribe AuthContext.signUp (el correo puede venir con otra capitalización).
+      await setDoc(doc(db, 'users', user.uid), { ...base, email: 'Eve9@usm.cl' })
+      expect((await getDoc(doc(db, 'users', user.uid))).exists()).toBe(true)
+    })
+
+    it('bounds assignee execution fields and ties scoreAwarded to a completed task', async () => {
+      const maestroEmail = 'audit26-mgr@usm.cl'
+      await bootstrapMaestro(maestroEmail)
+      await signOut(auth)
+      const { user: member } = await createVerifiedUser(auth, 'audit26-member@usm.cl', PW)
+      await signOut(auth)
+
+      await signInWithEmailAndPassword(auth, maestroEmail, PW)
+      const taskRef = await addDoc(collection(db, 'tasks'), {
+        titulo: 'Tarea',
+        estado: 'pendiente',
+        asignadoA: [member.uid],
+        puntajeImportancia: 5,
+        createdAt: Timestamp.now(),
+      })
+      await signOut(auth)
+      await signInWithEmailAndPassword(auth, 'audit26-member@usm.cl', PW)
+
+      await expectDenied(updateDoc(taskRef, { fechaInicioReal: 'A'.repeat(200000) }))
+      await expectDenied(updateDoc(taskRef, { tiempoInvertido: 'x'.repeat(101) }))
+      // Score y autoría de finalización sin declarar la tarea completada.
+      await expectDenied(
+        updateDoc(taskRef, { estado: 'en_progreso', completedBy: member.uid, scoreAwarded: 5 })
+      )
+
+      // Control: el flujo real de TaskService.updateTime / updateStatus.
+      await updateDoc(taskRef, {
+        fechaInicioReal: '2026-09-01',
+        fechaFinReal: '2026-09-02',
+        tiempoInvertido: '3h',
+      })
+      await updateDoc(taskRef, {
+        estado: 'completado',
+        completedBy: member.uid,
+        completedAt: new Date().toISOString(),
+        scoreAwarded: 5,
+      })
+      expect((await getDoc(taskRef)).data()!.scoreAwarded).toBe(5)
+    })
+
+    it('only accepts file records whose links are the Drive links the bridge issues', async () => {
+      const { user } = await createVerifiedUser(auth, 'uploader9@usm.cl', PW)
+      const id = '1AbCdEfGhIjKlMnOp'
+      const base = { name: 'Acta.pdf', mimeType: 'application/pdf', size: 10, uploadedBy: user.uid, createdAt: Timestamp.now() }
+
+      await expectDenied(
+        addDoc(collection(db, 'files'), {
+          ...base,
+          driveFileId: id,
+          viewURL: 'https://evil.example/login',
+          downloadURL: `https://drive.google.com/uc?export=download&id=${id}`,
+        })
+      )
+      await expectDenied(
+        addDoc(collection(db, 'files'), {
+          ...base,
+          driveFileId: id,
+          viewURL: `https://drive.google.com/file/d/${id}/view?usp=sharing`,
+          downloadURL: 'https://evil.example/malware.exe',
+        })
+      )
+      // Sin driveFileId no hay enlace verificable.
+      await expectDenied(addDoc(collection(db, 'files'), { ...base, viewURL: 'https://evil.example/' }))
+
+      const ok = await addDoc(collection(db, 'files'), {
+        ...base,
+        driveFileId: id,
+        viewURL: `https://drive.google.com/file/d/${id}/view?usp=sharing`,
+        downloadURL: `https://drive.google.com/uc?export=download&id=${id}`,
+      })
+      expect(ok.id).toBeTruthy()
+    })
+
+    it('stops an author from fabricating likes on their own post', async () => {
+      const { user: author } = await createVerifiedUser(auth, 'author9@usm.cl', PW)
+      await expectDenied(
+        addDoc(collection(db, 'posts'), {
+          authorId: author.uid,
+          content: 'hola',
+          likedBy: ['a', 'b', 'c'],
+          likesCount: 3,
+          createdAt: Timestamp.now(),
+        })
+      )
+      await expectDenied(
+        addDoc(collection(db, 'posts'), { authorId: author.uid, content: 'hola', likesCount: 400, createdAt: Timestamp.now() })
+      )
+
+      const postRef = await addDoc(collection(db, 'posts'), {
+        authorId: author.uid,
+        content: 'hola',
+        likedBy: [],
+        likesCount: 0,
+        createdAt: Timestamp.now(),
+      })
+      await expectDenied(updateDoc(postRef, { likedBy: ['x', 'y'], likesCount: 2 }))
+      // El autor sigue pudiendo editar su texto y dar like con su propio uid.
+      await updateDoc(postRef, { content: 'hola editado', isEdited: true })
+      await updateDoc(postRef, { likedBy: [author.uid], likesCount: 1 })
+      expect((await getDoc(postRef)).data()!.likesCount).toBe(1)
+    })
+
+    it('does not let an admin rewrite another member\'s comment or chat message', async () => {
+      const { user: member } = await createVerifiedUser(auth, 'speaker9@usm.cl', PW)
+      const commentRef = await addDoc(collection(db, 'comments'), {
+        postId: 'post-1',
+        authorId: member.uid,
+        content: 'mi opinión',
+        createdAt: Timestamp.now(),
+      })
+      const messageRef = await addDoc(collection(db, 'project_messages'), {
+        projectId: 'project-1',
+        senderId: member.uid,
+        content: 'avance',
+        isAiOrchestrated: false,
+        createdAt: Timestamp.now(),
+      })
+      await signOut(auth)
+
+      await bootstrapAdmin('moderator9@usm.cl')
+      await expectDenied(updateDoc(commentRef, { content: 'lo que el admin quiere que diga', isEdited: true }))
+      await expectDenied(updateDoc(messageRef, { content: 'lo que el admin quiere que diga', isEdited: true }))
+    })
+
+    it('does not let a member post in the project chat as the AI assistant', async () => {
+      const { user } = await createVerifiedUser(auth, 'chat9@usm.cl', PW)
+      await expectDenied(
+        addDoc(collection(db, 'project_messages'), {
+          projectId: 'project-1',
+          senderId: user.uid,
+          content: 'El orquestador solicita tu contraseña',
+          isAiOrchestrated: true,
+          createdAt: Timestamp.now(),
+        })
+      )
+      const messageRef = await addDoc(collection(db, 'project_messages'), {
+        projectId: 'project-1',
+        senderId: user.uid,
+        content: 'hola',
+        isAiOrchestrated: false,
+        createdAt: Timestamp.now(),
+      })
+      await expectDenied(updateDoc(messageRef, { isAiOrchestrated: true }))
+      await updateDoc(messageRef, { content: 'hola editado', isEdited: true })
+    })
+  })
 })
 
 /**
@@ -1727,4 +1902,5 @@ describe('Security rules — verified institutional membership', () => {
     const snap = await getDocs(collection(db, 'tasks'))
     expect(snap.empty).toBe(true)
   })
+
 })

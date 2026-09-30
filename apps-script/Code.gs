@@ -196,7 +196,7 @@ function resolveTargetFolder(root, params) {
 
 /**
  * Verifies a Firebase ID token and returns the institutional email it asserts, or null if the
- * token is missing/invalid.
+ * token is missing/invalid or its account has been deactivated (see isActiveMember_).
  *
  * Primary path: Identity Toolkit `accounts:lookup`, the authoritative validator for *Firebase*
  * ID tokens. It rejects expired, malformed and foreign-project tokens (the Web API key pins the
@@ -212,14 +212,46 @@ function verifyIdToken_(idToken) {
   if (!idToken) return null;
   const token = String(idToken);
   const apiKey = getFirebaseWebApiKey_();
-  if (apiKey) {
-    const email = verifyIdTokenViaIdentityToolkit_(token, apiKey);
-    if (email) return email;
-    // A configured key that rejects the token is authoritative: do not silently downgrade to
-    // the weaker tokeninfo check, or the fallback becomes a bypass of the strong one.
-    return null;
+  // A configured key that rejects the token is authoritative: do not silently downgrade to
+  // the weaker tokeninfo check, or the fallback becomes a bypass of the strong one.
+  const identity = apiKey
+    ? verifyIdTokenViaIdentityToolkit_(token, apiKey)
+    : verifyIdTokenViaTokenInfo_(token);
+  if (!identity) return null;
+  if (!isActiveMember_(identity.uid, token)) return null;
+  return identity.email;
+}
+
+/**
+ * Revocación de membresía (`users/{uid}.isActive == false`) también en el bridge.
+ *
+ * firestore.rules corta el workspace a un perfil desactivado, pero el bridge autenticaba solo
+ * por token: un exmiembro con su correo institucional verificado seguía usando la clave de pago
+ * de Gemini y subiendo archivos públicos al Drive del equipo (el secreto compartido lo leyó
+ * mientras era miembro y no rota al desactivarlo). La única salida documentada era además
+ * deshabilitar la cuenta en Firebase Auth, un segundo paso fácil de olvidar.
+ *
+ * El perfil se lee por la API REST de Firestore CON EL PROPIO TOKEN del llamante — las reglas
+ * le permiten leer su perfil aunque esté desactivado —, así que no hace falta ninguna credencial
+ * de servicio. Misma semántica que isActiveMember() en las reglas: sin perfil (404) o sin el
+ * campo cuenta como activo. Cualquier otra respuesta falla cerrado.
+ */
+function isActiveMember_(uid, idToken) {
+  if (!uid || !/^[A-Za-z0-9_-]{1,128}$/.test(uid)) return false;
+  try {
+    const resp = UrlFetchApp.fetch(
+      'https://firestore.googleapis.com/v1/projects/' + FIREBASE_PROJECT_ID +
+        '/databases/(default)/documents/users/' + uid + '?mask.fieldPaths=isActive',
+      { headers: { Authorization: 'Bearer ' + idToken }, muteHttpExceptions: true }
+    );
+    const code = resp.getResponseCode();
+    if (code === 404) return true;
+    if (code !== 200) return false;
+    const fields = JSON.parse(resp.getContentText()).fields || {};
+    return !(fields.isActive && fields.isActive.booleanValue === false);
+  } catch (err) {
+    return false;
   }
-  return verifyIdTokenViaTokenInfo_(token);
 }
 
 function verifyIdTokenViaIdentityToolkit_(idToken, apiKey) {
@@ -241,7 +273,7 @@ function verifyIdTokenViaIdentityToolkit_(idToken, apiKey) {
     if (account.emailVerified !== true && account.emailVerified !== 'true') return null;
     const email = String(account.email || '').trim().toLowerCase();
     if (!ALLOWED_EMAIL_PATTERN.test(email)) return null;
-    return email;
+    return { email: email, uid: String(account.localId || '') };
   } catch (err) {
     return null;
   }
@@ -262,7 +294,7 @@ function verifyIdTokenViaTokenInfo_(idToken) {
     if (claims.email_verified !== true && claims.email_verified !== 'true') return null;
     const email = String(claims.email || '').trim().toLowerCase();
     if (!ALLOWED_EMAIL_PATTERN.test(email)) return null;
-    return email;
+    return { email: email, uid: String(claims.sub || claims.user_id || '') };
   } catch (err) {
     return null;
   }

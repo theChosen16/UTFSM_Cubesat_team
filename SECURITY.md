@@ -296,9 +296,9 @@ This project implements the following security practices:
   create, and they cannot delete their own profile). A missing profile or a profile without the
   field counts as active, like the client does. **To offboard someone**, set `isActive` to
   `false` on `users/{uid}` (Firebase console, or as maestro/admin within the role boundary); the
-  app shows them a "Cuenta desactivada" screen. The Drive/Gemini bridge still authenticates by ID
-  token only, so for a complete cut also **disable the account** in Firebase Authentication,
-  which the bridge's `accounts:lookup` check honours.
+  app shows them a "Cuenta desactivada" screen. The Drive/Gemini bridge honours the same flag
+  (see *Drive bridge — revocation* below); disabling the account in Firebase Authentication
+  remains a valid, stronger cut.
 - **Drive bridge — no API key in URLs or error bodies**: the Gemini proxy put `GOOGLE_AI_KEY` in
   the request query string, and `doPost` returned any exception's `message` to the browser.
   `UrlFetchApp` network failures ("Address unavailable", timeouts) quote the full request URL, so
@@ -315,6 +315,45 @@ This project implements the following security practices:
   read-compare-write on `CacheService`, so firing requests in parallel bypassed the per-minute
   cap on uploads, deletes and the paid Gemini proxy. The critical section is now serialized with
   `LockService` and fails closed if the lock cannot be acquired.
+- **Drive bridge — revocation (`isActive`)**: the bridge authenticated by ID token only, so a
+  deactivated member kept using the team's paid Gemini key and publishing files to the team Drive
+  (the shared secret they read while active does not rotate). After verifying the token the
+  bridge now reads `users/{uid}.isActive` through the Firestore REST API *with the caller's own
+  token* (the rules let everyone read their own profile), using the same semantics as the rules
+  (missing profile or field = active) and failing closed on any other response. Requires
+  redeploying `apps-script/Code.gs`.
+- **Profile creation is truthful and shaped**: `create` on `/users` rejected privileged fields but
+  accepted any other field with any value. `email` was not compared with the token, so an account
+  registered as `eve@usm.cl` could store `email: 'director@usm.cl'` (plus that person's name): the
+  identity shown in Members, in the Notifications recipient picker and in admin listings, and the
+  address the weekly digest is mailed to — and since `email` is not self-editable, a permanent,
+  uncorrectable impersonation. Admin/assistant-only fields (`confirmadoCubeDesign`) could be
+  pre-set, unnamed padding fields could inflate the profile to 1 MiB and `createdAt` was not
+  validated. Create now pins the key set, requires `email` to match the token and validates
+  `createdAt`.
+- **Moderators cannot put words in someone else's mouth**: `comments` and `project_messages`
+  allowed `admin`/`maestro` to *update* any member's content, which stays signed by its author —
+  an admin could silently rewrite what any member (the maestro included) had said. No client
+  offers this (edit is author-only in the UI); moderation is deletion, which is unchanged.
+- **Nobody speaks as the assistant**: `project_messages.isAiOrchestrated: true` renders a message
+  as "AI Orquestador" (assistant avatar and bubble, no sender name). No client ever writes it as
+  `true`, yet any member could, and use the assistant's voice for social engineering in any
+  project chat. It must now be absent or `false`.
+- **Likes cannot be fabricated by the author**: the like-toggle integrity checks applied to
+  everyone except the post's author, who could create a post pre-filled with teammates' uids in
+  `likedBy` and an arbitrary `likesCount`, or rewrite both later. Posts are now created with no
+  likes, and the author path cannot touch `likedBy`/`likesCount` (the author toggles their own
+  like through the same checked path as everyone else).
+- **File records only link to the file they describe**: `files.viewURL`/`downloadURL` were free
+  text, so any member could list "Acta_reunion.pdf" in the repository pointing at a fake Google/USM
+  login page or a hosted executable — `sanitizeUrl()` filters dangerous *schemes*, not domains.
+  Both links must now be exactly the Drive URLs the bridge issues for the record's `driveFileId`.
+- **Assignee writes are bounded and coherent**: the assignee field allowlist capped the arrays but
+  not the strings `fechaInicioReal`, `fechaFinReal`, `tiempoInvertido`, `completedAt` and
+  `completedBy`, so a task (downloaded by every member) could be inflated to 1 MiB. They are now
+  size-capped on both write paths and `scoreAwarded` must be a number. Writing `scoreAwarded` or
+  `completedBy` also requires `estado: 'completado'`, so an assignee can no longer credit
+  themselves a completion on a task left in progress.
 - **Known residual risk — deliverable self-approval**: an assignee may rewrite the whole
   `deliverables` array of their task (the field is in their allowlist), which includes each
   item's `estado`. Rules cannot iterate a list, so they cannot stop an assignee from marking

@@ -310,6 +310,38 @@ service cloud.firestore {
       return request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null);
     }
 
+    // Forma y veracidad del perfil en su creación.
+    //
+    // `create` validaba lo que el perfil NO podía traer (rol, roles, isActive:false, 'manager')
+    // pero no lo que sí traía, así que aceptaba cualquier otro campo con cualquier valor:
+    //  - `email` es texto libre en el documento y no se contrastaba con el token. Quien se
+    //    registra como eve@usm.cl podía guardar `email: 'director@usm.cl'` (y el nombre de esa
+    //    persona). Es el correo que Miembros, el selector de destinatarios de Notificaciones
+    //    ("Nombre (correo)") y los listados de admin muestran como identidad, y al que
+    //    EmailNotificationService envía el noticiario. `email` no está en la lista de
+    //    autoedición precisamente para que nadie pueda reescribirlo… salvo al crearlo, que era
+    //    justo el camino abierto: una suplantación persistente que nadie podía corregir.
+    //  - Campos que solo escribe un admin o el asistente (`confirmadoCubeDesign`, o cualquier
+    //    otro que el cliente llegue a leer) podían venir preescritos, y un campo sin nombrar
+    //    (`relleno: 'A'.repeat(900000)`) inflaba el perfil al tope de 1 MiB, igual que el
+    //    vector que `keys().hasOnly()` ya cerró en posts/comments/files.
+    //  - `createdAt` no se validaba (fecha de alta falsificable).
+    // La forma queda fijada a lo que escribe AuthContext.signUp más los campos autoeditables,
+    // y `email`, si viene, debe ser el del token.
+    function isTruthfulNewProfile() {
+      return request.resource.data.keys().hasOnly([
+          'email', 'nombre', 'apellido', 'createdAt', 'isActive',
+          'career', 'year', 'genero', 'photoURL', 'questionnaire', 'equipos',
+          'bio', 'title', 'socialLinks', 'portfolioImages', 'fechaCumpleanos', 'hasSeenOnboarding'
+        ]) &&
+        (!('email' in request.resource.data) || (
+          request.resource.data.email is string &&
+          request.resource.data.email.lower() == request.auth.token.email.lower()
+        )) &&
+        boundedText(request.resource.data.get('genero', null), 40) &&
+        hasSaneCreatedAt();
+    }
+
     match /users/{userId} {
       // A user may create ONLY their own profile and may NOT self-assign privileged
       // fields. Setting 'rol'/'roles' is rejected, 'isActive' can only be true, and the
@@ -344,7 +376,8 @@ service cloud.firestore {
         !request.resource.data.keys().hasAny(['rol', 'roles']) &&
         (!('isActive' in request.resource.data) || request.resource.data.isActive == true) &&
         (!('equipos' in request.resource.data) || !('manager' in request.resource.data.equipos)) &&
-        isBoundedProfile();
+        isBoundedProfile() &&
+        isTruthfulNewProfile();
 
       // Reading YOUR OWN profile is likewise allowed before verification: the client needs it to
       // hydrate the session and render the verification gate, and it exposes nothing that the
@@ -469,7 +502,23 @@ service cloud.firestore {
         // Tope de campos totales: el Task tipado tiene ~22 campos, así que 40 no restringe
         // ningún flujo real, pero impide colgar campos arbitrarios y sin techo de un documento
         // que todo el equipo descarga en cada carga de /tasks y /dashboard.
-        request.resource.data.keys().size() <= 40;
+        request.resource.data.keys().size() <= 40 &&
+        hasBoundedExecutionFields();
+    }
+
+    // Campos de ejecución que el asignado escribe (TaskService.updateTime / updateStatus).
+    // La lista blanca del asignado acotaba los arreglos pero no estos strings, así que
+    // `fechaInicioReal: 'A'.repeat(1000000)` llevaba la tarea —que todo miembro descarga en
+    // Dashboard, Tareas y Miembros— al tope de 1 MiB. Mismo vector de almacenamiento/egress
+    // que ya se cerró en el resto del documento. `scoreAwarded` debe ser numérico.
+    function hasBoundedExecutionFields() {
+      return boundedText(request.resource.data.get('fechaInicioReal', null), 100) &&
+        boundedText(request.resource.data.get('fechaFinReal', null), 100) &&
+        boundedText(request.resource.data.get('tiempoInvertido', null), 100) &&
+        boundedText(request.resource.data.get('completedAt', null), 100) &&
+        boundedText(request.resource.data.get('completedBy', null), 300) &&
+        (request.resource.data.get('scoreAwarded', null) == null ||
+          request.resource.data.scoreAwarded is number);
     }
 
     match /tasks/{taskId} {
@@ -524,6 +573,15 @@ service cloud.firestore {
           (!('attachmentIds' in request.resource.data) ||
             (request.resource.data.attachmentIds is list &&
               request.resource.data.attachmentIds.size() <= 100)) &&
+          hasBoundedExecutionFields() &&
+          // Un score solo acompaña a una tarea completada. TaskService lo escribe junto con
+          // `estado: 'completado'` y lo borra al revertir; sin esta condición un asignado podía
+          // fijar `scoreAwarded` (y `completedBy`) dejando la tarea en progreso, acreditándose
+          // la finalización sin haberla declarado. Se exige solo cuando la escritura toca el
+          // campo, para no bloquear ediciones de tiempo sobre tareas legadas.
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['scoreAwarded', 'completedBy']) ||
+            request.resource.data.get('estado', '') == 'completado' ||
+            (!('scoreAwarded' in request.resource.data) && !('completedBy' in request.resource.data))) &&
           // Anti-fraude de ranking (1/2): un asignado no puede auto-otorgarse un score arbitrario.
           // Siempre que scoreAwarded esté presente en el documento entrante, debe igualar el
           // puntaje de importancia fijado por un manager. Se compara contra get(...,0) para que
@@ -598,6 +656,22 @@ service cloud.firestore {
         hasSaneCreatedAt();
     }
 
+    // Los enlaces de un registro de archivo deben ser EXACTAMENTE los que devuelve el bridge
+    // (apps-script/Code.gs → handleUpload) para su `driveFileId`. Eran texto libre: cualquier
+    // miembro podía crear un registro "Acta_reunion.pdf" o "Plantilla_informe.docx" cuyo
+    // `viewURL`/`downloadURL` apuntara a un sitio propio (un falso login de Google/USM, o un
+    // ejecutable), y la Biblioteca de archivos y los entregables de Tareas lo mostraban como
+    // un documento más del repositorio del equipo. `sanitizeUrl()` solo descarta esquemas
+    // peligrosos (javascript:, data:), no dominios, así que cualquier https:// pasaba.
+    function hasDriveBridgeUrls() {
+      let id = request.resource.data.get('driveFileId', '');
+      return id is string && id.matches('^[A-Za-z0-9_-]{10,128}$') &&
+        (!('viewURL' in request.resource.data) ||
+          request.resource.data.viewURL == 'https://drive.google.com/file/d/' + id + '/view?usp=sharing') &&
+        (!('downloadURL' in request.resource.data) ||
+          request.resource.data.downloadURL == 'https://drive.google.com/uc?export=download&id=' + id);
+    }
+
     match /files/{fileId} {
       // File metadata for the Drive-backed repository. The uploader must be the caller.
       // The actual bytes live in Google Drive (not Firestore), so in the legitimate flow
@@ -628,6 +702,7 @@ service cloud.firestore {
         boundedText(request.resource.data.get('taskId', null), 300) &&
         boundedText(request.resource.data.get('projectId', null), 300) &&
         boundedText(request.resource.data.get('deliverableId', null), 300) &&
+        hasDriveBridgeUrls() &&
         hasSaneCreatedAt();
       allow delete: if isInstitutional() && (
         resource.data.uploadedBy == request.auth.uid ||
@@ -779,9 +854,14 @@ service cloud.firestore {
       // itself, there is no Storage bucket), so it — not 'content' — is what actually drives
       // the document size. Capping only the text left the real storage/egress vector open, so
       // the array length is bounded on create and update alike.
+      // Un post nace sin likes: si no, el autor lo publicaba con `likedBy` poblado con los uid
+      // de sus compañeros y un `likesCount` arbitrario (apoyos fabricados en el muro común).
       allow create: if isInstitutional() &&
         request.resource.data.authorId == request.auth.uid &&
         isBoundedPost() &&
+        request.resource.data.get('likedBy', []) is list &&
+        request.resource.data.get('likedBy', []).size() == 0 &&
+        request.resource.data.get('likesCount', 0) == 0 &&
         hasSaneCreatedAt();
       // The author can edit their own post. Any other authenticated user may ONLY toggle their
       // own like: the previous rule let anyone overwrite likedBy/likesCount with arbitrary
@@ -796,7 +876,10 @@ service cloud.firestore {
         request.resource.data.get('authorId', '') == resource.data.get('authorId', '') &&
         isBoundedPost() &&
         keepsCreatedAt() && (
-        resource.data.authorId == request.auth.uid ||
+        // El autor edita su contenido, pero los likes no son suyos: la rama del autor exigía
+        // integridad a todos menos a él, que podía reescribir `likedBy`/`likesCount` a voluntad.
+        (resource.data.authorId == request.auth.uid &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['likedBy', 'likesCount'])) ||
         (
           // affectedKeys(), not changedKeys(): a post created without a 'likedBy'/'likesCount'
           // field would otherwise let a non-author add arbitrary new fields to someone else's
@@ -838,8 +921,14 @@ service cloud.firestore {
       // an existing comment onto a DIFFERENT post after the fact, so text written (and read, and
       // possibly reacted to) in one thread reappears under another — the same "content ends up
       // somewhere its author never put it" problem the authorId pin solves in the other axis.
+      //
+      // Solo el autor edita. La regla también dejaba editar a admin/maestro, pero ningún
+      // cliente lo hace (CommentItem muestra "Editar" solo al autor) y lo que concedía era poner
+      // palabras en boca de otro: el comentario sigue firmado por su autor, así que un admin
+      // podía reescribir lo que dijo cualquier miembro —el maestro incluido— sin rastro. La
+      // moderación es borrar, que sigue permitido.
       allow update: if isInstitutional() &&
-        (resource.data.authorId == request.auth.uid || hasRole('maestro') || hasRole('admin')) &&
+        resource.data.authorId == request.auth.uid &&
         request.resource.data.get('authorId', '') == resource.data.get('authorId', '') &&
         request.resource.data.get('postId', '') == resource.data.get('postId', '') &&
         isBoundedComment() &&
@@ -854,7 +943,12 @@ service cloud.firestore {
         ]) &&
         boundedText(request.resource.data.get('content', null), 5000) &&
         boundedText(request.resource.data.get('projectId', null), 300) &&
-        boundedList(request.resource.data.get('fileUrls', null), 4);
+        boundedList(request.resource.data.get('fileUrls', null), 4) &&
+        // `isAiOrchestrated: true` hace que ProjectChat muestre el mensaje como "AI
+        // Orquestador" (avatar y burbuja del asistente, sin el nombre del remitente). Ningún
+        // cliente lo escribe en true —el asistente no publica en el chat—, así que cualquier
+        // miembro podía hablar en nombre del asistente en el chat de cualquier proyecto.
+        request.resource.data.get('isAiOrchestrated', false) == false;
     }
 
     match /project_messages/{messageId} {
@@ -872,8 +966,10 @@ service cloud.firestore {
       // pins 'senderId' so a message can never be re-attributed to another member. 'projectId'
       // is pinned for the same reason 'postId' is on /comments: without it a member could move
       // an existing message into a different project's chat after the fact.
+      // Solo el remitente edita (ProjectChat solo ofrece "Editar" en mensajes propios); mismo
+      // razonamiento que en /comments.
       allow update: if isInstitutional() &&
-        (resource.data.senderId == request.auth.uid || hasRole('maestro') || hasRole('admin')) &&
+        resource.data.senderId == request.auth.uid &&
         request.resource.data.get('senderId', '') == resource.data.get('senderId', '') &&
         request.resource.data.get('projectId', '') == resource.data.get('projectId', '') &&
         isBoundedProjectMessage() &&
