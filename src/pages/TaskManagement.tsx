@@ -301,7 +301,7 @@ export default function TaskManagement() {
   const handleApproveDeliverable = async (taskId: string, deliverableId: string) => {
     if (!user) return
     try {
-      await TaskService.updateDeliverable(taskId, deliverableId, { estado: 'aprobado' }, user.id)
+      await TaskService.approveDeliverable(taskId, deliverableId, user.id)
       await loadData()
     } catch (err) {
       logger.error('Error approving deliverable', { error: err, taskId, deliverableId })

@@ -19,6 +19,7 @@ import {
  *  - users.create cannot self-assign rol/roles, isActive:false or the 'manager' team
  *  - no client path grants the maestro role (the bootstrap lock self-claim is gone)
  *  - an assigned member cannot inflate task scoreAwarded beyond the manager-set importance
+ *  - an assigned member cannot approve their own deliverable (approvedDeliverableIds)
  *  - /mail can only be enqueued by workspace managers, and only to institutional recipients
  */
 describe('Security rules — privilege escalation & integrity', () => {
@@ -211,6 +212,50 @@ describe('Security rules — privilege escalation & integrity', () => {
     })
     const stored = await getDoc(taskRef)
     expect(stored.data()!.scoreAwarded).toBe(5)
+  })
+
+  it('blocks an assigned member from approving their own deliverable', async () => {
+    const maestroEmail = 'approver@usm.cl'
+    await bootstrapMaestro(maestroEmail)
+
+    const { user: member } = await createVerifiedUser(auth, 'deliverer@usm.cl', PW)
+    const memberUid = member.uid
+    await setDoc(doc(db, 'users', memberUid), {
+      email: 'deliverer@usm.cl',
+      nombre: 'Deli',
+      apellido: 'Verer',
+      createdAt: new Date(),
+      isActive: true,
+    })
+
+    await signOut(auth)
+    await signInWithEmailAndPassword(auth, maestroEmail, PW)
+    const taskRef = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Deliverable task',
+      descripcion: '',
+      estado: 'en_progreso',
+      asignadoA: [memberUid],
+      equipo: 'tecnico',
+      prioridad: 'media',
+      creadoPor: 'maestro',
+      deliverables: [{ id: 'd1', titulo: 'Informe', estado: 'pendiente' }],
+      createdAt: Timestamp.now(),
+    })
+
+    await signOut(auth)
+    await signInWithEmailAndPassword(auth, 'deliverer@usm.cl', PW)
+    // The assignee may still deliver (rewrite the deliverables array)…
+    await updateDoc(taskRef, {
+      deliverables: [{ id: 'd1', titulo: 'Informe', estado: 'entregado' }],
+    })
+    // …but cannot record the approval, which is what the client trusts.
+    await expectDenied(updateDoc(taskRef, { approvedDeliverableIds: ['d1'] }))
+
+    await signOut(auth)
+    await signInWithEmailAndPassword(auth, maestroEmail, PW)
+    await updateDoc(taskRef, { approvedDeliverableIds: ['d1'] })
+    const stored = await getDoc(taskRef)
+    expect(stored.data()!.approvedDeliverableIds).toEqual(['d1'])
   })
 
   it('blocks an assigned member from self-scoring a legacy task lacking puntajeImportancia', async () => {

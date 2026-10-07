@@ -354,11 +354,21 @@ This project implements the following security practices:
   size-capped on both write paths and `scoreAwarded` must be a number. Writing `scoreAwarded` or
   `completedBy` also requires `estado: 'completado'`, so an assignee can no longer credit
   themselves a completion on a task left in progress.
-- **Known residual risk — deliverable self-approval**: an assignee may rewrite the whole
-  `deliverables` array of their task (the field is in their allowlist), which includes each
-  item's `estado`. Rules cannot iterate a list, so they cannot stop an assignee from marking
-  their own deliverable `aprobado`. Closing it needs a data-model change (approval stored in a
-  manager-only field, e.g. `approvedDeliverableIds`), tracked for a follow-up.
+- **Deliverable approval is manager-only**: an assignee may rewrite the whole `deliverables`
+  array of their task (it is in their allowlist), including each item's `estado`, and rules
+  cannot iterate a list — so any assignee could mark their own deliverable `aprobado`, which the
+  task view and the Dashboard tracker counted as approved. Approval now lives in
+  `tasks.approvedDeliverableIds`, which is outside the assignee allowlist (manager path only,
+  capped at 50 ids). `TaskService` only reports a deliverable as `aprobado` when its id is in
+  that list; anything else is shown as `entregado`. Deliverables approved before this change
+  must be re-approved once by a manager. Residual: an assignee can still replace the attachments
+  of an already-approved deliverable; re-uploading through the app resets it to `entregado`.
+- **Drive bridge — only function declarations reach Gemini**: `handleChat` forwarded
+  `params.tools` verbatim, and the Gemini API also accepts server-side tools billed outside the
+  token caps — `googleSearch`/`googleSearchRetrieval` (paid grounding per query), `codeExecution`
+  and `urlContext` (the model fetches caller-chosen URLs). Any verified member could enable them
+  on the team's paid key. The bridge now forwards only `functionDeclarations` (all BotService
+  sends). Requires redeploying `apps-script/Code.gs`.
 - **Branch protection**: Main branch requires pull request reviews before merging
 
 ## Response Time

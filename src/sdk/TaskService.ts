@@ -15,7 +15,28 @@ const toDate = (value: unknown): Date => {
   return new Date()
 }
 
+/**
+ * Un entregable solo cuenta como aprobado si un manager lo registró en `approvedDeliverableIds`.
+ *
+ * El arreglo `deliverables` está en la lista blanca de escritura del asignado (firestore.rules),
+ * y las reglas no pueden recorrer listas, así que no pueden impedir que un asignado escriba
+ * `estado: 'aprobado'` en su propio entregable. Antes la UI confiaba en ese campo y cualquier
+ * asignado se auto-aprobaba. La aprobación vive ahora en un campo que solo un manager puede
+ * escribir; un 'aprobado' sin respaldo se muestra como 'entregado'.
+ */
+const normalizeDeliverables = (raw: unknown, approvedIds: string[]): TaskDeliverable[] => {
+  if (!Array.isArray(raw)) return []
+  return (raw as TaskDeliverable[]).map(deliverable =>
+    deliverable?.estado === 'aprobado' && !approvedIds.includes(deliverable.id)
+      ? { ...deliverable, estado: 'entregado' }
+      : deliverable
+  )
+}
+
 const mapTask = (id: string, data: Record<string, unknown>): Task => {
+  const approvedDeliverableIds = Array.isArray(data.approvedDeliverableIds)
+    ? data.approvedDeliverableIds.filter((value): value is string => typeof value === 'string')
+    : []
   return {
     id,
     projectId: typeof data.projectId === 'string' ? data.projectId : '',
@@ -29,7 +50,8 @@ const mapTask = (id: string, data: Record<string, unknown>): Task => {
     puntajeImportancia: typeof data.puntajeImportancia === 'number' ? data.puntajeImportancia : 0,
     fechaLimite: typeof data.fechaLimite === 'string' ? data.fechaLimite : undefined,
     hitos: Array.isArray(data.hitos) ? data.hitos as Task['hitos'] : [],
-    deliverables: Array.isArray(data.deliverables) ? data.deliverables as TaskDeliverable[] : [],
+    deliverables: normalizeDeliverables(data.deliverables, approvedDeliverableIds),
+    approvedDeliverableIds,
     progressUpdates: Array.isArray(data.progressUpdates) ? data.progressUpdates as TaskProgressUpdate[] : [],
     attachmentIds: Array.isArray(data.attachmentIds) ? data.attachmentIds.filter((value): value is string => typeof value === 'string') : [],
     fechaInicioReal: typeof data.fechaInicioReal === 'string' ? data.fechaInicioReal : undefined,
@@ -227,6 +249,49 @@ export class TaskService {
       return updatedDeliverable
     } catch (error) {
       logger.error('Error in TaskService.updateDeliverable', { error: error instanceof Error ? error : undefined, taskId, deliverableId })
+      throw error
+    }
+  }
+
+  /**
+   * Aprueba un entregable (solo managers: las reglas rechazan `approvedDeliverableIds` en la
+   * ruta del asignado). Se escriben ambos campos en una sola actualización.
+   */
+  static async approveDeliverable(taskId: string, deliverableId: string, actorId: string): Promise<void> {
+    try {
+      const task = await this.getById(taskId)
+      if (!task) {
+        throw new Error('Task not found')
+      }
+
+      const target = task.deliverables?.find(deliverable => deliverable.id === deliverableId)
+      if (!target) {
+        throw new Error('Deliverable not found')
+      }
+
+      const deliverables = (task.deliverables || []).map(deliverable =>
+        deliverable.id === deliverableId ? { ...deliverable, estado: 'aprobado' as const } : deliverable
+      )
+
+      await updateDoc(doc(db, COLLECTIONS.TASKS, taskId), {
+        deliverables,
+        approvedDeliverableIds: arrayUnion(deliverableId),
+      })
+
+      await ActivityLogService.create({
+        userId: actorId,
+        type: 'deliverable_status_changed',
+        relatedId: deliverableId,
+        taskId,
+        projectId: task.projectId || undefined,
+        deliverableId,
+        description: `Aprobó el entregable "${target.titulo}"`,
+        metadata: {
+          patch: { estado: 'aprobado' },
+        },
+      })
+    } catch (error) {
+      logger.error('Error in TaskService.approveDeliverable', { error: error instanceof Error ? error : undefined, taskId, deliverableId })
       throw error
     }
   }

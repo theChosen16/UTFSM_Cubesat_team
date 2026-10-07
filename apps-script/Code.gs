@@ -539,6 +539,30 @@ function buildGenerationConfig_(requested) {
   return config;
 }
 
+/**
+ * Solo se reenvían declaraciones de funciones (`functionDeclarations`), que es lo único que
+ * envía BotService y que se ejecuta en el cliente.
+ *
+ * `params.tools` se pasaba tal cual a Gemini, y la API acepta ahí herramientas que se ejecutan
+ * EN LOS SERVIDORES DE GOOGLE y se facturan aparte del token: `googleSearch` /
+ * `googleSearchRetrieval` (grounding con Google Search, cobrado por consulta), `codeExecution`
+ * (ejecución de código, cuyo resultado vuelve como tokens adicionales) y `urlContext` (el modelo
+ * descarga URLs arbitrarias elegidas por quien llama). Cualquier miembro verificado —el secreto
+ * compartido llega a cada navegador— podía activarlas con la clave pagada del equipo, esquivando
+ * el tope de salida, y usar el proxy como buscador o fetcher de URLs sin medir. Cualquier campo
+ * desconocido que la API sume en el futuro queda también fuera por construcción.
+ */
+function sanitizeTools_(tools) {
+  if (!Array.isArray(tools)) return [];
+  const out = [];
+  for (let i = 0; i < tools.length; i++) {
+    const tool = tools[i];
+    if (!tool || typeof tool !== 'object' || !Array.isArray(tool.functionDeclarations)) continue;
+    out.push({ functionDeclarations: tool.functionDeclarations });
+  }
+  return out;
+}
+
 function handleChat(params) {
   if (!params.model || !params.contents) {
     throw clientError_('missing model or contents');
@@ -622,7 +646,8 @@ function handleChat(params) {
     if (JSON.stringify(params.tools).length > CHAT_MAX_TOOLS_CHARS) {
       return { error: 'tools payload too large' };
     }
-    payload.tools = params.tools;
+    const tools = sanitizeTools_(params.tools);
+    if (tools.length) payload.tools = tools;
   }
 
   payload.generationConfig = buildGenerationConfig_(params.generationConfig);
