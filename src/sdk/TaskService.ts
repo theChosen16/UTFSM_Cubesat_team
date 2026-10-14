@@ -3,6 +3,7 @@ import { db } from '@/lib/firebase'
 import { COLLECTIONS } from '@/lib/constants'
 import { Task, TaskDeliverable, TaskProgressUpdate, TaskStatus } from '@/types'
 import { logger } from '@/lib/logger'
+import { getDeliverableSignature } from '@/lib/utils'
 import { ActivityLogService } from '@/sdk/ActivityLogService'
 import { NotificationService } from '@/sdk/NotificationService'
 
@@ -30,6 +31,10 @@ const mapTask = (id: string, data: Record<string, unknown>): Task => {
     fechaLimite: typeof data.fechaLimite === 'string' ? data.fechaLimite : undefined,
     hitos: Array.isArray(data.hitos) ? data.hitos as Task['hitos'] : [],
     deliverables: Array.isArray(data.deliverables) ? data.deliverables as TaskDeliverable[] : [],
+    deliverableApprovals: data.deliverableApprovals && typeof data.deliverableApprovals === 'object' && !Array.isArray(data.deliverableApprovals)
+      ? Object.fromEntries(Object.entries(data.deliverableApprovals as Record<string, unknown>)
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+      : {},
     progressUpdates: Array.isArray(data.progressUpdates) ? data.progressUpdates as TaskProgressUpdate[] : [],
     attachmentIds: Array.isArray(data.attachmentIds) ? data.attachmentIds.filter((value): value is string => typeof value === 'string') : [],
     fechaInicioReal: typeof data.fechaInicioReal === 'string' ? data.fechaInicioReal : undefined,
@@ -207,7 +212,14 @@ export class TaskService {
         throw new Error('Deliverable not found')
       }
 
-      await updateDoc(doc(db, COLLECTIONS.TASKS, taskId), { deliverables })
+      // Aprobar deja constancia en `deliverableApprovals`, campo que las reglas reservan a los
+      // managers: el `estado` dentro del arreglo lo puede reescribir el propio asignado, así que
+      // por sí solo no prueba nada (ver getDeliverableStatus).
+      const approvalPatch = patch.estado === 'aprobado'
+        ? { deliverableApprovals: { ...(task.deliverableApprovals || {}), [deliverableId]: getDeliverableSignature(updatedDeliverable) } }
+        : {}
+
+      await updateDoc(doc(db, COLLECTIONS.TASKS, taskId), { deliverables, ...approvalPatch })
 
       if (actorId) {
         await ActivityLogService.create({

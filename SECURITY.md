@@ -354,11 +354,54 @@ This project implements the following security practices:
   size-capped on both write paths and `scoreAwarded` must be a number. Writing `scoreAwarded` or
   `completedBy` also requires `estado: 'completado'`, so an assignee can no longer credit
   themselves a completion on a task left in progress.
-- **Known residual risk — deliverable self-approval**: an assignee may rewrite the whole
-  `deliverables` array of their task (the field is in their allowlist), which includes each
-  item's `estado`. Rules cannot iterate a list, so they cannot stop an assignee from marking
-  their own deliverable `aprobado`. Closing it needs a data-model change (approval stored in a
-  manager-only field, e.g. `approvedDeliverableIds`), tracked for a follow-up.
+- **Deliverable approval is a manager-only record** *(closes the residual risk previously
+  noted here)*: an assignee may rewrite the whole `deliverables` array of their task, and rules
+  cannot iterate a list, so `deliverables[].estado == 'aprobado'` was something a member could
+  write about their own work — and the Tasks page and the Dashboard tracker counted it as approved.
+  Approval is now recorded in `tasks.deliverableApprovals` (deliverable id → signature of the
+  attachment ids the manager saw), a field outside the assignee allowlist and bounded on the
+  manager path. The client derives the effective status with `getDeliverableStatus()`: an
+  `aprobado` with no matching record, or whose files changed after approval, is shown as
+  `entregado` and offered for review again. *Migration note:* deliverables approved before this
+  change carry no record and show as `entregado` until a manager approves them once more.
+- **AI proxy — built-in tools and remote parts are not forwarded**: the chat proxy bounded the
+  *size* of the caller's `tools` and `contents`, but forwarded their content as-is. Gemini also
+  accepts server-side tools that run and bill on Google's side — `googleSearch` /
+  `googleSearchRetrieval` (per-request grounding charges), `urlContext` (the model fetches
+  caller-chosen URLs into the context) and `codeExecution` — and `fileData` parts whose `fileUri`
+  makes Google download and tokenize a remote resource (a one-hour YouTube video is hundreds of
+  thousands of input tokens from a ~60-byte part, so the 200 000-character cap measured nothing).
+  With the shared secret in every member's browser, each call the rate limit allowed could be
+  inflated to the model's maximum input on the team's paid key. `tools` is now rebuilt keeping only
+  `functionDeclarations`, and `contents` is rebuilt from an allowlist of roles (`user`, `model`,
+  `function`) and part types (`text`, `inlineData`, `functionCall`, `functionResponse`, plus the
+  `thought`/`thoughtSignature` fields the model returns). Requires redeploying `apps-script/Code.gs`.
+- **The Drive shared secret could be inlined into the production bundle**: Vite replaces
+  `import.meta.env.VITE_*` with its literal value at build time. `SecretsService` and `BotService`
+  read the bridge/AI variables only behind `import.meta.env.DEV`, which is what the deploy workflow
+  relies on, but `FileService.isConfigured()` referenced `VITE_DRIVE_UPLOAD_SECRET` without that
+  gate. Verified by building with a canary value: it appeared verbatim in
+  `assets/FileService-*.js`. The reference is now DEV-gated and the same canary build no longer
+  contains it.
+- **CI never receives real secrets**: the `quality` job ran `npm ci`, the tests and the build —
+  i.e. the PR branch's code and every install/build script in its dependency tree — with the
+  production Firebase config, the Gemini key and the Drive shared secret in the environment
+  (`secrets.X || 'placeholder'`). Any PR from a branch of this repository, or a compromised package
+  arriving through a dependency bump, could read and exfiltrate them. Neither the tests (Firebase
+  is mocked) nor the CI build need them, so CI now uses fixed placeholders; only `deploy.yml`,
+  which runs on `main`, builds with the real configuration.
+- **Manual deploys are limited to `main`**: `deploy.yml`'s `workflow_dispatch` path ran on
+  whatever ref the dispatcher picked, so anyone with write access could build an unreviewed branch
+  with the production secrets and publish it to the live site, bypassing the review that branch
+  protection requires on `main`. The dispatch path now requires `refs/heads/main`.
+- **Profile email is immutable on update**: `create` pins `email` to the token, but on update the
+  field was only absent from the self-edit allowlist — the maestro and admin branches could rewrite
+  it on any member without a role. An admin could therefore point a teammate's profile at their own
+  address (diverting that person's weekly digest) or at a third party's, making the profile appear
+  as someone else across Members, the notification recipient picker and admin listings, with no
+  way for the victim to correct it. `email` can now only be left unchanged, or filled in by the
+  profile's owner with their own verified token email (the legacy repair `AuthContext` performs at
+  sign-in, which previously succeeded only for maestro/admin).
 - **Branch protection**: Main branch requires pull request reviews before merging
 
 ## Response Time

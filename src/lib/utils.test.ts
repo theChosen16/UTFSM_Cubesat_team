@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractNameFromEmail, extractFullNameFromEmail, sanitizeUrl } from '@/lib/utils'
+import { extractNameFromEmail, extractFullNameFromEmail, getDeliverableStatus, sanitizeUrl } from '@/lib/utils'
 
 describe('extractNameFromEmail', () => {
   it('extracts first name from standard email', () => {
@@ -71,5 +71,25 @@ describe('sanitizeUrl', () => {
     expect(sanitizeUrl(undefined)).toBeUndefined()
     expect(sanitizeUrl(null)).toBeUndefined()
     expect(sanitizeUrl(123)).toBeUndefined()
+  })
+})
+
+describe('getDeliverableStatus', () => {
+  const delivered = { id: 'd1', estado: 'aprobado' as const, attachmentIds: ['f2', 'f1'] }
+
+  it('ignores an "aprobado" the assignee wrote without a manager approval', () => {
+    expect(getDeliverableStatus({}, delivered)).toBe('entregado')
+    expect(getDeliverableStatus({ deliverableApprovals: { otro: 'f1,f2' } }, delivered)).toBe('entregado')
+  })
+
+  it('accepts the approval only for the files the manager saw', () => {
+    expect(getDeliverableStatus({ deliverableApprovals: { d1: 'f1,f2' } }, delivered)).toBe('aprobado')
+    // Archivos cambiados después de aprobar: vuelve a requerir revisión.
+    expect(getDeliverableStatus({ deliverableApprovals: { d1: 'f1' } }, delivered)).toBe('entregado')
+  })
+
+  it('passes through non-approved states', () => {
+    expect(getDeliverableStatus({}, { id: 'd1', estado: 'pendiente' })).toBe('pendiente')
+    expect(getDeliverableStatus({ deliverableApprovals: { d1: '' } }, { id: 'd1', estado: 'entregado' })).toBe('entregado')
   })
 })

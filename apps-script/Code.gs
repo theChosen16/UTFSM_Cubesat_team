@@ -539,6 +539,78 @@ function buildGenerationConfig_(requested) {
   return config;
 }
 
+/**
+ * Reconstruye `contents` desde una lista blanca de roles y de tipos de parte.
+ *
+ * El tope de CHAT_MAX_CONTENTS_CHARS mide el JSON que envía el llamante, no lo que Gemini
+ * factura. Una parte `fileData: { fileUri }` pesa unas decenas de caracteres y hace que Google
+ * descargue y tokenice el recurso remoto: un video de YouTube de una hora son cientos de miles
+ * de tokens de entrada por llamada, y la URL la elige quien llama. Con el secreto compartido en
+ * cada navegador, cualquier miembro convertía cada petición permitida por el rate limit en el
+ * máximo de tokens que el modelo admite, a cargo de la clave del equipo. El cliente solo produce
+ * texto, `inlineData` (adjuntos ya leídos en el navegador) y el ciclo de function calling, más
+ * los campos de razonamiento que el modelo devuelve y deben reenviarse (`thought`,
+ * `thoughtSignature`); todo lo demás se descarta.
+ */
+const ALLOWED_CONTENT_ROLES = ['user', 'model', 'function'];
+const ALLOWED_PART_KEYS = ['text', 'inlineData', 'functionCall', 'functionResponse', 'thought', 'thoughtSignature'];
+
+function sanitizeContents_(contents) {
+  // Un turno del modelo sin partes (p. ej. una respuesta cortada por MAX_TOKENS) que el cliente
+  // guardó en su historial no aporta nada y Gemini lo rechaza: se omite en vez de romper la sesión.
+  const turns = contents.filter(function (turn) {
+    return !(turn && typeof turn === 'object' && turn.role === 'model' &&
+      (!Array.isArray(turn.parts) || turn.parts.length === 0));
+  });
+  if (turns.length === 0) throw clientError_('contents must be a non-empty array of turns');
+  return turns.map(function (turn) {
+    if (!turn || typeof turn !== 'object' || ALLOWED_CONTENT_ROLES.indexOf(turn.role) === -1 ||
+        !Array.isArray(turn.parts) || turn.parts.length === 0) {
+      throw clientError_('invalid conversation turn');
+    }
+    const parts = turn.parts.map(function (part) {
+      if (!part || typeof part !== 'object') throw clientError_('invalid conversation part');
+      const keys = Object.keys(part);
+      for (let i = 0; i < keys.length; i++) {
+        if (ALLOWED_PART_KEYS.indexOf(keys[i]) === -1) {
+          throw clientError_('part type not allowed: ' + String(keys[i]).substring(0, 40));
+        }
+      }
+      if (part.inlineData !== undefined) {
+        const inline = part.inlineData;
+        if (!inline || typeof inline.data !== 'string' || typeof inline.mimeType !== 'string') {
+          throw clientError_('invalid inlineData part');
+        }
+        part.inlineData = { data: inline.data, mimeType: inline.mimeType };
+      }
+      return part;
+    });
+    return { role: turn.role, parts: parts };
+  });
+}
+
+/**
+ * Reconstruye `tools` dejando solo `functionDeclarations`.
+ *
+ * Las herramientas se reenviaban tal cual, acotadas solo en tamaño. Gemini acepta además
+ * herramientas integradas que se ejecutan EN EL SERVIDOR DE GOOGLE y se facturan aparte o
+ * multiplican los tokens de entrada: `googleSearch` / `googleSearchRetrieval` (grounding con
+ * cobro por petición), `urlContext` (el modelo descarga URLs arbitrarias elegidas por quien
+ * llama y las mete en el contexto) y `codeExecution`. Ninguna la usa el cliente — BotService
+ * solo declara funciones que ejecuta él mismo —, así que eran superficie de abuso de costo sobre
+ * la clave de pago del equipo, alcanzable con un `tools` de pocos bytes.
+ */
+function sanitizeTools_(tools) {
+  if (!Array.isArray(tools)) throw clientError_('tools must be an array');
+  return tools.map(function (tool) {
+    if (!tool || typeof tool !== 'object' || !Array.isArray(tool.functionDeclarations) ||
+        Object.keys(tool).length !== 1) {
+      throw clientError_('only functionDeclarations tools are allowed');
+    }
+    return { functionDeclarations: tool.functionDeclarations };
+  });
+}
+
 function handleChat(params) {
   if (!params.model || !params.contents) {
     throw clientError_('missing model or contents');
@@ -600,7 +672,7 @@ function handleChat(params) {
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent';
 
   const payload = {
-    contents: params.contents
+    contents: sanitizeContents_(params.contents)
   };
 
   // The client composes systemInstruction (it injects the live project/task context), so it is
@@ -622,7 +694,7 @@ function handleChat(params) {
     if (JSON.stringify(params.tools).length > CHAT_MAX_TOOLS_CHARS) {
       return { error: 'tools payload too large' };
     }
-    payload.tools = params.tools;
+    payload.tools = sanitizeTools_(params.tools);
   }
 
   payload.generationConfig = buildGenerationConfig_(params.generationConfig);

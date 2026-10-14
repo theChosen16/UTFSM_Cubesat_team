@@ -169,6 +169,12 @@ export interface Task {
   fechaLimite?: string
   hitos?: TaskMilestone[]
   deliverables?: TaskDeliverable[]
+  /**
+   * Aprobaciones de entregables, escritas solo por un manager (el asignado no puede tocar este
+   * campo según firestore.rules). Clave: id del entregable; valor: firma de sus `attachmentIds`
+   * al momento de aprobar (ver `getDeliverableStatus`).
+   */
+  deliverableApprovals?: Record<string, string>
   progressUpdates?: TaskProgressUpdate[]
   attachmentIds?: string[]
   fechaInicioReal?: string  // ISO date string
