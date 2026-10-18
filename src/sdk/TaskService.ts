@@ -47,6 +47,9 @@ const mapTask = (id: string, data: Record<string, unknown>): Task => {
   }
 }
 
+/** Los archivos del entregable cambiaron desde que el manager cargó la vista que aprobó. */
+export const DELIVERABLE_CHANGED_ERROR = 'deliverable-changed-since-review'
+
 export class TaskService {
   static async getAll(): Promise<Task[]> {
     try {
@@ -195,7 +198,12 @@ export class TaskService {
     }
   }
 
-  static async updateDeliverable(taskId: string, deliverableId: string, patch: Partial<TaskDeliverable>, actorId?: string): Promise<TaskDeliverable> {
+  /**
+   * @param reviewedSignature Obligatorio al aprobar: firma (`getDeliverableSignature`) de los
+   *   archivos que el manager tenía a la vista. Si el asignado los cambió después de que la vista
+   *   se cargó, la aprobación se rechaza en vez de quedar firmada sobre archivos que nadie revisó.
+   */
+  static async updateDeliverable(taskId: string, deliverableId: string, patch: Partial<TaskDeliverable>, actorId?: string, reviewedSignature?: string): Promise<TaskDeliverable> {
     try {
       const task = await this.getById(taskId)
       if (!task) {
@@ -215,8 +223,12 @@ export class TaskService {
       // Aprobar deja constancia en `deliverableApprovals`, campo que las reglas reservan a los
       // managers: el `estado` dentro del arreglo lo puede reescribir el propio asignado, así que
       // por sí solo no prueba nada (ver getDeliverableStatus).
+      const signature = getDeliverableSignature(updatedDeliverable)
+      if (patch.estado === 'aprobado' && reviewedSignature !== signature) {
+        throw new Error(DELIVERABLE_CHANGED_ERROR)
+      }
       const approvalPatch = patch.estado === 'aprobado'
-        ? { deliverableApprovals: { ...(task.deliverableApprovals || {}), [deliverableId]: getDeliverableSignature(updatedDeliverable) } }
+        ? { deliverableApprovals: { ...(task.deliverableApprovals || {}), [deliverableId]: signature } }
         : {}
 
       await updateDoc(doc(db, COLLECTIONS.TASKS, taskId), { deliverables, ...approvalPatch })
