@@ -33,7 +33,9 @@ export const deliverableFingerprint = (deliverable: TaskDeliverable): string =>
     deliverable.titulo ?? '',
     deliverable.descripcion ?? '',
     deliverable.fechaLimite ?? '',
-    [...(deliverable.attachmentIds ?? [])].sort(),
+    // El asignado escribe este arreglo sin validación de forma: un valor no iterable no debe
+    // romper el mapeo de TODAS las tareas (getAll) para el equipo entero.
+    Array.isArray(deliverable.attachmentIds) ? [...deliverable.attachmentIds].map(String).sort() : [],
     deliverable.deliveredAt ?? '',
     deliverable.deliveredBy ?? '',
   ])

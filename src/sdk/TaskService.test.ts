@@ -84,6 +84,14 @@ describe('TaskService — aprobación de entregables', () => {
     expect(task?.deliverables?.map(d => d.estado)).toEqual(['aprobado', 'entregado'])
   })
 
+  it('tolera attachmentIds malformados sin romper la carga de la tarea', async () => {
+    const task = await loadTask({
+      deliverables: [{ ...delivered, estado: 'aprobado', attachmentIds: 5 }],
+      approvedDeliverables: { d1: deliverableFingerprint(delivered) },
+    })
+    expect(task?.deliverables?.[0].estado).toBe('entregado')
+  })
+
   it('approveDeliverable registra la huella en el campo exclusivo de managers', async () => {
     vi.mocked(getDoc).mockResolvedValue(snapshotOf({ titulo: 'Tarea', deliverables: [delivered] }) as never)
 
