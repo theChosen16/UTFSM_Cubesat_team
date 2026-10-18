@@ -501,10 +501,13 @@ service cloud.firestore {
           (request.resource.data.attachmentIds is list && request.resource.data.attachmentIds.size() <= 100)) &&
         // Aprobación de entregables. Vive FUERA de `deliverables` porque ese arreglo está en la
         // lista blanca del asignado y las reglas no pueden recorrer listas para impedir que el
-        // asignado marque su propio entregable `estado: 'aprobado'`. Este campo no figura en la
-        // lista blanca del asignado, así que solo la ruta de manager lo escribe, y el cliente
-        // (TaskService.mapTask) solo muestra como aprobado lo que aparece aquí.
-        boundedList(request.resource.data.get('approvedDeliverableIds', null), 50) &&
+        // asignado marque su propio entregable `estado: 'aprobado'`. Este campo (id → huella del
+        // contenido aprobado) no figura en la lista blanca del asignado, así que solo la ruta de
+        // manager lo escribe, y el cliente (TaskService.mapTask) solo muestra como aprobado el
+        // entregable cuyo contenido actual coincide con la huella registrada aquí.
+        (!('approvedDeliverables' in request.resource.data) ||
+          (request.resource.data.approvedDeliverables is map &&
+            request.resource.data.approvedDeliverables.keys().size() <= 50)) &&
         // Tope de campos totales: el Task tipado tiene ~22 campos, así que 40 no restringe
         // ningún flujo real, pero impide colgar campos arbitrarios y sin techo de un documento
         // que todo el equipo descarga en cada carga de /tasks y /dashboard.

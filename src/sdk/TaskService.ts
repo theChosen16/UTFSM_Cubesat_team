@@ -16,27 +16,55 @@ const toDate = (value: unknown): Date => {
 }
 
 /**
- * Un entregable solo cuenta como aprobado si un manager lo registró en `approvedDeliverableIds`.
+ * Huella del contenido de un entregable que un manager aprueba.
  *
  * El arreglo `deliverables` está en la lista blanca de escritura del asignado (firestore.rules),
  * y las reglas no pueden recorrer listas, así que no pueden impedir que un asignado escriba
- * `estado: 'aprobado'` en su propio entregable. Antes la UI confiaba en ese campo y cualquier
- * asignado se auto-aprobaba. La aprobación vive ahora en un campo que solo un manager puede
- * escribir; un 'aprobado' sin respaldo se muestra como 'entregado'.
+ * `estado: 'aprobado'` en su propio entregable. Por eso la aprobación vive en
+ * `approvedDeliverables` (solo-manager), que guarda, por id, la huella de lo que se aprobó.
+ * Atarla solo al id no bastaba: el asignado podía cambiar los adjuntos de un entregable ya
+ * aprobado, o copiar el id aprobado a otro entregable, y seguir viéndolo como aprobado. Con la
+ * huella, cualquier cambio en título, descripción, plazo, adjuntos o datos de entrega invalida
+ * la aprobación hasta que un manager vuelva a aprobar.
  */
-const normalizeDeliverables = (raw: unknown, approvedIds: string[]): TaskDeliverable[] => {
+export const deliverableFingerprint = (deliverable: TaskDeliverable): string =>
+  JSON.stringify([
+    deliverable.id,
+    deliverable.titulo ?? '',
+    deliverable.descripcion ?? '',
+    deliverable.fechaLimite ?? '',
+    [...(deliverable.attachmentIds ?? [])].sort(),
+    deliverable.deliveredAt ?? '',
+    deliverable.deliveredBy ?? '',
+  ])
+
+/**
+ * El estado 'aprobado' se deriva solo de `approvedDeliverables`: el que escriba el asignado se
+ * ignora. Solo la primera aparición de cada id puede quedar aprobada, para que un id duplicado
+ * no herede la aprobación de otro entregable.
+ */
+const normalizeDeliverables = (raw: unknown, approved: Record<string, string>): TaskDeliverable[] => {
   if (!Array.isArray(raw)) return []
-  return (raw as TaskDeliverable[]).map(deliverable =>
-    deliverable?.estado === 'aprobado' && !approvedIds.includes(deliverable.id)
-      ? { ...deliverable, estado: 'entregado' }
-      : deliverable
-  )
+  const seen = new Set<string>()
+  return (raw as TaskDeliverable[]).map(deliverable => {
+    if (!deliverable || typeof deliverable !== 'object') return deliverable
+    const firstOccurrence = !seen.has(deliverable.id)
+    seen.add(deliverable.id)
+    const isApproved = firstOccurrence &&
+      Object.prototype.hasOwnProperty.call(approved, deliverable.id) &&
+      approved[deliverable.id] === deliverableFingerprint(deliverable)
+    if (isApproved) return { ...deliverable, estado: 'aprobado' }
+    return deliverable.estado === 'aprobado' ? { ...deliverable, estado: 'entregado' } : deliverable
+  })
 }
 
 const mapTask = (id: string, data: Record<string, unknown>): Task => {
-  const approvedDeliverableIds = Array.isArray(data.approvedDeliverableIds)
-    ? data.approvedDeliverableIds.filter((value): value is string => typeof value === 'string')
-    : []
+  const approvedDeliverables: Record<string, string> = {}
+  if (data.approvedDeliverables && typeof data.approvedDeliverables === 'object' && !Array.isArray(data.approvedDeliverables)) {
+    for (const [key, value] of Object.entries(data.approvedDeliverables as Record<string, unknown>)) {
+      if (typeof value === 'string') approvedDeliverables[key] = value
+    }
+  }
   return {
     id,
     projectId: typeof data.projectId === 'string' ? data.projectId : '',
@@ -50,8 +78,8 @@ const mapTask = (id: string, data: Record<string, unknown>): Task => {
     puntajeImportancia: typeof data.puntajeImportancia === 'number' ? data.puntajeImportancia : 0,
     fechaLimite: typeof data.fechaLimite === 'string' ? data.fechaLimite : undefined,
     hitos: Array.isArray(data.hitos) ? data.hitos as Task['hitos'] : [],
-    deliverables: normalizeDeliverables(data.deliverables, approvedDeliverableIds),
-    approvedDeliverableIds,
+    deliverables: normalizeDeliverables(data.deliverables, approvedDeliverables),
+    approvedDeliverables,
     progressUpdates: Array.isArray(data.progressUpdates) ? data.progressUpdates as TaskProgressUpdate[] : [],
     attachmentIds: Array.isArray(data.attachmentIds) ? data.attachmentIds.filter((value): value is string => typeof value === 'string') : [],
     fechaInicioReal: typeof data.fechaInicioReal === 'string' ? data.fechaInicioReal : undefined,
@@ -254,8 +282,9 @@ export class TaskService {
   }
 
   /**
-   * Aprueba un entregable (solo managers: las reglas rechazan `approvedDeliverableIds` en la
-   * ruta del asignado). Se escriben ambos campos en una sola actualización.
+   * Aprueba un entregable (solo managers: las reglas rechazan `approvedDeliverables` en la ruta
+   * del asignado). Registra la huella del contenido aprobado; se escriben ambos campos en una
+   * sola actualización.
    */
   static async approveDeliverable(taskId: string, deliverableId: string, actorId: string): Promise<void> {
     try {
@@ -275,7 +304,10 @@ export class TaskService {
 
       await updateDoc(doc(db, COLLECTIONS.TASKS, taskId), {
         deliverables,
-        approvedDeliverableIds: arrayUnion(deliverableId),
+        approvedDeliverables: {
+          ...(task.approvedDeliverables || {}),
+          [deliverableId]: deliverableFingerprint(target),
+        },
       })
 
       await ActivityLogService.create({

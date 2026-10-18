@@ -354,15 +354,17 @@ This project implements the following security practices:
   size-capped on both write paths and `scoreAwarded` must be a number. Writing `scoreAwarded` or
   `completedBy` also requires `estado: 'completado'`, so an assignee can no longer credit
   themselves a completion on a task left in progress.
-- **Deliverable approval is manager-only**: an assignee may rewrite the whole `deliverables`
-  array of their task (it is in their allowlist), including each item's `estado`, and rules
-  cannot iterate a list — so any assignee could mark their own deliverable `aprobado`, which the
-  task view and the Dashboard tracker counted as approved. Approval now lives in
-  `tasks.approvedDeliverableIds`, which is outside the assignee allowlist (manager path only,
-  capped at 50 ids). `TaskService` only reports a deliverable as `aprobado` when its id is in
-  that list; anything else is shown as `entregado`. Deliverables approved before this change
-  must be re-approved once by a manager. Residual: an assignee can still replace the attachments
-  of an already-approved deliverable; re-uploading through the app resets it to `entregado`.
+- **Deliverable approval is manager-only and bound to content**: an assignee may rewrite the
+  whole `deliverables` array of their task (it is in their allowlist), including each item's
+  `estado`, and rules cannot iterate a list — so any assignee could mark their own deliverable
+  `aprobado`, which the task view and the Dashboard tracker counted as approved. Approval now
+  lives in `tasks.approvedDeliverables` (id → fingerprint of the approved content), which is
+  outside the assignee allowlist (manager path only, at most 50 entries). `TaskService` derives
+  `aprobado` solely from it: a deliverable counts as approved only when its current title,
+  description, deadline, attachments and delivery data match the recorded fingerprint, and only
+  the first entry carrying a given id can match. Swapping the attachments of an approved
+  deliverable, or copying its id onto another one, therefore drops the approval until a manager
+  approves again. Deliverables approved before this change must be re-approved once.
 - **Drive bridge — only function declarations reach Gemini**: `handleChat` forwarded
   `params.tools` verbatim, and the Gemini API also accepts server-side tools billed outside the
   token caps — `googleSearch`/`googleSearchRetrieval` (paid grounding per query), `codeExecution`

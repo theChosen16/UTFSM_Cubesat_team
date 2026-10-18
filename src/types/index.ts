@@ -169,9 +169,10 @@ export interface Task {
   fechaLimite?: string
   hitos?: TaskMilestone[]
   deliverables?: TaskDeliverable[]
-  // IDs de entregables aprobados por un manager. Es la fuente de verdad de la aprobación:
+  // Entregables aprobados por un manager: id → huella del contenido aprobado
+  // (deliverableFingerprint en TaskService). Es la fuente de verdad de la aprobación:
   // `deliverables` es escribible por los asignados, este campo no (ver firestore.rules).
-  approvedDeliverableIds?: string[]
+  approvedDeliverables?: Record<string, string>
   progressUpdates?: TaskProgressUpdate[]
   attachmentIds?: string[]
   fechaInicioReal?: string  // ISO date string

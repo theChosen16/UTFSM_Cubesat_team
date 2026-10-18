@@ -19,7 +19,7 @@ import {
  *  - users.create cannot self-assign rol/roles, isActive:false or the 'manager' team
  *  - no client path grants the maestro role (the bootstrap lock self-claim is gone)
  *  - an assigned member cannot inflate task scoreAwarded beyond the manager-set importance
- *  - an assigned member cannot approve their own deliverable (approvedDeliverableIds)
+ *  - an assigned member cannot approve their own deliverable (approvedDeliverables)
  *  - /mail can only be enqueued by workspace managers, and only to institutional recipients
  */
 describe('Security rules — privilege escalation & integrity', () => {
@@ -249,13 +249,13 @@ describe('Security rules — privilege escalation & integrity', () => {
       deliverables: [{ id: 'd1', titulo: 'Informe', estado: 'entregado' }],
     })
     // …but cannot record the approval, which is what the client trusts.
-    await expectDenied(updateDoc(taskRef, { approvedDeliverableIds: ['d1'] }))
+    await expectDenied(updateDoc(taskRef, { approvedDeliverables: { d1: 'huella' } }))
 
     await signOut(auth)
     await signInWithEmailAndPassword(auth, maestroEmail, PW)
-    await updateDoc(taskRef, { approvedDeliverableIds: ['d1'] })
+    await updateDoc(taskRef, { approvedDeliverables: { d1: 'huella' } })
     const stored = await getDoc(taskRef)
-    expect(stored.data()!.approvedDeliverableIds).toEqual(['d1'])
+    expect(stored.data()!.approvedDeliverables).toEqual({ d1: 'huella' })
   })
 
   it('blocks an assigned member from self-scoring a legacy task lacking puntajeImportancia', async () => {
