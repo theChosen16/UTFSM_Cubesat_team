@@ -32,8 +32,14 @@ jobs:
     #
     # The head commit is only trusted when the triggering run came from a `push` to `main` in
     # THIS repository, which is code that already passed through branch protection.
+    #
+    # `workflow_dispatch` corre sobre la rama que elija quien lo dispara, y cualquier persona con
+    # permiso de escritura puede dispararlo: el formulario de "Run workflow" deja escoger una rama
+    # sin revisar, que entonces se compilaba con los secretos de producción y se publicaba en el
+    # sitio en vivo, saltándose la protección de `main` (revisión obligatoria antes de mergear).
+    # El despliegue manual queda limitado a `main`.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_branch == 'main' &&

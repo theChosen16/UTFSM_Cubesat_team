@@ -167,8 +167,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               }
             }
 
-            // Only a maestro/admin write can carry 'email' past the rules; for everyone else this
-            // one no-ops, without taking the name repair down with it.
+            // The rules accept this repair only when the stored address is filled in with the
+            // caller's own verified token email; any other write to 'email' is denied.
             if (!userData.email && fbUser.email) {
               await repairProfile({ email: fbUser.email })
             }

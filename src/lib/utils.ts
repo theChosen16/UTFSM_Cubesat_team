@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { Crown, Settings } from 'lucide-react'
-import type { UserRole } from '@/types'
+import type { DeliverableStatus, Task, TaskDeliverable, UserRole } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -84,4 +84,27 @@ export function sanitizeUrl(url: unknown): string | undefined {
   } catch {
     return undefined
   }
+}
+
+/** Firma estable del conjunto de archivos de un entregable (independiente del orden). */
+export function getDeliverableSignature(deliverable: Pick<TaskDeliverable, 'attachmentIds'>): string {
+  return [...(deliverable.attachmentIds || [])].sort().join(',')
+}
+
+/**
+ * Estado EFECTIVO de un entregable.
+ *
+ * `deliverables[].estado` vive dentro de un arreglo que el asignado puede reescribir entero
+ * (firestore.rules no puede iterar listas), así que un miembro podía marcar su propio entregable
+ * como `aprobado`. La aprobación real se guarda en `task.deliverableApprovals`, un campo que solo
+ * escribe un manager, junto con la firma de los archivos que vio al aprobar: un `aprobado` sin
+ * esa constancia, o cuyos archivos cambiaron después, se muestra como `entregado`.
+ */
+export function getDeliverableStatus(
+  task: Pick<Task, 'deliverableApprovals'>,
+  deliverable: Pick<TaskDeliverable, 'id' | 'estado' | 'attachmentIds'>
+): DeliverableStatus {
+  if (deliverable.estado !== 'aprobado') return deliverable.estado
+  const approval = task.deliverableApprovals?.[deliverable.id]
+  return approval !== undefined && approval === getDeliverableSignature(deliverable) ? 'aprobado' : 'entregado'
 }

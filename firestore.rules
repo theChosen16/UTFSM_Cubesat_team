@@ -264,6 +264,29 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(['rol', 'roles']);
     }
 
+    // `email` es la identidad del perfil: lo que Miembros, el selector de destinatarios de
+    // Notificaciones y los listados de admin muestran como "quién es", y la dirección a la que
+    // EmailNotificationService envía el noticiario. `create` ya exige que coincida con el token,
+    // pero en `update` solo estaba fuera de la lista de autoedición: las ramas de maestro y admin
+    // podían reescribirlo sobre cualquier miembro sin rol. Un admin podía así cambiar el correo de
+    // un compañero por uno propio —desviando hacia sí el boletín de esa persona— o por el de un
+    // tercero para que el perfil apareciera como otra persona en todo el workspace, sin que la
+    // víctima pudiera corregirlo (ella tampoco puede escribir `email`). No hay flujo legítimo que
+    // reescriba el correo de otro: el campo queda inmutable, salvo para que el propio titular
+    // rellene un perfil legado que no lo tenía, y solo con el correo verificado de su token
+    // (la reparación que hace AuthContext al iniciar sesión).
+    function keepsOrHealsEmail(userId) {
+      return request.resource.data.get('email', null) == resource.data.get('email', null) || (
+        request.auth.uid == userId &&
+        request.resource.data.get('email', null) is string &&
+        request.resource.data.email.lower() == request.auth.token.email.lower()
+      );
+    }
+
+    function isEmailHealOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email']);
+    }
+
     function targetHoldsElevatedRole() {
       return resource.data.get('rol', '') in ['maestro', 'admin'] ||
         (resource.data.get('roles', []) is list &&
@@ -390,10 +413,10 @@ service cloud.firestore {
       // Admin can manage regular members but may NOT grant/revoke roles and may not modify a
       // user who already holds an elevated role — that closes the admin -> maestro escalation.
       // Regular users can only update their own non-privileged fields.
-      allow update: if isInstitutional() && (
+      allow update: if isInstitutional() && keepsOrHealsEmail(userId) && (
         hasRole('maestro') ||
         (hasRole('admin') && !changesRoleFields() && !targetHoldsElevatedRole()) ||
-        (request.auth.uid == userId && isAllowedSelfUpdate())
+        (request.auth.uid == userId && (isAllowedSelfUpdate() || isEmailHealOnly()))
       );
 
       // Only maestro can delete user documents
@@ -499,6 +522,11 @@ service cloud.firestore {
           (request.resource.data.progressUpdates is list && request.resource.data.progressUpdates.size() <= 200)) &&
         (!('attachmentIds' in request.resource.data) ||
           (request.resource.data.attachmentIds is list && request.resource.data.attachmentIds.size() <= 100)) &&
+        // Constancia de aprobación de entregables (ver la ruta del asignado más abajo): un mapa
+        // id → firma de archivos, acotado al mismo tope que el arreglo de entregables.
+        (!('deliverableApprovals' in request.resource.data) ||
+          (request.resource.data.deliverableApprovals is map &&
+            request.resource.data.deliverableApprovals.keys().size() <= 50)) &&
         // Tope de campos totales: el Task tipado tiene ~22 campos, así que 40 no restringe
         // ningún flujo real, pero impide colgar campos arbitrarios y sin techo de un documento
         // que todo el equipo descarga en cada carga de /tasks y /dashboard.
@@ -542,6 +570,11 @@ service cloud.firestore {
           // affectedKeys(), not changedKeys(): otherwise an assignee could ADD any field the
           // task does not already carry (e.g. 'puntajeImportancia', 'asignadoA', 'equipo')
           // because newly added keys are absent from changedKeys().
+          //
+          // 'deliverableApprovals' queda deliberadamente FUERA: el asignado reescribe el arreglo
+          // `deliverables` completo y las reglas no pueden iterar listas, así que el `estado`
+          // de cada entregable no es evidencia de nada (podía marcar el suyo como 'aprobado').
+          // La aprobación válida es la que un manager deja en ese mapa (getDeliverableStatus).
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'estado',
             'progressUpdates',

@@ -137,27 +137,30 @@ jobs:
       - name: Run tests
         run: npm test
         env:
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY || 'ci-placeholder' }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN || 'ci-placeholder.firebaseapp.com' }}
-          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID || 'ci-placeholder' }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || 'ci-placeholder.appspot.com' }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID || '000000000000' }}
-          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID || '1:000000000000:web:ci-placeholder' }}
-          VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID || 'G-CI00000000' }}
-          VITE_GOOGLE_AI_KEY: ${{ secrets.VITE_GOOGLE_AI_KEY || 'AIzaSy-fallback-dummy-ci-key' }}
-          VITE_DRIVE_UPLOAD_URL: ${{ secrets.VITE_DRIVE_UPLOAD_URL || '' }}
-          VITE_DRIVE_UPLOAD_SECRET: ${{ secrets.VITE_DRIVE_UPLOAD_SECRET || '' }}
+          # SEGURIDAD: CI ejecuta código NO revisado (la rama del PR y todo su árbol de
+          # dependencias: `npm ci`, los tests y el build corren scripts arbitrarios de paquetes),
+          # así que jamás recibe secretos reales. Antes se inyectaban aquí la clave de Gemini, el
+          # secreto compartido del bridge de Drive y la configuración de Firebase de producción
+          # con `secrets.X || 'placeholder'`: cualquier PR desde una rama del repositorio —o una
+          # dependencia comprometida que llegara en un bump— podía leerlos de `process.env` y
+          # exfiltrarlos. Ni los tests (mockean Firebase) ni el build los necesitan; el único
+          # build que usa la configuración real es el de deploy.yml, que solo corre sobre `main`.
+          VITE_FIREBASE_API_KEY: ci-placeholder
+          VITE_FIREBASE_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: ci-placeholder
+          VITE_FIREBASE_STORAGE_BUCKET: ci-placeholder.appspot.com
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
+          VITE_FIREBASE_APP_ID: '1:000000000000:web:ci-placeholder'
+          VITE_FIREBASE_MEASUREMENT_ID: G-CI00000000
 
       - name: Build
         run: npm run build
         env:
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY || 'ci-placeholder' }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN || 'ci-placeholder.firebaseapp.com' }}
-          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID || 'ci-placeholder' }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET || 'ci-placeholder.appspot.com' }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID || '000000000000' }}
-          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID || '1:000000000000:web:ci-placeholder' }}
-          VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID || 'G-CI00000000' }}
-          VITE_GOOGLE_AI_KEY: ${{ secrets.VITE_GOOGLE_AI_KEY || 'AIzaSy-fallback-dummy-ci-key' }}
-          VITE_DRIVE_UPLOAD_URL: ${{ secrets.VITE_DRIVE_UPLOAD_URL || '' }}
-          VITE_DRIVE_UPLOAD_SECRET: ${{ secrets.VITE_DRIVE_UPLOAD_SECRET || '' }}
+          # Solo placeholders: ver la nota de seguridad en "Run tests".
+          VITE_FIREBASE_API_KEY: ci-placeholder
+          VITE_FIREBASE_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
+          VITE_FIREBASE_PROJECT_ID: ci-placeholder
+          VITE_FIREBASE_STORAGE_BUCKET: ci-placeholder.appspot.com
+          VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000'
+          VITE_FIREBASE_APP_ID: '1:000000000000:web:ci-placeholder'
+          VITE_FIREBASE_MEASUREMENT_ID: G-CI00000000

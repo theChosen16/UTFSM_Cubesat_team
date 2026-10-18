@@ -73,7 +73,14 @@ const callBridge = async (payload: Record<string, unknown>): Promise<DriveBridge
 
 export class FileService {
   static isConfigured(): boolean {
-    return Boolean(auth.currentUser || (import.meta.env.VITE_DRIVE_UPLOAD_URL && import.meta.env.VITE_DRIVE_UPLOAD_SECRET))
+    // Las variables de entorno del bridge solo existen en desarrollo (ver SecretsService). Esta
+    // referencia era la única SIN la compuerta `import.meta.env.DEV`, y Vite reemplaza
+    // `import.meta.env.VITE_*` por su valor literal al compilar: si VITE_DRIVE_UPLOAD_SECRET
+    // llegaba al entorno de un build de producción, el secreto compartido del Drive quedaba
+    // incrustado en el bundle público de GitHub Pages. Con la compuerta, el build de producción
+    // elimina la rama entera.
+    return Boolean(auth.currentUser ||
+      (import.meta.env.DEV && import.meta.env.VITE_DRIVE_UPLOAD_URL && import.meta.env.VITE_DRIVE_UPLOAD_SECRET))
   }
 
   static async getAll(): Promise<FileRecord[]> {

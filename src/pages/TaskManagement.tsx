@@ -20,11 +20,11 @@ import {
   FileText
 } from 'lucide-react'
 import { logger } from '@/lib/logger'
-import { sanitizeUrl } from '@/lib/utils'
+import { getDeliverableSignature, getDeliverableStatus, sanitizeUrl } from '@/lib/utils'
 import { FileRecord, Task, TaskDeliverable, TaskMilestone, User as UserType, TeamType, hasAnyRole, hasTeam } from '@/types'
 import { TEAM_LABELS } from '@/lib/ui-constants'
 import { ProjectService } from '@/sdk/ProjectService'
-import { TaskService } from '@/sdk/TaskService'
+import { DELIVERABLE_CHANGED_ERROR, TaskService } from '@/sdk/TaskService'
 import { UserService } from '@/sdk/UserService'
 import { FileService } from '@/sdk/FileService'
 import { taskFormSchema } from '@/lib/schemas'
@@ -298,14 +298,20 @@ export default function TaskManagement() {
     }
   }
 
-  const handleApproveDeliverable = async (taskId: string, deliverableId: string) => {
+  const handleApproveDeliverable = async (taskId: string, deliverable: TaskDeliverable) => {
     if (!user) return
     try {
-      await TaskService.updateDeliverable(taskId, deliverableId, { estado: 'aprobado' }, user.id)
+      // Se aprueba exactamente lo que el manager tiene a la vista.
+      await TaskService.updateDeliverable(taskId, deliverable.id, { estado: 'aprobado' }, user.id, getDeliverableSignature(deliverable))
       await loadData()
     } catch (err) {
-      logger.error('Error approving deliverable', { error: err, taskId, deliverableId })
-      setError('No se pudo aprobar el entregable.')
+      logger.error('Error approving deliverable', { error: err, taskId, deliverableId: deliverable.id })
+      if (err instanceof Error && err.message === DELIVERABLE_CHANGED_ERROR) {
+        setError('Los archivos del entregable cambiaron mientras lo revisabas. Revisa la versión actual antes de aprobar.')
+        await loadData()
+      } else {
+        setError('No se pudo aprobar el entregable.')
+      }
     }
   }
 
@@ -506,6 +512,7 @@ export default function TaskManagement() {
               <div className="space-y-3">
                 {task.deliverables?.map(deliverable => {
                   const deliverableFiles = getDeliverableFiles(deliverable)
+                  const deliverableStatus = getDeliverableStatus(task, deliverable)
                   const currentUploadKey = `${task.id}:${deliverable.id}`
                   return (
                     <div key={deliverable.id} className="rounded-lg border border-space-600/70 bg-space-700/40 p-3">
@@ -513,8 +520,8 @@ export default function TaskManagement() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-medium text-white">{deliverable.titulo}</p>
-                            <Badge variant={getDeliverableBadge(deliverable.estado) as 'orange' | 'cyan' | 'green'}>
-                              {deliverable.estado === 'aprobado' ? 'Aprobado' : deliverable.estado === 'entregado' ? 'Entregado' : 'Pendiente'}
+                            <Badge variant={getDeliverableBadge(deliverableStatus) as 'orange' | 'cyan' | 'green'}>
+                              {deliverableStatus === 'aprobado' ? 'Aprobado' : deliverableStatus === 'entregado' ? 'Entregado' : 'Pendiente'}
                             </Badge>
                           </div>
                           {deliverable.descripcion && <p className="mt-1 text-xs text-muted-foreground">{deliverable.descripcion}</p>}
@@ -522,8 +529,8 @@ export default function TaskManagement() {
                             <p className="mt-1 text-xs text-muted-foreground">Plazo: {formatDateTime(deliverable.fechaLimite)}</p>
                           )}
                         </div>
-                        {canManageTasks && deliverable.estado === 'entregado' && (
-                          <Button size="sm" onClick={() => handleApproveDeliverable(task.id, deliverable.id)} className="bg-green-500 text-space-900 hover:bg-green-600">
+                        {canManageTasks && deliverableStatus === 'entregado' && (
+                          <Button size="sm" onClick={() => handleApproveDeliverable(task.id, deliverable)} className="bg-green-500 text-space-900 hover:bg-green-600">
                             Aprobar
                           </Button>
                         )}

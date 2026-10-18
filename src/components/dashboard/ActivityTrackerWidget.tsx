@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { Task, TeamType, User as UserType, ActivityLogEntry } from '@/types'
 import { TEAM_LABELS } from '@/lib/ui-constants'
-import { extractNameFromEmail } from '@/lib/utils'
+import { extractNameFromEmail, getDeliverableStatus } from '@/lib/utils'
 
 interface ActivityTrackerWidgetProps {
   tasks: Task[]
@@ -378,7 +378,7 @@ export function ActivityTrackerWidget({ tasks, users, projects, recentLogs: _rec
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-400">
                       {task.deliverables && task.deliverables.length > 0 && (
                         <span className="bg-space-700 px-2 py-0.5 rounded text-[11px]">
-                          📦 Entregables: <strong className="text-white">{task.deliverables.filter(d => d.estado === 'aprobado').length}/{task.deliverables.length}</strong>
+                          📦 Entregables: <strong className="text-white">{task.deliverables.filter(d => getDeliverableStatus(task, d) === 'aprobado').length}/{task.deliverables.length}</strong>
                         </span>
                       )}
                       {task.hitos && task.hitos.length > 0 && (

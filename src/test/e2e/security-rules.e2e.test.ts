@@ -1758,6 +1758,67 @@ describe('Security rules — privilege escalation & integrity', () => {
       await updateDoc(messageRef, { content: 'hola editado', isEdited: true })
     })
   })
+
+  describe('Auditoría 2026-10 — aprobación de entregables e identidad del perfil', () => {
+    it('reserves deliverable approval to managers', async () => {
+      const maestroEmail = 'audit27-mgr@usm.cl'
+      await bootstrapMaestro(maestroEmail)
+      await signOut(auth)
+      const { user: member } = await createVerifiedUser(auth, 'audit27-member@usm.cl', PW)
+      await signOut(auth)
+
+      await signInWithEmailAndPassword(auth, maestroEmail, PW)
+      const deliverable = { id: 'd1', titulo: 'Informe', estado: 'pendiente' }
+      const taskRef = await addDoc(collection(db, 'tasks'), {
+        titulo: 'Tarea',
+        estado: 'pendiente',
+        asignadoA: [member.uid],
+        deliverables: [deliverable],
+        createdAt: Timestamp.now(),
+      })
+      await signOut(auth)
+
+      await signInWithEmailAndPassword(auth, 'audit27-member@usm.cl', PW)
+      // El asignado no puede dejar constancia de aprobación sobre su propio entregable.
+      await expectDenied(
+        updateDoc(taskRef, {
+          deliverables: [{ ...deliverable, estado: 'aprobado' }],
+          deliverableApprovals: { d1: '' },
+        })
+      )
+      // Control: entregar sigue permitido.
+      await updateDoc(taskRef, {
+        deliverables: [{ ...deliverable, estado: 'entregado', attachmentIds: ['f1'] }],
+      })
+      await signOut(auth)
+
+      await signInWithEmailAndPassword(auth, maestroEmail, PW)
+      await updateDoc(taskRef, {
+        deliverables: [{ ...deliverable, estado: 'aprobado', attachmentIds: ['f1'] }],
+        deliverableApprovals: { d1: 'f1' },
+      })
+      expect((await getDoc(taskRef)).data()!.deliverableApprovals).toEqual({ d1: 'f1' })
+    })
+
+    it('does not let an admin rewrite a member email, but lets the owner heal a missing one', async () => {
+      const { user: member } = await createVerifiedUser(auth, 'audit27-victim@usm.cl', PW)
+      // Perfil legado sin `email`.
+      await setDoc(doc(db, 'users', member.uid), {
+        nombre: 'Vic', apellido: 'Tim', createdAt: new Date(), isActive: true,
+      })
+      // El titular no puede poner un correo ajeno, pero sí el de su token.
+      await expectDenied(updateDoc(doc(db, 'users', member.uid), { email: 'otra@usm.cl' }))
+      await setDoc(doc(db, 'users', member.uid), { email: 'audit27-victim@usm.cl' }, { merge: true })
+      await signOut(auth)
+
+      await bootstrapAdmin('audit27-admin@usm.cl')
+      // Desviaría el noticiario de la víctima y la mostraría como otra persona.
+      await expectDenied(updateDoc(doc(db, 'users', member.uid), { email: 'audit27-admin@usm.cl' }))
+      await expectDenied(updateDoc(doc(db, 'users', member.uid), { email: 'director@usm.cl' }))
+      // Control: la gestión de miembros que sí corresponde al admin.
+      await updateDoc(doc(db, 'users', member.uid), { equipos: ['tecnico'] })
+    })
+  })
 })
 
 /**
