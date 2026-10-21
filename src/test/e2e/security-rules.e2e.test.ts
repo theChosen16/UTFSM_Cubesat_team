@@ -1964,4 +1964,111 @@ describe('Security rules — verified institutional membership', () => {
     expect(snap.empty).toBe(true)
   })
 
+  it('pins the top-level shape of an activity_log entry (no unnamed payload field)', async () => {
+    const { user } = await createVerifiedUser(auth, 'shape-log@usm.cl', PW)
+
+    // The full ActivityLogEntry shape, metadata included, is still accepted.
+    const ok = await addDoc(collection(db, 'activity_log'), {
+      userId: user.uid,
+      type: 'task_progress_logged',
+      relatedId: 'task-1',
+      taskId: 'task-1',
+      description: 'Registró un avance',
+      metadata: { message: 'ok', status: null },
+      createdAt: Timestamp.now(),
+    })
+    expect(ok.id).toBeTruthy()
+
+    // A key count of 15 never bounded the SIZE: one unnamed key carrying the payload passed.
+    await expectDenied(
+      addDoc(collection(db, 'activity_log'), {
+        userId: user.uid,
+        type: 'task_progress_logged',
+        relatedId: 'task-1',
+        description: 'Registró un avance',
+        relleno: 'A'.repeat(1000),
+        createdAt: Timestamp.now(),
+      })
+    )
+  })
+
+  it('types the remaining free fields of otherwise shape-pinned documents', async () => {
+    const { user } = await createVerifiedUser(auth, 'typed-fields@usm.cl', PW)
+    const blob = 'A'.repeat(1000)
+    const driveId = 'drive-typed-123456'
+    const fileRecord = {
+      name: 'informe.pdf',
+      driveFileId: driveId,
+      viewURL: `https://drive.google.com/file/d/${driveId}/view?usp=sharing`,
+      downloadURL: `https://drive.google.com/uc?export=download&id=${driveId}`,
+      mimeType: 'application/pdf',
+      uploadedBy: user.uid,
+      createdAt: Timestamp.now(),
+    }
+
+    // /files: 'size' must be the numeric byte count the bridge returns.
+    await addDoc(collection(db, 'files'), { ...fileRecord, size: 1234 })
+    await expectDenied(addDoc(collection(db, 'files'), { ...fileRecord, size: blob }))
+
+    // /notifications: a new notification is always unread.
+    const notification = {
+      recipientId: 'someone-uid',
+      senderId: user.uid,
+      type: 'message',
+      title: 'Hola',
+      message: 'Mensaje',
+      createdAt: Timestamp.now(),
+    }
+    await addDoc(collection(db, 'notifications'), { ...notification, read: false })
+    await expectDenied(addDoc(collection(db, 'notifications'), { ...notification, read: blob }))
+
+    // /comments and /project_messages: edit-tracking fields are a timestamp and a boolean.
+    const comment = await addDoc(collection(db, 'comments'), {
+      postId: 'post-1',
+      authorId: user.uid,
+      content: 'Comentario',
+      isEdited: false,
+      createdAt: Timestamp.now(),
+    })
+    await updateDoc(doc(db, 'comments', comment.id), {
+      content: 'Editado',
+      updatedAt: Timestamp.now(),
+      isEdited: true,
+    })
+    await expectDenied(updateDoc(doc(db, 'comments', comment.id), { updatedAt: blob }))
+    await expectDenied(updateDoc(doc(db, 'comments', comment.id), { isEdited: blob }))
+    await expectDenied(
+      addDoc(collection(db, 'project_messages'), {
+        projectId: 'project-1',
+        senderId: user.uid,
+        content: 'Mensaje',
+        isEdited: blob,
+        createdAt: Timestamp.now(),
+      })
+    )
+    await expectDenied(
+      addDoc(collection(db, 'posts'), {
+        authorId: user.uid,
+        content: 'Post',
+        updatedAt: blob,
+        createdAt: Timestamp.now(),
+      })
+    )
+  })
+
+  it('bounds genero and hasSeenOnboarding on a self profile update, not only on create', async () => {
+    const { user } = await createVerifiedUser(auth, 'self-typed@usm.cl', PW)
+    await setDoc(doc(db, 'users', user.uid), {
+      email: 'self-typed@usm.cl',
+      nombre: 'Self',
+      apellido: 'Typed',
+      createdAt: Timestamp.now(),
+      isActive: true,
+    })
+    const ref = doc(db, 'users', user.uid)
+
+    await updateDoc(ref, { genero: 'femenino', hasSeenOnboarding: true })
+    await expectDenied(updateDoc(ref, { genero: 'A'.repeat(1000) }))
+    await expectDenied(updateDoc(ref, { hasSeenOnboarding: 'A'.repeat(1000) }))
+  })
 })
