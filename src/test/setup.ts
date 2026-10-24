@@ -1,4 +1,4 @@
-import '@testing-library/jest-dom'
+import '@testing-library/jest-dom/vitest'
 
 // Polyfill IntersectionObserver for jsdom (not available in jsdom environment)
 if (typeof globalThis.IntersectionObserver === 'undefined') {
