@@ -222,7 +222,16 @@ service cloud.firestore {
           (request.resource.data.year is string && request.resource.data.year.size() <= 20)) &&
         (!('fechaCumpleanos' in request.resource.data) ||
           (request.resource.data.fechaCumpleanos is string &&
-            request.resource.data.fechaCumpleanos.size() <= 40));
+            request.resource.data.fechaCumpleanos.size() <= 40)) &&
+        // 'genero' solo se acotaba en `create` (isTruthfulNewProfile), pero también está en la
+        // lista de autoedición: un perfil creado sin él (o con un valor válido) podía después
+        // escribir `genero: 'A'.repeat(700000)` en una sola actualización. Se aplica el mismo
+        // tope que en la creación (no el enum, para no bloquear perfiles legados con valores que
+        // sanitizeGenero ya descarta al leer), y 'hasSeenOnboarding' —también autoeditable y sin
+        // tipo— se fija a booleano, que es lo único que escribe OnboardingGuide.
+        boundedText(request.resource.data.get('genero', null), 40) &&
+        (!('hasSeenOnboarding' in request.resource.data) ||
+          request.resource.data.hasSeenOnboarding is bool);
     }
 
     function isBoundedSocialLinks() {
@@ -453,6 +462,10 @@ service cloud.firestore {
         boundedText(request.resource.data.get('title', null), 300) &&
         boundedText(request.resource.data.get('message', null), 3000) &&
         boundedText(request.resource.data.get('relatedId', null), 300) &&
+        // 'read' estaba en la forma permitida pero sin tipo, así que era un campo libre del
+        // documento: `read: 'A'.repeat(900000)` pasaba todos los topes de arriba y llegaba a la
+        // bandeja de la víctima. NotificationService.create siempre escribe `read: false`.
+        (!('read' in request.resource.data) || request.resource.data.read == false) &&
         hasSaneCreatedAt() &&
         // Se evalúa al final para que las comprobaciones baratas corten antes y el get() del
         // perfil solo ocurra en escrituras que ya pasaron el resto de las validaciones.
@@ -673,7 +686,16 @@ service cloud.firestore {
         // by anyone but the operator. Rules cannot measure a nested map, so `metadata` is bounded
         // by its key count and the document by its total key count — enough to stop the abuse
         // shape (a few enormous keys, or hundreds of them) without constraining any real entry.
-        request.resource.data.keys().size() <= 15 &&
+        //
+        // Pero un tope de NÚMERO de claves no acota su TAMAÑO: con `keys().size() <= 15` la
+        // entrada `{ userId, type, description, relleno: 'A'.repeat(900000) }` era válida, es
+        // decir, el mismo megabyte permanente que este bloque pretendía cerrar, en un campo que
+        // nadie enumeró. La forma de primer nivel se fija ahora a ActivityLogEntry (lo único que
+        // escribe ActivityLogService.create); `metadata` sigue acotado por número de claves.
+        request.resource.data.keys().hasOnly([
+          'userId', 'type', 'relatedId', 'taskId', 'projectId', 'deliverableId',
+          'description', 'metadata', 'createdAt'
+        ]) &&
         (!('metadata' in request.resource.data) ||
           (request.resource.data.metadata is map && request.resource.data.metadata.keys().size() <= 20)) &&
         (!('taskId' in request.resource.data) ||
@@ -735,6 +757,10 @@ service cloud.firestore {
         boundedText(request.resource.data.get('taskId', null), 300) &&
         boundedText(request.resource.data.get('projectId', null), 300) &&
         boundedText(request.resource.data.get('deliverableId', null), 300) &&
+        // 'size' era el único campo de la forma sin tipo ni tope: el blob que ya no cabía en
+        // 'mimeType' o 'taskId' cabía aquí. FileService guarda el número que devuelve el bridge.
+        (request.resource.data.get('size', null) == null ||
+          (request.resource.data.size is number && request.resource.data.size >= 0)) &&
         hasDriveBridgeUrls() &&
         hasSaneCreatedAt();
       allow delete: if isInstitutional() && (
@@ -777,6 +803,8 @@ service cloud.firestore {
         boundedText(request.resource.data.get('relatedProjectId', null), 300) &&
         (request.resource.data.get('tipo', null) == null ||
           request.resource.data.tipo in ['reunion', 'deadline', 'social', 'visita', 'otro']) &&
+        (request.resource.data.get('todoElDia', null) == null ||
+          request.resource.data.todoElDia is bool) &&
         hasSaneCreatedAt();
       allow delete: if isInstitutional() && canManageWorkspace();
     }
@@ -838,6 +866,12 @@ service cloud.firestore {
         ]) &&
         boundedText(request.resource.data.get('triggeredBy', null), 300) &&
         boundedList(request.resource.data.get('recipients', null), 1000) &&
+        (request.resource.data.get('recipientCount', null) == null ||
+          request.resource.data.recipientCount is number) &&
+        (request.resource.data.get('eventsCount', null) == null ||
+          request.resource.data.eventsCount is number) &&
+        (request.resource.data.get('tasksCount', null) == null ||
+          request.resource.data.tasksCount is number) &&
         hasSaneCreatedAt();
     }
 
@@ -865,6 +899,19 @@ service cloud.firestore {
       allow write: if isInstitutional() && hasRole('maestro');
     }
 
+    // Campos de edición de posts, comentarios y mensajes de proyecto. Estaban en la forma
+    // permitida (`keys().hasOnly`) pero sin tipo, así que eran el hueco que esa forma dejaba:
+    // `updateComment(..., { content: 'ok', updatedAt: 'A'.repeat(900000) })` pasaba los topes de
+    // 'content' y repetía el vector de egreso en colecciones que todo el equipo descarga enteras.
+    // Los clientes solo escriben `serverTimestamp()` e `isEdited: true|false`.
+    function hasTypedEditFields() {
+      return (request.resource.data.get('updatedAt', null) == null ||
+          (request.resource.data.updatedAt is timestamp &&
+            request.resource.data.updatedAt <= request.time + duration.value(5, 'm'))) &&
+        (request.resource.data.get('isEdited', null) == null ||
+          request.resource.data.isEdited is bool);
+    }
+
     // La forma del documento es exactamente la que escriben FeedService.createPost y el
     // alternador de "me gusta" (ver la nota sobre cotas transversales arriba): sin
     // `keys().hasOnly(...)` los topes de 'content'/'imageUrls' se esquivan escribiendo el
@@ -877,6 +924,9 @@ service cloud.firestore {
         boundedText(request.resource.data.get('content', null), 10000) &&
         boundedList(request.resource.data.get('imageUrls', null), 4) &&
         boundedList(request.resource.data.get('likedBy', null), 500) &&
+        (request.resource.data.get('likesCount', null) == null ||
+          request.resource.data.likesCount is int) &&
+        hasTypedEditFields() &&
         (request.resource.data.get('category', null) == null ||
           request.resource.data.category in ['general', 'logro', 'duda', 'oportunidad']);
     }
@@ -936,7 +986,8 @@ service cloud.firestore {
           'postId', 'authorId', 'content', 'createdAt', 'updatedAt', 'isEdited'
         ]) &&
         boundedText(request.resource.data.get('content', null), 5000) &&
-        boundedText(request.resource.data.get('postId', null), 300);
+        boundedText(request.resource.data.get('postId', null), 300) &&
+        hasTypedEditFields();
     }
 
     match /comments/{commentId} {
@@ -977,6 +1028,7 @@ service cloud.firestore {
         boundedText(request.resource.data.get('content', null), 5000) &&
         boundedText(request.resource.data.get('projectId', null), 300) &&
         boundedList(request.resource.data.get('fileUrls', null), 4) &&
+        hasTypedEditFields() &&
         // `isAiOrchestrated: true` hace que ProjectChat muestre el mensaje como "AI
         // Orquestador" (avatar y burbuja del asistente, sin el nombre del remitente). Ningún
         // cliente lo escribe en true —el asistente no publica en el chat—, así que cualquier

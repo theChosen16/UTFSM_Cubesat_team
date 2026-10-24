@@ -6,6 +6,7 @@ import { BotService } from '@/sdk/BotService'
 import { useAuth } from '@/contexts/AuthContext'
 import { FileParser } from '@/utils/fileParser'
 import { ProcessedBotFile } from '@/types'
+import { assistantMarkdownComponents } from './assistantMarkdown'
 
 interface Message {
   role: 'user' | 'model'
@@ -251,7 +252,7 @@ export function Chatbot() {
                   </div>
                 ) : (
                   <div className="prose prose-invert prose-p:leading-snug prose-sm max-w-none">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown components={assistantMarkdownComponents}>{msg.content}</ReactMarkdown>
                   </div>
                 )}
               </div>

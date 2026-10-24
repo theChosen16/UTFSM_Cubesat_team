@@ -402,6 +402,22 @@ This project implements the following security practices:
   way for the victim to correct it. `email` can now only be left unchanged, or filled in by the
   profile's owner with their own verified token email (the legacy repair `AuthContext` performs at
   sign-in, which previously succeeded only for maestro/admin).
+- **Activity log shape is pinned**: `/activity_log` bounded the number of top-level keys (15) but
+  not their size, so an entry with one unnamed key holding ~1 MiB was accepted — permanent,
+  append-only and downloaded by every member's Dashboard/Members query. The top-level shape is now
+  fixed to `ActivityLogEntry`; `metadata` stays bounded by key count.
+- **No untyped fields left in shape-pinned documents**: several fields were allowed by
+  `keys().hasOnly(...)` but carried no type, so they took the same megabyte blob the size caps
+  were written to stop: `size` on `/files`, `read` on new `/notifications` (now always `false`),
+  `updatedAt`/`isEdited` on posts, comments and project messages, `likesCount` on posts,
+  `genero`/`hasSeenOnboarding` on self profile updates (the `genero` cap only applied at create),
+  plus `todoElDia` on events and the counters on `/mail_digests`.
+- **Assistant links show their destination**: the chatbot rendered model-written Markdown with
+  default components, so a prompt injection carried by an attachment or by stored task/project text
+  could make the official assistant bubble display `[Verifica tu cuenta USM](https://phish…)`,
+  opening in the same tab in place of the app. Links now show their real host next to the text,
+  open in a new tab with `noopener noreferrer`, are reduced to text when their scheme is not
+  allowed, and images in model output are never loaded.
 - **Branch protection**: Main branch requires pull request reviews before merging
 
 ## Response Time
