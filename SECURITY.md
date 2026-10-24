@@ -271,21 +271,13 @@ This project implements the following security practices:
   and kept the access — the inverse of what the user was told happened, and the worst possible
   failure mode for a deletion. It now fails closed: if the binary is still in Drive the metadata
   is kept and the caller is told who can remove it.
-- **Dependency hygiene**: the production dependency tree is clean (`npm audit --omit=dev`) after
-  raising the `fast-uri` override past the host-confusion / SSRF advisories. The remaining
-  moderate advisories are dev-only and live inside `firebase-tools`' transitive tree, where the
-  available fixes are breaking; they never reach the shipped bundle. One of those overrides had
-  gone further than "breaking": forcing `stream-json` to `^3.5.0` workspace-wide (for
-  GHSA-528h-pc64-c93x) replaced a CommonJS package with a pure-ESM rewrite whose subpaths were
-  renamed, so `firebase-tools` — which requires `stream-json/filters/Filter` — could no longer
-  load **at all**. Every `firebase` CLI invocation died with `Cannot find module`, which silently
-  took out `npm run emulators`, `npm run test:e2e` and the CLI path used to deploy
-  `firestore.rules`. CI only runs `lint`/`test`/`build`, so nothing reported it: the entire
-  regression suite guarding the project's authorization boundary had stopped being runnable. The
-  override is now scoped so `firebase-tools` keeps the `1.x` line it is written against while the
-  rest of the tree stays on the patched major. The residual advisory is dev-only, moderate, and
-  reachable only by running `firebase database:import` over hostile JSON on your own machine —
-  a far smaller risk than being unable to test or deploy the security rules.
+- **Dependency hygiene**: the production dependency tree is clean (`npm audit --omit=dev`: 0 vulnerabilities).
+  All open Dependabot advisories across both production and development dependencies have been resolved:
+  `proxy-addr` (>= 2.0.8), `compression` (>= 1.8.2), `source-map-js` (>= 1.2.2), `postcss-selector-parser` (>= 7.1.6),
+  `@grpc/grpc-js` (>= 1.14.6), `stream-json` (>= 3.7.0), `vite` (>= 8.3.5), `hono` (>= 4.13.11), plus the follow-up
+  `npm audit fix` for `zod`, `undici`, `body-parser`, `fast-uri` and `ip-address`. `firebase-tools` was bumped to `^15.34.1`, which now
+  natively adopts `stream-json: ^3.6.0`, removing the need for a legacy 1.x override pin and allowing the emulators
+  and `firestore.rules` toolchain to run securely and without module resolution errors.
 - **Membership revocation (`isActive`)**: the workspace boundary used to be identity only — a
   verified `@usm.cl` / `@sansano.usm.cl` address — so there was no way to remove someone from
   the team. A former member (or a compromised account) kept reading every task, project, file,
