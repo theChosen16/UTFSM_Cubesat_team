@@ -562,6 +562,40 @@ service cloud.firestore {
           request.resource.data.scoreAwarded is number);
     }
 
+    // Bitácora de avances de una tarea en la ruta del asignado: solo se puede AGREGAR una entrada
+    // propia al final, sin tocar las anteriores.
+    //
+    // `progressUpdates` estaba en la lista blanca del asignado acotado solo en largo, y cada
+    // entrada lleva un `authorId` libre que TaskManagement muestra como autor del avance
+    // (getMemberName(update.authorId)) y ActivityTrackerWidget como "último avance". Un asignado
+    // podía por tanto reescribir el arreglo completo: borrar los avances de sus compañeros,
+    // editar lo que otro escribió, o firmar un avance a nombre del maestro o de un manager. Es la
+    // misma suplantación que ya se cerró en `notifications.senderName`, por otro campo. El cliente
+    // legítimo solo hace `arrayUnion(entrada)` (TaskService.addProgressUpdate), es decir, exactamente
+    // "prefijo intacto + una entrada nueva cuyo autor es quien escribe". La moderación (borrar o
+    // corregir avances) queda en la ruta de manager, que no pasa por aquí.
+    function isOwnProgressAppend() {
+      let before = resource.data.get('progressUpdates', []);
+      let after = request.resource.data.get('progressUpdates', null);
+      return before is list && after is list &&
+        after.size() == before.size() + 1 &&
+        // El rango vacío `after[0:0]` no se evalúa como lista vacía en el motor de reglas
+        // (índice -1), así que el caso de la primera entrada se trata aparte.
+        (before.size() == 0 || after[0:before.size()] == before) &&
+        isOwnProgressEntry(after[before.size()]);
+    }
+
+    function isOwnProgressEntry(entry) {
+      return entry is map &&
+        entry.keys().hasOnly(['id', 'authorId', 'message', 'createdAt', 'status']) &&
+        entry.get('authorId', null) == request.auth.uid &&
+        boundedText(entry.get('id', null), 100) &&
+        boundedText(entry.get('createdAt', null), 100) &&
+        (entry.get('message', null) is string && entry.message.size() <= 2000) &&
+        (entry.get('status', null) == null ||
+          entry.status in ['pendiente', 'en_progreso', 'completado']);
+    }
+
     match /tasks/{taskId} {
       // Institutional members can read tasks (private team tool). Managers create;
       // assignees may update a restricted field set (guarded below); deletion is maestro-only.
@@ -613,6 +647,8 @@ service cloud.firestore {
           (!('progressUpdates' in request.resource.data) ||
             (request.resource.data.progressUpdates is list &&
               request.resource.data.progressUpdates.size() <= 200)) &&
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['progressUpdates']) ||
+            isOwnProgressAppend()) &&
           (!('deliverables' in request.resource.data) ||
             (request.resource.data.deliverables is list &&
               request.resource.data.deliverables.size() <= 50)) &&
@@ -653,6 +689,48 @@ service cloud.firestore {
         hasRole('maestro');
     }
 
+    // `metadata` de una entrada de activity_log: claves conocidas y valores escalares acotados.
+    //
+    // El tope anterior (`metadata.keys().size() <= 20`) acotaba cuántas claves había, no cuánto
+    // pesaban: `metadata: { k0: 'A'.repeat(900000) }` seguía siendo válido. Es el mismo megabyte
+    // permanente que el bloque de abajo dice cerrar — la bitácora es append-only, nadie salvo el
+    // operador puede podarla, y ActivityLogService.getAll() la descarga ENTERA en cada carga del
+    // Dashboard y de Miembros de cada miembro, así que N entradas infladas se multiplican por el
+    // número de miembros en egress facturable y en memoria del navegador. Las reglas no pueden
+    // recorrer un mapa, así que se fija la lista de claves que el cliente escribe realmente
+    // (TaskService, FileService, AdminActionsService, EmailNotificationService) y cada valor debe
+    // ser null, booleano, número o texto de a lo sumo 2000 caracteres. Los dos únicos valores
+    // anidados que existían (`patch` de updateDeliverable y `eventIds` de CubeDesign) se aplanan
+    // en el cliente; ninguna vista lee `metadata`.
+    function isBoundedActivityMetadata(m) {
+      return m is map &&
+        m.keys().hasOnly([
+          'mimeType', 'size', 'prioridad', 'puntajeImportancia', 'previousStatus', 'newStatus',
+          'scoreAwarded', 'message', 'status', 'estado', 'attachmentCount', 'tipo', 'fechaInicio',
+          'timestamp', 'miembroId', 'fechaCumpleanos', 'confirmado', 'eventIds', 'fechaActa',
+          'createdTasksCount', 'createdEventsCount', 'recipientCount', 'eventsIncluded',
+          'tasksIncluded', 'triggeredBy'
+        ]) &&
+        isMetaScalar(m.get('mimeType', null)) && isMetaScalar(m.get('size', null)) &&
+        isMetaScalar(m.get('prioridad', null)) && isMetaScalar(m.get('puntajeImportancia', null)) &&
+        isMetaScalar(m.get('previousStatus', null)) && isMetaScalar(m.get('newStatus', null)) &&
+        isMetaScalar(m.get('scoreAwarded', null)) && isMetaScalar(m.get('message', null)) &&
+        isMetaScalar(m.get('status', null)) && isMetaScalar(m.get('estado', null)) &&
+        isMetaScalar(m.get('attachmentCount', null)) && isMetaScalar(m.get('tipo', null)) &&
+        isMetaScalar(m.get('fechaInicio', null)) && isMetaScalar(m.get('timestamp', null)) &&
+        isMetaScalar(m.get('miembroId', null)) && isMetaScalar(m.get('fechaCumpleanos', null)) &&
+        isMetaScalar(m.get('confirmado', null)) && isMetaScalar(m.get('eventIds', null)) &&
+        isMetaScalar(m.get('fechaActa', null)) && isMetaScalar(m.get('createdTasksCount', null)) &&
+        isMetaScalar(m.get('createdEventsCount', null)) && isMetaScalar(m.get('recipientCount', null)) &&
+        isMetaScalar(m.get('eventsIncluded', null)) && isMetaScalar(m.get('tasksIncluded', null)) &&
+        isMetaScalar(m.get('triggeredBy', null));
+    }
+
+    function isMetaScalar(value) {
+      return value == null || value is bool || value is number ||
+        (value is string && value.size() <= 2000);
+    }
+
     match /activity_log/{entryId} {
       // Institutional members can read activity logs for performance rankings.
       // Entry creation is restricted to the authenticated user's own entries.
@@ -691,13 +769,12 @@ service cloud.firestore {
         // entrada `{ userId, type, description, relleno: 'A'.repeat(900000) }` era válida, es
         // decir, el mismo megabyte permanente que este bloque pretendía cerrar, en un campo que
         // nadie enumeró. La forma de primer nivel se fija ahora a ActivityLogEntry (lo único que
-        // escribe ActivityLogService.create); `metadata` sigue acotado por número de claves.
+        // escribe ActivityLogService.create); `metadata`, por isBoundedActivityMetadata().
         request.resource.data.keys().hasOnly([
           'userId', 'type', 'relatedId', 'taskId', 'projectId', 'deliverableId',
           'description', 'metadata', 'createdAt'
         ]) &&
-        (!('metadata' in request.resource.data) ||
-          (request.resource.data.metadata is map && request.resource.data.metadata.keys().size() <= 20)) &&
+        (!('metadata' in request.resource.data) || isBoundedActivityMetadata(request.resource.data.metadata)) &&
         (!('taskId' in request.resource.data) ||
           (request.resource.data.taskId is string && request.resource.data.taskId.size() <= 300)) &&
         (!('projectId' in request.resource.data) ||

@@ -3,7 +3,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth'
-import { doc, setDoc, getDoc, getDocs, updateDoc, addDoc, collection, Timestamp } from 'firebase/firestore'
+import { doc, setDoc, getDoc, getDocs, updateDoc, addDoc, collection, Timestamp, arrayUnion } from 'firebase/firestore'
 import {
   getTestFirebase,
   clearFirestoreData,
@@ -1044,10 +1044,86 @@ describe('Security rules — privilege escalation & integrity', () => {
     // Normal progress reporting is unaffected.
     await updateDoc(doc(db, 'tasks', taskRef.id), {
       estado: 'en_progreso',
-      progressUpdates: [{ id: 'u1', descripcion: 'Arnés montado' }],
+      progressUpdates: [{
+        id: 'u1',
+        authorId: assignee.uid,
+        message: 'Arnés montado',
+        createdAt: new Date().toISOString(),
+        status: 'en_progreso',
+      }],
     })
     const stored = await getDoc(doc(db, 'tasks', taskRef.id))
     expect(stored.data()!.estado).toBe('en_progreso')
+  })
+
+  it('lets an assignee only append their own progress update, never rewrite the log', async () => {
+    const maestroEmail = 'progressboss@usm.cl'
+    const maestroUid = await bootstrapMaestro(maestroEmail)
+
+    const { user: teammate } = await createVerifiedUser(auth, 'teammate.progress@usm.cl', PW)
+    await signOut(auth)
+    const { user: assignee } = await createVerifiedUser(auth, 'eve.progress@usm.cl', PW)
+    await signOut(auth)
+
+    const teammateUpdate = {
+      id: 'u-teammate',
+      authorId: teammate.uid,
+      message: 'Antena desplegada en banco de pruebas',
+      createdAt: new Date().toISOString(),
+      status: 'en_progreso',
+    }
+    await signInWithEmailAndPassword(auth, maestroEmail, PW)
+    const taskRef = await addDoc(collection(db, 'tasks'), {
+      titulo: 'Despliegue de antena',
+      descripcion: '',
+      estado: 'en_progreso',
+      asignadoA: [assignee.uid, teammate.uid],
+      equipo: 'tecnico',
+      prioridad: 'media',
+      creadoPor: maestroUid,
+      puntajeImportancia: 5,
+      progressUpdates: [teammateUpdate],
+      createdAt: Timestamp.now(),
+    })
+    await signOut(auth)
+
+    await signInWithEmailAndPassword(auth, 'eve.progress@usm.cl', PW)
+    const own = (message: string, authorId = assignee.uid) => ({
+      id: crypto.randomUUID(),
+      authorId,
+      message,
+      createdAt: new Date().toISOString(),
+      status: 'en_progreso',
+    })
+
+    // Signing a progress entry as the maestro (rendered as its author in TaskManagement).
+    await expectDenied(
+      updateDoc(doc(db, 'tasks', taskRef.id), {
+        progressUpdates: [teammateUpdate, own('Aprobado por dirección', maestroUid)],
+      })
+    )
+    // Erasing a teammate's entry.
+    await expectDenied(updateDoc(doc(db, 'tasks', taskRef.id), { progressUpdates: [] }))
+    // Rewriting a teammate's entry while appending one's own.
+    await expectDenied(
+      updateDoc(doc(db, 'tasks', taskRef.id), {
+        progressUpdates: [{ ...teammateUpdate, message: 'No hice nada' }, own('Yo lo hice todo')],
+      })
+    )
+    // Unbounded message text.
+    await expectDenied(
+      updateDoc(doc(db, 'tasks', taskRef.id), {
+        progressUpdates: [teammateUpdate, own('A'.repeat(2001))],
+      })
+    )
+
+    // What TaskService.addProgressUpdate does: arrayUnion of one entry authored by the caller.
+    await updateDoc(doc(db, 'tasks', taskRef.id), {
+      progressUpdates: arrayUnion(own('Ajusté el mecanismo de liberación')),
+    })
+    const stored = await getDoc(doc(db, 'tasks', taskRef.id))
+    expect(stored.data()!.progressUpdates).toHaveLength(2)
+    expect(stored.data()!.progressUpdates[0]).toEqual(teammateUpdate)
   })
 
   it('bounds the inlined base64 media arrays on posts and project messages', async () => {
@@ -1383,10 +1459,40 @@ describe('Security rules — privilege escalation & integrity', () => {
       description: 'Creó la tarea "Simulación térmica"',
       relatedId: 'task-123',
       taskId: 'task-123',
-      metadata: { titulo: 'Simulación térmica', equipo: 'tecnico' },
+      metadata: { prioridad: 'media', puntajeImportancia: 3 },
       createdAt: Timestamp.now(),
     })
     expect(ok.id).toBeTruthy()
+
+    // A key-count cap never bounded the VALUES: one allowed-count key carried the megabyte.
+    await expectDenied(
+      addDoc(collection(db, 'activity_log'), {
+        userId: user.uid,
+        type: 'task_created',
+        description: 'ok',
+        metadata: { message: 'A'.repeat(2001) },
+        createdAt: Timestamp.now(),
+      })
+    )
+    // Unknown keys and nested values (which rules cannot measure) are rejected.
+    await expectDenied(
+      addDoc(collection(db, 'activity_log'), {
+        userId: user.uid,
+        type: 'task_created',
+        description: 'ok',
+        metadata: { relleno: 'x' },
+        createdAt: Timestamp.now(),
+      })
+    )
+    await expectDenied(
+      addDoc(collection(db, 'activity_log'), {
+        userId: user.uid,
+        type: 'deliverable_status_changed',
+        description: 'ok',
+        metadata: { estado: { anidado: 'A'.repeat(1000) } },
+        createdAt: Timestamp.now(),
+      })
+    )
   })
 
   it('pins the /mail document shape so the extension cannot be used as an open relay', async () => {

@@ -7,6 +7,9 @@ import { getDeliverableSignature } from '@/lib/utils'
 import { ActivityLogService } from '@/sdk/ActivityLogService'
 import { NotificationService } from '@/sdk/NotificationService'
 
+/** Tope del texto de un avance; firestore.rules (isOwnProgressEntry) rechaza uno más largo. */
+export const MAX_PROGRESS_MESSAGE_LENGTH = 2000
+
 const toDate = (value: unknown): Date => {
   if (value instanceof Date) return value
   if (typeof value === 'string' || typeof value === 'number') return new Date(value)
@@ -169,7 +172,7 @@ export class TaskService {
       const progressUpdate: TaskProgressUpdate = {
         id: crypto.randomUUID(),
         authorId: payload.authorId,
-        message: payload.message,
+        message: payload.message.slice(0, MAX_PROGRESS_MESSAGE_LENGTH),
         createdAt: new Date().toISOString(),
         status: payload.status,
       }
@@ -186,7 +189,7 @@ export class TaskService {
         projectId: task?.projectId || undefined,
         description: `Registró un avance en la tarea "${task?.titulo || taskId}"`,
         metadata: {
-          message: payload.message,
+          message: progressUpdate.message,
           status: payload.status || null,
         },
       })
@@ -242,8 +245,10 @@ export class TaskService {
           projectId: task.projectId || undefined,
           deliverableId,
           description: `Actualizó el entregable "${updatedDeliverable.titulo}"`,
+          // Solo escalares: firestore.rules (isBoundedActivityMetadata) rechaza valores anidados.
           metadata: {
-            patch,
+            estado: patch.estado ?? null,
+            attachmentCount: patch.attachmentIds ? patch.attachmentIds.length : null,
           },
         })
       }

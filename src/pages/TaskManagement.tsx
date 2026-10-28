@@ -24,7 +24,7 @@ import { getDeliverableSignature, getDeliverableStatus, sanitizeUrl } from '@/li
 import { FileRecord, Task, TaskDeliverable, TaskMilestone, User as UserType, TeamType, hasAnyRole, hasTeam } from '@/types'
 import { TEAM_LABELS } from '@/lib/ui-constants'
 import { ProjectService } from '@/sdk/ProjectService'
-import { DELIVERABLE_CHANGED_ERROR, TaskService } from '@/sdk/TaskService'
+import { DELIVERABLE_CHANGED_ERROR, MAX_PROGRESS_MESSAGE_LENGTH, TaskService } from '@/sdk/TaskService'
 import { UserService } from '@/sdk/UserService'
 import { FileService } from '@/sdk/FileService'
 import { taskFormSchema } from '@/lib/schemas'
@@ -608,6 +608,7 @@ export default function TaskManagement() {
                   <Textarea
                     value={progressMessage}
                     onChange={handleInputChange(setProgressMessage)}
+                    maxLength={MAX_PROGRESS_MESSAGE_LENGTH}
                     placeholder="Describe qué hiciste, bloqueo actual o próximo paso..."
                     className="bg-space-700 border-space-500 text-white min-h-[80px]"
                     autoFocus

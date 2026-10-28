@@ -410,6 +410,26 @@ This project implements the following security practices:
   opening in the same tab in place of the app. Links now show their real host next to the text,
   open in a new tab with `noopener noreferrer`, are reduced to text when their scheme is not
   allowed, and images in model output are never loaded.
+- **Progress log is append-only on the assignee path**: `tasks.progressUpdates` was on the
+  assignee allowlist bounded only by length, and each entry carries a free `authorId` that
+  TaskManagement renders as the author of the update. An assignee could therefore rewrite the
+  whole array — erase or edit a teammate's updates, or sign one as the maestro — the same
+  impersonation already closed on `notifications.senderName`, through another field. On the
+  assignee path the new array must now be the previous one plus exactly one entry, authored by
+  the caller, with a known shape and a bounded message (`isOwnProgressAppend()`), which is what
+  `TaskService.addProgressUpdate`'s `arrayUnion` produces. Moderation stays on the manager path.
+- **Activity-log metadata is bounded by value, not just by key count**: the previous cap
+  (`metadata.keys().size() <= 20`) left every value unbounded, so `metadata: { k0: <900 KB> }`
+  was still a valid, permanent, append-only entry that `ActivityLogService.getAll()` downloads
+  in full on every member's Dashboard and Members load (egress and memory amplification).
+  `metadata` keys are now allowlisted to the ones the client writes and each value must be
+  null, boolean, number or a string of at most 2000 characters; the two nested values the client
+  used to log (`patch`, `eventIds`) are flattened.
+- **Drive bridge byte budget**: upload rate limiting counted requests, not bytes — 20 × 35 MB
+  per minute per member with no cumulative ceiling filled the owner's 15 GB Drive (shared with
+  their Gmail/Photos) in about 22 minutes, breaking deliverable uploads for the whole team, and
+  every file is public-by-link. Each verified uploader now has a 500 MB budget per 6 h window,
+  charged from the encoded length before any Drive I/O.
 - **Branch protection**: Main branch requires pull request reviews before merging
 
 ## Response Time
