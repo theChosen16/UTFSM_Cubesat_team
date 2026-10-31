@@ -80,6 +80,19 @@ const SERVER_POLICY_SUFFIX =
 const FILE_RATE_WINDOW_SECONDS = 60;
 const FILE_RATE_MAX_PER_WINDOW = 20;
 
+// Presupuesto de BYTES subidos por usuario verificado, además del de número de peticiones.
+//
+// El límite de arriba cuenta peticiones, no volumen: 20 subidas/min × 35 MB son ~700 MB por
+// minuto y por miembro, sin tope acumulado. Los 15 GB del Drive gratuito del dueño se llenaban
+// en unos 22 minutos con un solo script — y como cada archivo queda "cualquiera con el enlace",
+// también es almacenamiento público gratuito a costa del equipo. Con el Drive lleno fallan las
+// subidas de todos (entregables incluidos) y el resto del Drive personal del dueño (Gmail/Fotos
+// comparten la cuota). El tope se cobra ANTES de cualquier E/S de Drive, a partir del largo
+// codificado. CacheService admite como máximo 6 h de vida, que es la ventana; cada subida
+// renueva el TTL, de modo que un uso sostenido no se reinicia a mitad de ráfaga.
+const UPLOAD_BYTES_WINDOW_SECONDS = 6 * 60 * 60;
+const UPLOAD_BYTES_MAX_PER_WINDOW = 500 * 1024 * 1024;
+
 // Allowlist of Gemini model identifiers accepted by handleChat. MUST stay in sync with
 // MODEL_CANDIDATES in src/sdk/BotService.ts — a model the client tries but the bridge rejects
 // makes every chat request fail closed.
@@ -357,6 +370,10 @@ function handleUpload(params) {
     throw clientError_('file exceeds 35 MB limit');
   }
 
+  if (!withinUploadByteBudget_(uploaderEmail, Math.floor(encodedLength * 3 / 4))) {
+    throw clientError_('upload quota exceeded: too much data uploaded recently, retry later');
+  }
+
   const root = DriveApp.getFolderById(FOLDER_ID);
   const target = resolveTargetFolder(root, params);
 
@@ -496,6 +513,40 @@ function withinRateLimit_(scope, key, max, windowSeconds) {
       return false;
     }
     cache.put(bucket, String(current + 1), windowSeconds);
+    return true;
+  } catch (err) {
+    return true;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Suma `bytes` al acumulado de `key` en la ventana UPLOAD_BYTES_WINDOW_SECONDS y devuelve false
+ * (sin sumar) si con ellos se superaría UPLOAD_BYTES_MAX_PER_WINDOW. Misma política de fallo que
+ * withinRateLimit_: abierto solo si el backend de caché no está disponible, cerrado si no se
+ * obtiene el lock.
+ */
+function withinUploadByteBudget_(key, bytes) {
+  let cache;
+  try {
+    cache = CacheService.getScriptCache();
+  } catch (err) {
+    return true;
+  }
+  if (!cache) return true;
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) {
+    return false;
+  }
+  try {
+    const bucket = 'upload_bytes_' + key;
+    const used = parseInt(cache.get(bucket) || '0', 10) || 0;
+    if (used + bytes > UPLOAD_BYTES_MAX_PER_WINDOW) {
+      return false;
+    }
+    cache.put(bucket, String(used + bytes), UPLOAD_BYTES_WINDOW_SECONDS);
     return true;
   } catch (err) {
     return true;

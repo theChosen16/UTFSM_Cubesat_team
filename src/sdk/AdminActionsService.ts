@@ -469,7 +469,7 @@ export class AdminActionsService {
           relatedId: 'cubedesign_hitos',
           description: `Sembró 4 hitos preparatorios críticos en el calendario para CubeDesign 2026 vía Cubesat Bot`,
           metadata: {
-            eventIds: createdIds
+            eventIds: createdIds.join(',')
           }
         }).catch(err => logger.warn('Non-blocking activity log error', { err }))
 

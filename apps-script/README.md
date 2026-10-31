@@ -114,6 +114,9 @@ El script organiza los archivos automáticamente en subcarpetas dentro del folde
   se elimina por compatibilidad hacia atrás: hay que borrarlo desde Drive directamente.
 - **Rate limiting por llamante verificado** en chat, subida y borrado, para acotar el abuso de la
   cuota de Drive y de la clave de pago de Gemini.
+- **Presupuesto de bytes por usuario**: además del número de peticiones, cada usuario verificado
+  puede subir como máximo `UPLOAD_BYTES_MAX_PER_WINDOW` (500 MB) por ventana de 6 h. Sin él, 20
+  subidas/min × 35 MB llenaban los 15 GB del Drive del dueño en ~22 minutos.
 - **Política de servidor en el chat**: el `systemInstruction` que envía el cliente se acota en
   tamaño y siempre se le añade una política inmutable del lado servidor, de modo que el alcance
   "solo CubeSat" no dependa de una cadena que el llamante puede omitir.
