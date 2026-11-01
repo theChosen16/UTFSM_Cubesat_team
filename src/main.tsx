@@ -27,7 +27,7 @@ window.addEventListener('unhandledrejection', (event) => {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <BrowserRouter basename="/UTFSM_Cubesat_team">
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <AuthProvider>
           <App />
         </AuthProvider>

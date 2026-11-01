@@ -11,7 +11,7 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  base: '/UTFSM_Cubesat_team/',
+  base: process.env.VITE_BASE_PATH || '/',
   build: {
     outDir: 'docs',
     rollupOptions: {
