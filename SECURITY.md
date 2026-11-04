@@ -430,6 +430,26 @@ This project implements the following security practices:
   their Gmail/Photos) in about 22 minutes, breaking deliverable uploads for the whole team, and
   every file is public-by-link. Each verified uploader now has a 500 MB budget per 6 h window,
   charged from the encoded length before any Drive I/O.
+- **Real HTTP security headers on Cloudflare Pages** (`public/_headers`): GitHub Pages could not
+  set response headers, so every policy lived in `<meta>` tags in `index.html` — and several of
+  them do nothing there. `frame-ancestors` and `X-Frame-Options` are ignored in `<meta>`, so the
+  only anti-clickjacking control was a JS framebuster; `X-Content-Type-Options` in `<meta>` is
+  ignored by every browser; HSTS, COOP and Permissions-Policy only exist as headers. Most
+  importantly, the `<meta>` CSP needed `script-src 'unsafe-inline'` for the two inline scripts
+  in `index.html`, which also allows any injected inline script and `javascript:` URLs —
+  turning any future HTML-injection bug into script execution with a maestro's session. Now that
+  the app is served from Cloudflare Pages, `_headers` sends a CSP whose `script-src` authorizes
+  those two scripts by their **SHA-256 hash** instead of `'unsafe-inline'` (browsers enforce the
+  intersection of header and `<meta>` policies, so the header only tightens), plus
+  `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `nosniff`, HSTS,
+  `Cross-Origin-Opener-Policy: same-origin`, a restrictive `Permissions-Policy` and
+  `X-Robots-Tag: noindex` (private platform; preview deployments on `*.pages.dev` are public
+  URLs). `src/lib/securityHeaders.test.ts` recomputes the inline-script hashes from
+  `index.html` and fails CI if they drift.
+  - *Operational note (Cloudflare dashboard)*: preview deployments build every branch with the
+    environment variables configured for "Preview"; keep those separate from production, disable
+    builds for fork PRs, and add only the exact production domain (never a `*.pages.dev`
+    wildcard) to Firebase Auth → Authorized domains.
 - **Branch protection**: Main branch requires pull request reviews before merging
 
 ## Response Time
