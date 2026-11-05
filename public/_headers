@@ -1,0 +1,28 @@
+# Cabeceras HTTP de seguridad para Cloudflare Pages (formato `_headers`).
+#
+# GitHub Pages no permitía fijar cabeceras de respuesta, así que toda la política vivía en
+# <meta> dentro de index.html. Varias defensas NO funcionan desde <meta>:
+#   - `frame-ancestors` y `X-Frame-Options` se ignoran → la única barrera anti-clickjacking era un
+#     script JS (framebuster), que no corre si el documento se embebe con `sandbox` sin scripts.
+#   - `X-Content-Type-Options` en <meta> no tiene efecto en ningún navegador.
+#   - HSTS, COOP y Permissions-Policy solo existen como cabecera.
+# Con Cloudflare Pages sí podemos enviarlas, así que se envían de verdad.
+#
+# CSP: el navegador aplica TODAS las políticas recibidas (la intersección), de modo que esta
+# cabecera endurece la <meta> sin relajarla. La diferencia clave es `script-src`: la <meta>
+# necesita 'unsafe-inline' para los dos scripts inline de index.html (framebuster y redirección
+# SPA), lo que también habilita cualquier script inline inyectado y las URLs `javascript:`.
+# Aquí se reemplaza por los hashes SHA-256 exactos de esos dos scripts. Si se modifica un
+# script inline de index.html hay que actualizar su hash: `src/lib/securityHeaders.test.ts`
+# falla en CI cuando no coinciden.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-HNgYAZm6BrJl0918CeVfLHFSaeBR8AuhqaOzKTnzknc=' 'sha256-9Jn/cnXgKbJ7J7q33fTfvOmHEa+5yzYGzkbavQwjgws=' https://apis.google.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.google.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://*.firebaseio.com https://script.google.com https://script.googleusercontent.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=()
+  X-Robots-Tag: noindex, nofollow
+
