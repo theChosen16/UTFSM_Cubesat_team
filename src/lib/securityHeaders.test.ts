@@ -22,7 +22,7 @@ const headerValue = (name: string): string | undefined => {
 
 const inlineScriptHashes = (): string[] =>
   [...indexHtml.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(match =>
-    `'sha256-${createHash('sha256').update(match[1], 'utf8').digest('base64')}'`
+    `'sha256-${createHash('sha256').update(match[1].replace(/\r\n/g, '\n'), 'utf8').digest('base64')}'`
   )
 
 const directive = (csp: string, name: string): string[] => {
