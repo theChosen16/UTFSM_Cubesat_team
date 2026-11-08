@@ -4,7 +4,7 @@
 
 **USM CubeSat Team** — plataforma web privada para gestión interna del equipo de nano-satélites de la UTFSM.
 Stack: React 18 + TypeScript + Vite + Tailwind CSS + Firebase (Auth / Firestore) + Google Drive vía Apps Script (uploads) + React Router v6.
-Deploy: GitHub Pages vía GitHub Actions (`https://thechosen16.github.io/UTFSM_Cubesat_team/`).
+Deploy: Cloudflare Workers (producción principal en `https://usm-cubesat-team.aleandreslive-cl.workers.dev`) + GitHub Pages (mirror en `https://thechosen16.github.io/UTFSM_Cubesat_team/`).
 
 ## Comandos esenciales
 
@@ -80,6 +80,13 @@ Las constantes de colección están en `src/lib/constants.ts` (`COLLECTIONS`).
 - **Admin**: gestión de contenido y miembros (excepto maestro/admin).
 - Miembros sin rol especial pueden actualizar campos específicos de sus tareas asignadas (ver `firestore.rules`).
 - `canManageWorkspace()` = `hasTeam('manager') || hasRole('maestro') || hasRole('admin')`.
+
+## Cloudflare Workers / Pages
+
+- Configuración en `wrangler.jsonc` con `assets.directory: "./docs"` y `not_found_handling: "single-page-application"`.
+- Los builds automáticos en Cloudflare ejecutan `npm run build` y `npx wrangler deploy`.
+- Dominio de producción: `https://usm-cubesat-team.aleandreslive-cl.workers.dev`.
+- El dominio debe estar autorizado en Firebase Authentication (Settings > Authorized domains).
 
 ## Reglas de Firebase
 
