@@ -295,7 +295,7 @@ export class EmailNotificationService {
           <!-- CALL TO ACTION -->
           <tr>
             <td style="padding: 0 24px 28px 24px; text-align: center;">
-              <a href="https://alean-b.github.io/Cubesat-team-page/" target="_blank" style="background: linear-gradient(90deg, #06b6d4, #a855f7); color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 10px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 15px rgba(6, 182, 212, 0.3); transition: all 0.2s;">
+              <a href="https://usm-cubesat-team.aleandreslive-cl.workers.dev/" target="_blank" style="background: linear-gradient(90deg, #06b6d4, #a855f7); color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 10px; font-weight: bold; font-size: 14px; display: inline-block; box-shadow: 0 4px 15px rgba(6, 182, 212, 0.3); transition: all 0.2s;">
                 Entrar al Portal CubeSat 🛰️
               </a>
             </td>

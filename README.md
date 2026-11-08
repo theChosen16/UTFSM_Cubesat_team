@@ -37,7 +37,8 @@ Sitio web oficial del equipo de nano satélites de la **Universidad Técnica Fed
 | Routing | [React Router v6](https://reactrouter.com/) |
 | Iconos | [Lucide React](https://lucide.dev/) |
 | Testing | [Vitest](https://vitest.dev/) + [Testing Library](https://testing-library.com/) + Firebase Emulators (E2E) |
-| CI/CD | GitHub Actions + GitHub Pages |
+| Hosting / Despliegue | [Cloudflare Workers](https://workers.cloudflare.com/) (Producción principal) + [GitHub Pages](https://pages.github.com/) (Mirror) |
+| CI/CD | GitHub Actions + Cloudflare Workers Builds |
 
 ## Funcionalidades
 
@@ -358,17 +359,53 @@ Los tests E2E cubren: autenticación (registro, roles, sign in/out), proyectos, 
 
 ## Despliegue
 
-El proyecto se publica de manera estática y gratuita en **GitHub Pages**. Dado que la facturación de GitHub (Actions Billing) en repositorios privados puede restringir la ejecución de workflows automáticos en la nube, el despliegue se realiza **manualmente desde el entorno local**, compilando la aplicación en la carpeta `/docs` directamente en la rama principal (`main`).
+La plataforma cuenta con un despliegue principal en **Cloudflare Workers** (con soporte nativo para Single Page Application y SSL automático) y mantiene compatibilidad como mirror en **GitHub Pages**.
 
-Para desplegar y actualizar el sitio web productivo:
+### 1. Despliegue Principal en Cloudflare Workers
 
-1. Asegúrate de tener configurado tu archivo `.env.local` con las variables de Firebase.
-2. Ejecuta el script de despliegue automatizado:
-   ```bash
-   npm run deploy
-   ```
-   Este comando compilará síncronamente el proyecto en modo de producción (`npm run build`), añadirá los cambios generados en `/docs`, confirmará el commit en Git y los subirá de forma segura a la rama remota `main`.
-3. Tu sitio se actualizará automáticamente y sin costo alguno en la URL pública: `https://thechosen16.github.io/UTFSM_Cubesat_team/`
+El sitio web oficial de producción se encuentra alojado en:
+🌐 **[https://usm-cubesat-team.aleandreslive-cl.workers.dev](https://usm-cubesat-team.aleandreslive-cl.workers.dev)**
+
+#### Configuración del Despliegue:
+- **Archivo de configuración**: `wrangler.jsonc` en la raíz del proyecto.
+  ```jsonc
+  {
+    "name": "usm-cubesat-team",
+    "compatibility_date": "2026-01-01",
+    "workers_dev": true,
+    "assets": {
+      "directory": "./docs",
+      "not_found_handling": "single-page-application"
+    }
+  }
+  ```
+- **Build automático**: Integrado con Cloudflare Workers Builds conectado al repositorio GitHub (`theChosen16/UTFSM_Cubesat_team`, rama `main`).
+  - **Comando de compilación**: `npm run build`
+  - **Comando de despliegue**: `npx wrangler deploy`
+  - **Directorio de salida**: `./docs`
+- **Variables de Entorno en Cloudflare**:
+  En el panel de Cloudflare (*Workers & Pages > usm-cubesat-team > Configuración > Variables de compilación*), se configuran las variables públicas de Firebase y servicios externos:
+  - `VITE_FIREBASE_API_KEY`
+  - `VITE_FIREBASE_AUTH_DOMAIN`
+  - `VITE_FIREBASE_PROJECT_ID`
+  - `VITE_FIREBASE_STORAGE_BUCKET`
+  - `VITE_FIREBASE_MESSAGING_SENDER_ID`
+  - `VITE_FIREBASE_APP_ID`
+  - `VITE_FIREBASE_MEASUREMENT_ID`
+  - `VITE_DRIVE_UPLOAD_URL`
+- **Autorización en Firebase Authentication**:
+  Para permitir que los usuarios inicien sesión correctamente desde el dominio de Cloudflare, `usm-cubesat-team.aleandreslive-cl.workers.dev` está registrado en **Firebase Console > Authentication > Settings > Authorized domains**.
+
+### 2. Despliegue Secundario en GitHub Pages
+
+El proyecto también puede publicarse de manera estática en GitHub Pages (`https://thechosen16.github.io/UTFSM_Cubesat_team/`).
+
+Para compilar y actualizar el build en la carpeta `/docs`:
+```bash
+npm run deploy
+```
+Este comando compilará síncronamente el proyecto en modo de producción (`npm run build`), añadirá los cambios generados en `/docs`, confirmará el commit en Git y los subirá de forma segura a la rama remota `main`.
+Tu sitio se actualizará automáticamente en la URL pública: `https://thechosen16.github.io/UTFSM_Cubesat_team/`
 
 ---
 
