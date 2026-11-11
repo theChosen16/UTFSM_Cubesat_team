@@ -9,6 +9,7 @@ import { db } from '@/lib/firebase'
 import { COLLECTIONS } from '@/lib/constants'
 import { Task, CalendarEvent, CalendarEventType } from '@/types'
 import { logger } from '@/lib/logger'
+import { neutralizeContextValue } from '@/lib/promptSafety'
 
 
 /**
@@ -37,6 +38,16 @@ const SAFE_DOCUMENT_ID = /^[A-Za-z0-9_-]{1,128}$/
  * una instrucción oculta en un acta podía plantar texto arbitrario —y de largo arbitrario— en un
  * documento ajeno que su dueño no puede corregir desde la UI.
  */
+/**
+ * Nombre de un miembro listo para volver al modelo dentro de una respuesta de herramienta.
+ * `nombre` y `apellido` los escribe cada miembro en su perfil (hasta 80 caracteres cada uno), así
+ * que son texto NO confiable: sin neutralizar, un nombre con saltos de línea o falsas cabeceras
+ * ("[SISTEMA] ...") se presenta ante el modelo como si fuera parte del resultado de la acción.
+ */
+function safeMemberName(nombre: unknown, apellido?: unknown): string {
+  return neutralizeContextValue([nombre, apellido].filter(p => typeof p === 'string' && p).join(' '), 60) || 'miembro'
+}
+
 const SAFE_BIRTHDAY = /^(\d{4}-)?(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/
 
 export interface AdminTaskArgs {
@@ -310,7 +321,7 @@ export class AdminActionsService {
 
       return {
         success: true,
-        message: `¡Excelente! He agendado el cumpleaños de ${userData.nombre || 'miembro'} para el ${args.fecha}. Se guardó en su bitácora social en Firestore.`
+        message: `¡Excelente! He agendado el cumpleaños de ${safeMemberName(userData.nombre)} para el ${args.fecha}. Se guardó en su bitácora social en Firestore.`
       }
     } catch (error) {
       logger.error('Error in AdminActionsService.registrarCumpleanos', { error: error instanceof Error ? error : undefined, args })
@@ -359,7 +370,7 @@ export class AdminActionsService {
 
         return {
           success: true,
-          message: `Participación de ${userData.nombre || 'miembro'} en CubeDesign 2026 ${confirmado ? 'confirmada' : 'cancelada'} exitosamente.`
+          message: `Participación de ${safeMemberName(userData.nombre)} en CubeDesign 2026 ${confirmado ? 'confirmada' : 'cancelada'} exitosamente.`
         }
       }
 
@@ -395,8 +406,8 @@ export class AdminActionsService {
 
         const report = `Informe de Auditoría CubeDesign 2026 (24-27 de Noviembre):\n\n` +
           `👥 Nómina de Participantes:\n` +
-          `- Miembros Confirmados (${confirmedUsers.length}): ${confirmedUsers.map(u => `${u.nombre} ${u.apellido}`).join(', ') || 'Ninguno'}\n` +
-          `- Miembros Pendientes (${pendingUsers.length}): ${pendingUsers.map(u => `${u.nombre} ${u.apellido}`).join(', ') || 'Ninguno'}\n\n` +
+          `- Miembros Confirmados (${confirmedUsers.length}): ${confirmedUsers.map(u => safeMemberName(u.nombre, u.apellido)).join(', ') || 'Ninguno'}\n` +
+          `- Miembros Pendientes (${pendingUsers.length}): ${pendingUsers.map(u => safeMemberName(u.nombre, u.apellido)).join(', ') || 'Ninguno'}\n\n` +
           `📋 Avance Técnico (#CubeDesign):\n` +
           `- Tareas totales vinculadas: ${totalTasks}\n` +
           `  * Completadas: ${completedTasks}\n` +

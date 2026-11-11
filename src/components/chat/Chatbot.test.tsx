@@ -68,7 +68,7 @@ describe('Chatbot', () => {
     fireEvent.click(screen.getByRole('button', { name: /enviar mensaje/i }))
 
     await waitFor(() => {
-      expect(sendMessageMock).toHaveBeenCalledWith('Estado de la misión', 'user-id', 'member', null)
+      expect(sendMessageMock).toHaveBeenCalledWith('Estado de la misión', 'user-id', 'member', null, expect.any(Function))
       expect(screen.getByText('Respuesta de prueba')).toBeInTheDocument()
     })
   })
