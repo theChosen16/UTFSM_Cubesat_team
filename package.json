@@ -60,7 +60,7 @@
   },
   "overrides": {
     "@grpc/grpc-js": "^1.14.6",
-    "@hono/node-server": "^2.1.5",
+    "@hono/node-server": "^2.1.8",
     "@opentelemetry/core": ">=2.8.0",
     "@tootallnate/once": "^3.0.1",
     "basic-ftp": "^6.2.3",
