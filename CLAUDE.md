@@ -84,7 +84,7 @@ Las constantes de colección están en `src/lib/constants.ts` (`COLLECTIONS`).
 ## Cloudflare Workers / Pages
 
 - Configuración en `wrangler.jsonc` con `assets.directory: "./docs"` y `not_found_handling: "single-page-application"`.
-- Los builds automáticos en Cloudflare ejecutan `npm run build` y `npx wrangler deploy`.
+- Los builds automáticos en Cloudflare solo están activos para `main` (`npm run build` y `npx wrangler deploy`); los preview builds para ramas de PR están deshabilitados en el dashboard de Cloudflare.
 - Dominio de producción: `https://usm-cubesat-team.aleandreslive-cl.workers.dev`.
 - El dominio debe estar autorizado en Firebase Authentication (Settings > Authorized domains).
 

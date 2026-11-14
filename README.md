@@ -383,6 +383,7 @@ El sitio web oficial de producción se encuentra alojado en:
   - **Comando de compilación**: `npm run build`
   - **Comando de despliegue**: `npx wrangler deploy`
   - **Directorio de salida**: `./docs`
+  - **Ramas de vista previa (PRs)**: Deshabilitadas en el dashboard de Cloudflare (*Base de vistas previas*); solo `main` compila y despliega automáticamente.
 - **Variables de Entorno en Cloudflare**:
   En el panel de Cloudflare (*Workers & Pages > usm-cubesat-team > Configuración > Variables de compilación*), se configuran las variables públicas de Firebase y servicios externos:
   - `VITE_FIREBASE_API_KEY`
