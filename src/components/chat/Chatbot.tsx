@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Bot, X, Send, User as UserIcon, Loader2, Paperclip, FileText, CheckCircle2, AlertCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
-import { BotService } from '@/sdk/BotService'
+import { BotService, type AdminActionConfirmer } from '@/sdk/BotService'
 import { useAuth } from '@/contexts/AuthContext'
 import { FileParser } from '@/utils/fileParser'
 import { ProcessedBotFile } from '@/types'
@@ -14,6 +14,14 @@ interface Message {
   fileName?: string
   fileMimeType?: string
 }
+
+/**
+ * Toda acción administrativa que modifique datos y que el modelo decida invocar se somete a la
+ * persona antes de ejecutarse. El resumen lo arma BotService a partir de los argumentos, no del
+ * texto libre del modelo (ver `executeAdminAction`).
+ */
+const confirmAdminAction: AdminActionConfirmer = ({ summary }) =>
+  window.confirm(`Cubesat Bot solicita ejecutar una acción administrativa:\n\n${summary}\n\n¿Autorizas esta acción?`)
 
 export function Chatbot() {
   const { user } = useAuth()
@@ -158,7 +166,7 @@ export function Chatbot() {
     setIsTyping(true)
 
     // Llamar motor del BotService con telemetría de usuario y archivo procesado
-    const aiResponse = await BotService.sendMessage(userMessage, user?.id, user?.rol, fileToSend)
+    const aiResponse = await BotService.sendMessage(userMessage, user?.id, user?.rol, fileToSend, confirmAdminAction)
 
     setMessages(prev => [...prev, { role: 'model', content: aiResponse }])
     setIsTyping(false)
@@ -171,7 +179,7 @@ export function Chatbot() {
     setMessages(prev => [...prev, { role: 'user', content: prompt }])
     setIsTyping(true)
 
-    const aiResponse = await BotService.sendMessage(prompt, user?.id, user?.rol, null)
+    const aiResponse = await BotService.sendMessage(prompt, user?.id, user?.rol, null, confirmAdminAction)
 
     setMessages(prev => [...prev, { role: 'model', content: aiResponse }])
     setIsTyping(false)
