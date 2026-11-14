@@ -69,6 +69,7 @@
     "csv-parse": "^7.0.2",
     "fast-uri": "^4.2.1",
     "hono": "^4.13.11",
+    "minimatch@^9": "^11.0.1",
     "minimatch@^10": "^11.0.1",
     "postcss-selector-parser": "^7.1.6",
     "proxy-addr": "^2.0.8",
